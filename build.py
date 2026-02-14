@@ -652,6 +652,15 @@ def build_planes_js():
     </script>"""
 
 
+def build_metro_js():
+    with open('js/metro.js', 'r', encoding='utf-8') as f:
+        content = f.read()
+    return f"""    <!-- Metro Lines -->
+    <script>
+{content}
+    </script>"""
+
+
 def main():
     data = parse_content('content.md')
 
@@ -679,6 +688,8 @@ def main():
         build_footer(data),
         '',
         build_planes_js(),
+        '',
+        build_metro_js(),
         '',
         build_modal_js(modals_js),
         '</body>',
