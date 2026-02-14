@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guerdon</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        serif: ['Lora', 'serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        stone: {
+                            50: '#fafaf9',
+                            100: '#f5f5f4',
+                            200: '#e7e5e4',
+                            800: '#292524',
+                            900: '#1c1917',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Clean, utilitarian borders */
+        .border-theme {
+            border-color: #e5e5e5;
+        }
+        
+        /* Modal Transitions */
+        .modal {
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .modal-content {
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+        }
+        .modal.active .modal-content {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="bg-stone-50 text-stone-900 antialiased selection:bg-stone-200 selection:text-stone-900 relative">
+
+    <!-- Paper Plane Canvas Layers -->
+    <!-- Changed from fixed to absolute, set to full height/width -->
+    <canvas id="planes-canvas" class="absolute top-0 left-0 w-full h-full pointer-events-none z-0 opacity-40"></canvas>
+
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 bg-stone-50/90 backdrop-blur-sm border-b border-stone-200" id="navbar">
+        <div class="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="#" class="font-sans font-bold text-lg tracking-tight uppercase">Guerdon</a>
+            
+            <div class="hidden md:flex space-x-8 font-sans text-sm font-medium text-stone-600">
+                <a href="#about" class="hover:text-stone-900 transition-colors">About</a>
+                <a href="#roles" class="hover:text-stone-900 transition-colors">Roles</a>
+                <a href="#resume" class="hover:text-stone-900 transition-colors">Resume</a>
+                <a href="#society" class="hover:text-stone-900 transition-colors">Society</a>
+                <a href="#projects" class="hover:text-stone-900 transition-colors">Projects</a>
+                <a href="#contact" class="hover:text-stone-900 transition-colors">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Detail Overlay (Simulated Page) -->
+    <div id="detail-overlay" class="fixed inset-0 z-[60] bg-stone-50/95 backdrop-blur-md opacity-0 invisible modal overflow-y-auto">
+        <div class="min-h-screen flex items-center justify-center p-6">
+            <div class="bg-white border border-stone-200 shadow-xl max-w-3xl w-full p-12 modal-content relative">
+                <button onclick="closeDetail()" class="absolute top-6 right-6 text-stone-400 hover:text-stone-900 transition-colors">
+                    <i class="fa-solid fa-xmark text-2xl"></i>
+                </button>
+                <div id="detail-content">
+                    <!-- Dynamic Content Inserted Here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hero Section -->
+    <section class="min-h-[80vh] flex flex-col justify-center max-w-5xl mx-auto px-6 pt-24 relative z-10">
+        <div class="max-w-3xl space-y-8">
+            <h1 class="font-serif text-5xl md:text-6xl leading-tight font-medium text-stone-900">
+                Constructing a life of creativity, advocacy, and community.
+            </h1>
+            
+            <div class="space-y-6">
+                <p class="font-sans text-lg text-stone-600 max-w-2xl leading-relaxed">
+                    I am working to re-enchant the world through a synthesis of technology and natural philosophy. My work spans three distinct disciplines, all serving a singular vision of a more collaborative, democratic future.
+                </p>
+                
+                <div class="flex flex-wrap gap-3 font-mono text-xs uppercase tracking-wide text-stone-500 pt-4">
+                    <span class="px-3 py-1 border border-stone-300 rounded-sm">Writer</span>
+                    <span class="px-3 py-1 border border-stone-300 rounded-sm">Programmer</span>
+                    <span class="px-3 py-1 border border-stone-300 rounded-sm">Activist</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Philosophy / About -->
+    <section id="about" class="py-20 border-t border-stone-200 relative z-10 bg-stone-50/80 backdrop-blur-sm">
+        <div class="max-w-5xl mx-auto px-6 grid grid-cols-1 md:grid-cols-12 gap-12">
+            <div class="md:col-span-4">
+                <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400">Philosophy</h2>
+            </div>
+            <div class="md:col-span-8 space-y-8">
+                <blockquote class="font-serif text-2xl italic text-stone-800 border-l-2 border-stone-900 pl-6 py-1">
+                    "Logic and science do not dispel the magic of reality; they catalogue and explain it."
+                </blockquote>
+                
+                <div class="prose prose-stone text-stone-600">
+                    <p class="leading-relaxed">
+                        We are currently at a plateau. Our hard secular culture offers tools, but lacks guidance. My approach—the "New Romantic" era—is a practical response to this depletion. It is not a rejection of reason, but an expansion of it to include the inherent strangeness and beauty of existence as a core data point.
+                    </p>
+                    <p class="leading-relaxed">
+                        I aim to bridge the gap between abstract ideals and concrete reality: building software that enforces democratic equality, and writing poetry that documents urban ecology.
+                    </p>
+                </div>
+
+                <!-- Current Status Box -->
+                <div class="bg-stone-100 p-6 border border-stone-200 mt-8">
+                    <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-4">Current Focus</h3>
+                    <ul class="space-y-3 font-mono text-sm text-stone-700">
+                        <li class="flex justify-between border-b border-stone-200 pb-2">
+                            <span>Location</span>
+                            <span>Bay Area, CA</span>
+                        </li>
+                        <li class="flex justify-between border-b border-stone-200 pb-2">
+                            <span>Training</span>
+                            <span>Mendocino Coast 50k (Apr '26)</span>
+                        </li>
+                        <li class="flex justify-between border-b border-stone-200 pb-2">
+                            <span>Reading</span>
+                            <span>"The New Romantic" Implications</span>
+                        </li>
+                        <li class="flex justify-between pt-1">
+                            <span>Status</span>
+                            <span class="text-green-700">● Open for Freelance</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Roles Grid -->
+    <section id="roles" class="py-20 border-t border-stone-200 relative z-10 bg-stone-50">
+        <div class="max-w-5xl mx-auto px-6">
+            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-12">Discipline & Practice</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-px bg-stone-200 border border-stone-200">
+                <!-- Writer -->
+                <div class="bg-stone-50 p-10 hover:bg-white transition-colors">
+                    <div class="mb-4 text-stone-400">01</div>
+                    <h3 class="font-serif text-2xl text-stone-900 mb-4">The Writer</h3>
+                    <p class="text-stone-600 leading-relaxed text-sm">
+                        Articulating the vision. Compiling the "Dictionary of Implications" to map the symbols of our era, merging mathematical constants with mythic archetypes.
+                    </p>
+                </div>
+
+                <!-- Programmer -->
+                <div class="bg-stone-50 p-10 hover:bg-white transition-colors">
+                    <div class="mb-4 text-stone-400">02</div>
+                    <h3 class="font-mono text-xl text-stone-900 mb-4 font-medium">The Programmer</h3>
+                    <p class="text-stone-600 leading-relaxed text-sm">
+                        Building infrastructure. Developing the Democracy Protocol—a liquid democracy primitive designed to create parallel governance structures.
+                    </p>
+                </div>
+
+                <!-- Activist -->
+                <div class="bg-stone-50 p-10 hover:bg-white transition-colors">
+                    <div class="mb-4 text-stone-400">03</div>
+                    <h3 class="font-serif text-2xl text-stone-900 mb-4">The Activist</h3>
+                    <p class="text-stone-600 leading-relaxed text-sm">
+                        Building power. Creating networks of Intentional Collaborative Communities that provide direct care, education, and shared resources.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Live Resume Section -->
+    <section id="resume" class="py-20 border-t border-stone-200 relative z-10 bg-stone-50/80 backdrop-blur-sm">
+        <div class="max-w-5xl mx-auto px-6">
+            <div class="flex justify-between items-end mb-12">
+                <div>
+                    <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400">Live Resume</h2>
+                    <p class="font-serif text-3xl text-stone-900 mt-2">History & Toolkit</p>
+                </div>
+                <a href="https://docs.google.com/document/d/18-Zc_nEQHMU7lTMQQeGHAtKmWmvCUEVMQu6HVv7g2j8/edit?tab=t.0#heading=h.mb6p9a1b80la" target="_blank" class="hidden md:inline-flex items-center gap-2 text-stone-500 hover:text-stone-900 transition-colors font-mono text-xs border border-stone-300 px-3 py-2 rounded-sm bg-white">
+                    <i class="fa-solid fa-file-pdf"></i> View PDF
+                </a>
+            </div>
+
+            <!-- Skills Cards -->
+            <div class="mb-16">
+                <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-6 border-b border-stone-200 pb-2">Proficiencies</h3>
+                
+                <div class="space-y-6">
+                    <div>
+                        <span class="font-serif text-stone-400 italic text-sm mr-4">Languages</span>
+                        <div class="inline-flex flex-wrap gap-2">
+                            <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">Python</span>
+                            <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">C#</span>
+                            <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">JavaScript</span>
+                            <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">Shell (BASH)</span>
+                            <span class="px-3 py-1 bg-stone-100 border border-stone-200 text-stone-500 text-xs font-mono rounded">Go</span>
+                            <span class="px-3 py-1 bg-stone-100 border border-stone-200 text-stone-500 text-xs font-mono rounded">Typescript</span>
+                            <span class="px-3 py-1 bg-stone-100 border border-stone-200 text-stone-500 text-xs font-mono rounded">SQL</span>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <span class="font-serif text-stone-400 italic text-sm mr-4">Web & Cloud</span>
+                        <div class="inline-flex flex-wrap gap-2">
+                            <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">React</span>
+                            <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">Firebase</span>
+                            <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">MongoDB</span>
+                            <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">Node/NPM</span>
+                            <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">Flask</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <span class="font-serif text-stone-400 italic text-sm mr-4">Tooling</span>
+                        <div class="inline-flex flex-wrap gap-2">
+                            <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">Git</span>
+                            <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">Docker</span>
+                            <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">LaTeX</span>
+                            <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">vim</span>
+                            <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">ArcGIS</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Experience Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- Card 1 -->
+                <button onclick="openDetail('seri')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i class="fa-solid fa-arrow-right -rotate-45 text-stone-400"></i>
+                    </div>
+                    <span class="inline-block px-2 py-1 bg-stone-100 text-stone-500 font-mono text-[10px] uppercase tracking-wider mb-4">Research</span>
+                    <h3 class="font-serif text-xl text-stone-900 group-hover:text-stone-600 transition-colors">Swiss Existential Risk Initiative</h3>
+                    <p class="font-mono text-xs text-stone-500 mt-1 mb-4">Research Fellow • July-Sept 2022</p>
+                    <p class="text-stone-600 text-sm leading-relaxed line-clamp-3">
+                        Pursued a program of self-directed alignment research. Conducted extensive technical literature reviews and designed complex multi-agent Inverse Reinforcement Learning systems.
+                    </p>
+                </button>
+
+                <!-- Card 2 -->
+                <button onclick="openDetail('spark')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i class="fa-solid fa-arrow-right -rotate-45 text-stone-400"></i>
+                    </div>
+                    <span class="inline-block px-2 py-1 bg-stone-100 text-stone-500 font-mono text-[10px] uppercase tracking-wider mb-4">Data Science</span>
+                    <h3 class="font-serif text-xl text-stone-900 group-hover:text-stone-600 transition-colors">BU Spark! Data Science for Good</h3>
+                    <p class="font-mono text-xs text-stone-500 mt-1 mb-4">Team Member • Jan-May 2024</p>
+                    <p class="text-stone-600 text-sm leading-relaxed line-clamp-3">
+                        Investigated and retrieved data from FOIA requests. Headed data analytics, marshaling millions of data items into coherent insights for the ACLU of MA.
+                    </p>
+                </button>
+
+                <!-- Card 3 -->
+                <button onclick="openDetail('mailbox')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i class="fa-solid fa-arrow-right -rotate-45 text-stone-400"></i>
+                    </div>
+                    <span class="inline-block px-2 py-1 bg-stone-100 text-stone-500 font-mono text-[10px] uppercase tracking-wider mb-4">Project</span>
+                    <h3 class="font-serif text-xl text-stone-900 group-hover:text-stone-600 transition-colors">The Mailbox Project</h3>
+                    <p class="font-mono text-xs text-stone-500 mt-1 mb-4">Founder & Developer</p>
+                    <p class="text-stone-600 text-sm leading-relaxed line-clamp-3">
+                        Founded an initiative to help access care by locating General Mailing Addresses (GMAs) nationwide. Created a comprehensive GMA database served through a custom web interface.
+                    </p>
+                </button>
+
+                <!-- Card 4 -->
+                <button onclick="openDetail('hacks')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i class="fa-solid fa-arrow-right -rotate-45 text-stone-400"></i>
+                    </div>
+                    <span class="inline-block px-2 py-1 bg-stone-100 text-stone-500 font-mono text-[10px] uppercase tracking-wider mb-4">Leadership</span>
+                    <h3 class="font-serif text-xl text-stone-900 group-hover:text-stone-600 transition-colors">BostonHacks</h3>
+                    <p class="font-mono text-xs text-stone-500 mt-1 mb-4">Head of Logistics • 2023</p>
+                    <p class="text-stone-600 text-sm leading-relaxed line-clamp-3">
+                        Orchestrated event logistics for a multi-day hackathon with over 400 attendees. Facilitated cross-team collaboration, leading a team of 57.
+                    </p>
+                </button>
+
+                <!-- Card 5 -->
+                <button onclick="openDetail('extension')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i class="fa-solid fa-arrow-right -rotate-45 text-stone-400"></i>
+                    </div>
+                    <span class="inline-block px-2 py-1 bg-stone-100 text-stone-500 font-mono text-[10px] uppercase tracking-wider mb-4">Project</span>
+                    <h3 class="font-serif text-xl text-stone-900 group-hover:text-stone-600 transition-colors">Web Arranger Extension</h3>
+                    <p class="font-mono text-xs text-stone-500 mt-1 mb-4">HackHarvard Winner (24hr build)</p>
+                    <p class="text-stone-600 text-sm leading-relaxed line-clamp-3">
+                        Engineered a Chrome extension augmenting webpages through a visual editor, enhancing accessibility and user control over webpage elements.
+                    </p>
+                </button>
+
+                <!-- Card 6 -->
+                <button onclick="openDetail('habitot')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i class="fa-solid fa-arrow-right -rotate-45 text-stone-400"></i>
+                    </div>
+                    <span class="inline-block px-2 py-1 bg-stone-100 text-stone-500 font-mono text-[10px] uppercase tracking-wider mb-4">Design</span>
+                    <h3 class="font-serif text-xl text-stone-900 group-hover:text-stone-600 transition-colors">Habitot Children’s Museum</h3>
+                    <p class="font-mono text-xs text-stone-500 mt-1 mb-4">Design Intern • 2022</p>
+                    <p class="text-stone-600 text-sm leading-relaxed line-clamp-3">
+                        Aided in the technical and graphical overhaul of the company website, enhancing user engagement and corporate branding.
+                    </p>
+                </button>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- The Society / Call to Action -->
+    <section id="society" class="py-20 border-t border-stone-200 bg-stone-100 relative z-10">
+        <div class="max-w-5xl mx-auto px-6">
+            <div class="max-w-3xl">
+                <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">The Society</h2>
+                <p class="font-serif text-lg text-stone-900 mb-4 leading-relaxed">
+                    I maintain an informal society of talented, cool people aligned with the broad vision of a post-modern "romantic era".
+                </p>
+                <p class="text-stone-600 text-lg leading-relaxed mb-8">
+                    If interested, please provide contact information and a brief bio.
+                </p>
+                <a href="mailto:contact@guerdon.com" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors">
+                    Send Introduction <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Projects List -->
+    <section id="projects" class="py-20 border-t border-stone-200 relative z-10 bg-stone-50">
+        <div class="max-w-5xl mx-auto px-6">
+            <div class="flex items-baseline justify-between mb-12">
+                <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400">Selected Projects from the Society</h2>
+            </div>
+
+            <div class="space-y-0">
+                <!-- Project 1 -->
+                <div class="group py-8 border-t border-stone-200 flex flex-col md:flex-row gap-6 md:items-start hover:bg-stone-100 transition-colors px-4 -mx-4">
+                    <div class="md:w-1/4">
+                        <h3 class="font-serif text-xl text-stone-900 group-hover:underline decoration-1 underline-offset-4">Democracy Protocol</h3>
+                        <span class="font-mono text-xs text-stone-500 mt-1 block">Keystone Project</span>
+                    </div>
+                    <div class="md:w-2/4">
+                        <p class="text-stone-600 leading-relaxed text-sm">
+                            A liquid democracy social network protocol allowing users to draft legislation and direct strategic funds. The goal is to evolve from a social network into a defined, parallel government.
+                        </p>
+                    </div>
+                    <div class="md:w-1/4 text-right md:text-right flex gap-2 justify-end">
+                        <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Governance</span>
+                        <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Web3</span>
+                    </div>
+                </div>
+
+                <!-- Project 2 -->
+                <div class="group py-8 border-t border-stone-200 flex flex-col md:flex-row gap-6 md:items-start hover:bg-stone-100 transition-colors px-4 -mx-4">
+                    <div class="md:w-1/4">
+                        <h3 class="font-serif text-xl text-stone-900 group-hover:underline decoration-1 underline-offset-4">The Village</h3>
+                        <span class="font-mono text-xs text-stone-500 mt-1 block">Living Vision</span>
+                    </div>
+                    <div class="md:w-2/4">
+                        <p class="text-stone-600 leading-relaxed text-sm">
+                            A network of Intentional Collaborative Communities. Nodes of resident experts (doctors, tradespeople) providing direct care and education. Anti-elitist and service-oriented.
+                        </p>
+                    </div>
+                    <div class="md:w-1/4 text-right md:text-right flex gap-2 justify-end">
+                        <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Architecture</span>
+                        <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Community</span>
+                    </div>
+                </div>
+
+                <!-- Project 3 -->
+                <div class="group py-8 border-t border-b border-stone-200 flex flex-col md:flex-row gap-6 md:items-start hover:bg-stone-100 transition-colors px-4 -mx-4">
+                    <div class="md:w-1/4">
+                        <h3 class="font-serif text-xl text-stone-900 group-hover:underline decoration-1 underline-offset-4">The Codex</h3>
+                        <span class="font-mono text-xs text-stone-500 mt-1 block">Cultural Infrastructure</span>
+                    </div>
+                    <div class="md:w-2/4">
+                        <p class="text-stone-600 leading-relaxed text-sm">
+                            A "Dictionary of Implications." A living document connecting numerology, physics, myth, and sociology to define the symbols and language of the New Romantic era.
+                        </p>
+                    </div>
+                    <div class="md:w-1/4 text-right md:text-right flex gap-2 justify-end">
+                        <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Literature</span>
+                        <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Theory</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <section id="contact" class="py-20 bg-stone-900 text-stone-400 relative z-10">
+        <div class="max-w-5xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-12">
+            <div>
+                <h2 class="font-serif text-2xl text-stone-50 mb-6">Contact</h2>
+                <div class="space-y-4">
+                    <a href="https://github.com/GuerdonL" target="_blank" class="block hover:text-white transition-colors flex items-center gap-3">
+                        <i class="fa-brands fa-github"></i> github.com/GuerdonL
+                    </a>
+                    <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
+                        <i class="fa-solid fa-envelope"></i> [Email Address]
+                    </a>
+                    <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
+                        <i class="fa-brands fa-linkedin"></i> LinkedIn
+                    </a>
+                </div>
+            </div>
+            <div class="md:text-right flex flex-col justify-end">
+                <p class="font-mono text-xs uppercase tracking-wide text-stone-500 mb-2">
+                    Theme: The New Romantic
+                </p>
+                <p class="font-serif text-lg italic text-stone-300">
+                    "A life is constructed through chance guided by genuine interest."
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Script for Paper Airplanes -->
+    <script>
+        const canvas = document.getElementById('planes-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width, height;
+
+        // Resize Canvas to full document height
+        function resize() {
+            width = window.innerWidth;
+            // Use the max height of the document to cover the whole scrollable area
+            const body = document.body;
+            const html = document.documentElement;
+            
+            height = Math.max( 
+                body.scrollHeight, body.offsetHeight, 
+                html.clientHeight, html.scrollHeight, html.offsetHeight 
+            );
+            
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        // Call resize immediately to set initial size
+        // Use setTimeout to ensure DOM is fully calculated
+        setTimeout(resize, 100);
+
+        class Plane {
+            constructor() {
+                // Ensure dimensions are set before init
+                if (!width || !height) resize();
+                
+                this.reset();
+                // Randomize start y to fill the ENTIRE page height initially
+                this.y = Math.random() * height;
+            }
+
+            reset() {
+                this.x = Math.random() * width;
+                
+                // Fix: Spawn relative to current scroll position so they don't disappear
+                // if the user is scrolled down.
+                const scrollY = window.scrollY || window.pageYOffset;
+                this.y = scrollY - 50 - (Math.random() * 50);
+                
+                // Scale: Random range [0.5, 0.9] - Keeping them small/background
+                this.scale = 0.5 + Math.random() * 0.4; 
+                
+                // No blur needed for background planes, keeping it sharp and clean
+                this.blur = 0;
+
+                // Initial velocity: Downward bias with random spread
+                // Much Slower initial speed
+                const baseSpeed = 1.5 + Math.random() * 1.5; 
+                const speed = baseSpeed * this.scale * 0.8; 
+                
+                const angle = (Math.PI / 2) + (Math.random() - 0.5) * 1.5; 
+                
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+
+                this.history = [];
+                this.historyLimit = 40;
+                
+                // Physics constants
+                // Low drag to keep energy for loops
+                const baseDrag = 0.0005 + Math.random() * 0.0005; 
+                // Higher lift to make them floaty
+                const baseLift = 0.005 + Math.random() * 0.002;   
+                // Lower gravity for slow motion feel
+                const baseGravity = 0.015; 
+
+                this.dragCoeff = baseDrag / this.scale; 
+                this.liftCoeff = baseLift / this.scale;   
+                this.gravity = baseGravity * this.scale; 
+                
+                this.turbulence = Math.random() * 100;
+                this.loopBoost = 0; // Timer for "updraft" lift boost
+                
+                // Independent wobble phase for visual flutter
+                this.wobblePhase = Math.random() * Math.PI * 2;
+            }
+
+            update() {
+                // 1. Calculate Speed
+                const speedSq = this.vx * this.vx + this.vy * this.vy;
+                const speed = Math.sqrt(speedSq);
+
+                // Randomly trigger a "Loop" (Updraft)
+                if (this.loopBoost > 0) {
+                    this.loopBoost--;
+                } else if (Math.random() < 0.001) { // Reduced chance slightly
+                    this.loopBoost = 60; // Boost lift for 60 frames
+                }
+
+                if (speed < 0.1) {
+                    this.vy += this.gravity;
+                } else {
+                    // 2. Forces
+                    const dragMag = this.dragCoeff * speedSq;
+                    const dragX = -dragMag * (this.vx / speed);
+                    const dragY = -dragMag * (this.vy / speed);
+
+                    let liftDir = 1;
+                    if (this.vx < 0) liftDir = -1;
+
+                    let lx = (this.vy / speed);
+                    let ly = (-this.vx / speed);
+                    
+                    if (this.vx < 0) {
+                        lx = -lx;
+                        ly = -ly;
+                    }
+
+                    // Apply Lift
+                    // If catching updraft (loopBoost), boost lift to force a loop
+                    // Reduced multiplier slightly for stability
+                    let effectiveLift = this.liftCoeff;
+                    if (this.loopBoost > 0) effectiveLift *= 2.5;
+
+                    const liftMag = effectiveLift * speedSq;
+                    const liftX = liftMag * lx;
+                    const liftY = liftMag * ly;
+
+                    const gravY = this.gravity;
+
+                    this.turbulence += 0.02;
+                    // Add Vertical drafts (windY) as well as horizontal
+                    const windX = Math.sin(this.turbulence) * (0.002 * this.scale);
+                    const windY = Math.cos(this.turbulence * 0.5) * (0.002 * this.scale) - 0.001; // Slight updraft bias
+
+                    this.vx += dragX + liftX + windX;
+                    this.vy += dragY + liftY + gravY + windY;
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Bounds Check with History Reset
+                let wrapped = false;
+                if (this.x > width + 50) {
+                    this.x = -50;
+                    wrapped = true;
+                }
+                if (this.x < -50) {
+                    this.x = width + 50;
+                    wrapped = true;
+                }
+                
+                // Reset if falls past the BOTTOM of the entire page OR far below viewport
+                // We use scrollY to detect if it's way below the user to recycle it faster
+                const scrollY = window.scrollY || window.pageYOffset;
+                const viewportHeight = window.innerHeight;
+                
+                // If plane is > 100px below the current viewport bottom, recycle it
+                if (this.y > scrollY + viewportHeight + 100) {
+                    this.reset();
+                    wrapped = true; 
+                }
+                // Also safety check for document bottom
+                else if (this.y > height + 100) {
+                    this.reset();
+                    wrapped = true;
+                }
+
+                if (wrapped) {
+                    this.history = [];
+                } else {
+                    this.history.push({x: this.x, y: this.y});
+                    if (this.history.length > this.historyLimit) {
+                        this.history.shift();
+                    }
+                }
+            }
+
+            draw() {
+                const angle = Math.atan2(this.vy, this.vx);
+                
+                // Add visual "Wobble" / Flutter
+                // Decoupled from position (this.x) to prevent high-speed jitter
+                // Slower frequency, random phase offset
+                const flutter = Math.sin(Date.now() * 0.003 + this.wobblePhase) * 0.08;
+                
+                ctx.save();
+                
+                // Draw Trail
+                if (this.history.length > 1) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(68, 64, 60, 0.4)'; // Lower opacity trail
+                    ctx.setLineDash([3 * this.scale, 5 * this.scale]); 
+                    ctx.lineWidth = 1 * this.scale; 
+                    ctx.moveTo(this.history[0].x, this.history[0].y);
+                    for (let i = 1; i < this.history.length; i++) {
+                        ctx.lineTo(this.history[i].x, this.history[i].y);
+                    }
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+                // Draw Plane
+                ctx.translate(this.x, this.y);
+                ctx.scale(this.scale, this.scale); 
+                ctx.rotate(angle + flutter); // Apply flutter here
+
+                ctx.beginPath();
+                ctx.fillStyle = '#e7e5e4'; 
+                ctx.strokeStyle = '#292524'; 
+                ctx.lineWidth = 1.5;
+                
+                // Plane Geometry
+                ctx.moveTo(10, 0);   // Nose
+                ctx.lineTo(-8, 7);   // Left Wing
+                ctx.lineTo(-4, 0);   // Center Notch
+                ctx.lineTo(-8, -7);  // Right Wing
+                ctx.closePath();
+                
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(10, 0);
+                ctx.lineTo(-4, 0);
+                ctx.stroke();
+
+                ctx.restore();
+            }
+        }
+
+        const planes = [];
+        const planeCount = 18; // Increased slightly
+
+        for (let i = 0; i < planeCount; i++) {
+            planes.push(new Plane());
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            
+            planes.forEach(plane => {
+                plane.update();
+                plane.draw();
+            });
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+
+    <!-- Content for Modals -->
+    <script>
+        const resumeDetails = {
+            'seri': {
+                title: 'Swiss Existential Risk Initiative',
+                role: 'Research Fellow',
+                date: 'July-Sept 2022',
+                content: `
+                    <h4 class="font-bold mb-2">Overview</h4>
+                    <p class="mb-4 text-stone-600">Pursued a rigorous program of self-directed alignment research focused on reducing existential risk from advanced AI systems.</p>
+                    
+                    <h4 class="font-bold mb-2">Key Contributions</h4>
+                    <ul class="list-disc pl-5 space-y-2 text-stone-600 mb-6">
+                        <li>Conducted extensive technical literature reviews in the field of AI safety.</li>
+                        <li>Designed complex multi-agent Inverse Reinforcement Learning (IRL) systems to test alignment hypotheses.</li>
+                        <li>Disseminated findings via technical and lay reports, translating complex alignment concepts for broader audiences.</li>
+                    </ul>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">Python</span>
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">PyTorch</span>
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">Reinforcement Learning</span>
+                    </div>
+                `
+            },
+            'spark': {
+                title: 'BU Spark! Data Science for Good',
+                role: 'Team Member - StopShotSpotter',
+                date: 'Jan-May 2024',
+                content: `
+                    <h4 class="font-bold mb-2">Overview</h4>
+                    <p class="mb-4 text-stone-600">Collaborated with the ACLU of Massachusetts and "The Black Response" to analyze the efficacy and impact of ShotSpotter acoustic surveillance technology.</p>
+                    
+                    <h4 class="font-bold mb-2">Key Contributions</h4>
+                    <ul class="list-disc pl-5 space-y-2 text-stone-600 mb-6">
+                        <li>Investigated and retrieved relevant data via FOIA requests, public records, and governmental agents.</li>
+                        <li>Headed data analytics, marshaling millions of data items from separate sources into coherent insights.</li>
+                        <li>Created and presented technical and non-technical presentations weekly to stakeholders.</li>
+                    </ul>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">Python (Pandas)</span>
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">Data Viz</span>
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">ArcGIS</span>
+                    </div>
+                `
+            },
+            'mailbox': {
+                title: 'The Mailbox Project',
+                role: 'Founder & Developer',
+                date: '2023 - Present',
+                content: `
+                    <h4 class="font-bold mb-2">Overview</h4>
+                    <p class="mb-4 text-stone-600">Founded an initiative to help unhoused individuals access medical care by locating General Mailing Addresses (GMAs) nationwide for secure medication delivery.</p>
+                    
+                    <h4 class="font-bold mb-2">Key Contributions</h4>
+                    <ul class="list-disc pl-5 space-y-2 text-stone-600 mb-6">
+                        <li>Architected and developed a full-stack web application serving a comprehensive GMA database.</li>
+                        <li>Designed a user-friendly interface optimized for accessibility.</li>
+                        <li>Managed data collection and verification for thousands of locations across the US.</li>
+                    </ul>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">React</span>
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">Node.js</span>
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">MongoDB</span>
+                    </div>
+                `
+            },
+            'hacks': {
+                title: 'BostonHacks',
+                role: 'Secretary & Head of Logistics',
+                date: '2023',
+                content: `
+                    <h4 class="font-bold mb-2">Overview</h4>
+                    <p class="mb-4 text-stone-600">Orchestrated one of Boston's largest student-run hackathons.</p>
+                    
+                    <h4 class="font-bold mb-2">Key Contributions</h4>
+                    <ul class="list-disc pl-5 space-y-2 text-stone-600 mb-6">
+                        <li> managed event logistics for a multi-day event with over 400 attendees.</li>
+                        <li>Facilitated cross-team collaboration, leading a team of 57 organizers.</li>
+                        <li>Handled vendor negotiations, venue setup, and emergency protocols.</li>
+                    </ul>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">Leadership</span>
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">Project Mgmt</span>
+                    </div>
+                `
+            },
+            'extension': {
+                title: 'Web Arranger Extension',
+                role: 'Developer',
+                date: 'HackHarvard 2023',
+                content: `
+                    <h4 class="font-bold mb-2">Overview</h4>
+                    <p class="mb-4 text-stone-600">Built a Chrome extension during a 24-hour hackathon that allows users to visually edit and rearrange any webpage for better accessibility.</p>
+                    
+                    <h4 class="font-bold mb-2">Key Contributions</h4>
+                    <ul class="list-disc pl-5 space-y-2 text-stone-600 mb-6">
+                        <li>Engineered DOM manipulation logic to make static page elements draggable and editable.</li>
+                        <li>Implemented a persisting state system so edits remain after refresh.</li>
+                        <li>Built entirely solo within the 24-hour time limit.</li>
+                    </ul>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">JavaScript</span>
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">Chrome API</span>
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">DOM API</span>
+                    </div>
+                `
+            },
+            'habitot': {
+                title: 'Habitot Children’s Museum',
+                role: 'Paid Design Intern',
+                date: '2022',
+                content: `
+                    <h4 class="font-bold mb-2">Overview</h4>
+                    <p class="mb-4 text-stone-600">Contributed to the digital transformation of a beloved local children's museum.</p>
+                    
+                    <h4 class="font-bold mb-2">Key Contributions</h4>
+                    <ul class="list-disc pl-5 space-y-2 text-stone-600 mb-6">
+                        <li>Aided in the technical and graphical overhaul of the company website.</li>
+                        <li>Enhanced user engagement metrics through improved UI/UX design.</li>
+                        <li>Translated the museum's design vision into concrete digital assets.</li>
+                    </ul>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">Web Design</span>
+                        <span class="px-2 py-1 bg-stone-100 text-xs font-mono">CMS</span>
+                    </div>
+                `
+            }
+        };
+
+        function openDetail(key) {
+            const data = resumeDetails[key];
+            const content = document.getElementById('detail-content');
+            const overlay = document.getElementById('detail-overlay');
+            
+            content.innerHTML = `
+                <h2 class="font-serif text-3xl text-stone-900 mb-2">${data.title}</h2>
+                <p class="font-mono text-stone-500 mb-8 border-b border-stone-100 pb-4">${data.role} • ${data.date}</p>
+                <div class="prose prose-stone">
+                    ${data.content}
+                </div>
+            `;
+            
+            overlay.classList.remove('invisible', 'opacity-0');
+            overlay.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent scrolling background
+        }
+
+        function closeDetail() {
+            const overlay = document.getElementById('detail-overlay');
+            overlay.classList.add('invisible', 'opacity-0');
+            overlay.classList.remove('active');
+            document.body.style.overflow = ''; // Restore scrolling
+        }
+
+        // Close on escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === "Escape") {
+                closeDetail();
+            }
+        });
+
+        // Close on clicking outside modal
+        document.getElementById('detail-overlay').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeDetail();
+            }
+        });
+    </script>
+</body>
+</html>
