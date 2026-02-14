@@ -36,7 +36,7 @@
         .border-theme {
             border-color: #e5e5e5;
         }
-        
+
         /* Modal Transitions */
         .modal {
             transition: opacity 0.3s ease, visibility 0.3s ease;
@@ -60,7 +60,7 @@
     <nav class="fixed w-full z-50 bg-stone-50/90 backdrop-blur-sm border-b border-stone-200" id="navbar">
         <div class="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
             <a href="#" class="font-sans font-bold text-lg tracking-tight uppercase">Guerdon</a>
-            
+
             <div class="hidden md:flex space-x-8 font-sans text-sm font-medium text-stone-600">
                 <a href="#about" class="hover:text-stone-900 transition-colors">About</a>
                 <a href="#roles" class="hover:text-stone-900 transition-colors">Roles</a>
@@ -92,12 +92,12 @@
             <h1 class="font-serif text-5xl md:text-6xl leading-tight font-medium text-stone-900">
                 Constructing a life of creativity, advocacy, and community.
             </h1>
-            
+
             <div class="space-y-6">
                 <p class="font-sans text-lg text-stone-600 max-w-2xl leading-relaxed">
                     I am working to re-enchant the world through a synthesis of technology and natural philosophy. My work spans three distinct disciplines, all serving a singular vision of a more collaborative, democratic future.
                 </p>
-                
+
                 <div class="flex flex-wrap gap-3 font-mono text-xs uppercase tracking-wide text-stone-500 pt-4">
                     <span class="px-3 py-1 border border-stone-300 rounded-sm">Writer</span>
                     <span class="px-3 py-1 border border-stone-300 rounded-sm">Programmer</span>
@@ -117,7 +117,7 @@
                 <blockquote class="font-serif text-2xl italic text-stone-800 border-l-2 border-stone-900 pl-6 py-1">
                     "Logic and science do not dispel the magic of reality; they catalogue and explain it."
                 </blockquote>
-                
+
                 <div class="prose prose-stone text-stone-600">
                     <p class="leading-relaxed">
                         We are currently at a plateau. Our hard secular culture offers tools, but lacks guidance. My approach—the "New Romantic" era—is a practical response to this depletion. It is not a rejection of reason, but an expansion of it to include the inherent strangeness and beauty of existence as a core data point.
@@ -157,7 +157,7 @@
     <section id="roles" class="py-20 border-t border-stone-200 relative z-10 bg-stone-50">
         <div class="max-w-5xl mx-auto px-6">
             <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-12">Discipline & Practice</h2>
-            
+
             <div class="grid grid-cols-1 md:grid-cols-3 gap-px bg-stone-200 border border-stone-200">
                 <!-- Writer -->
                 <div class="bg-stone-50 p-10 hover:bg-white transition-colors">
@@ -205,7 +205,7 @@
             <!-- Skills Cards -->
             <div class="mb-16">
                 <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-6 border-b border-stone-200 pb-2">Proficiencies</h3>
-                
+
                 <div class="space-y-6">
                     <div>
                         <span class="font-serif text-stone-400 italic text-sm mr-4">Languages</span>
@@ -219,7 +219,7 @@
                             <span class="px-3 py-1 bg-stone-100 border border-stone-200 text-stone-500 text-xs font-mono rounded">SQL</span>
                         </div>
                     </div>
-                    
+
                     <div>
                         <span class="font-serif text-stone-400 italic text-sm mr-4">Web & Cloud</span>
                         <div class="inline-flex flex-wrap gap-2">
@@ -246,7 +246,7 @@
 
             <!-- Experience Grid -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
+
                 <!-- Card 1 -->
                 <button onclick="openDetail('seri')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
                     <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -441,7 +441,7 @@
     <script>
         const canvas = document.getElementById('planes-canvas');
         const ctx = canvas.getContext('2d');
-        
+
         let width, height;
 
         // Resize Canvas to full document height
@@ -450,12 +450,12 @@
             // Use the max height of the document to cover the whole scrollable area
             const body = document.body;
             const html = document.documentElement;
-            
-            height = Math.max( 
-                body.scrollHeight, body.offsetHeight, 
-                html.clientHeight, html.scrollHeight, html.offsetHeight 
+
+            height = Math.max(
+                body.scrollHeight, body.offsetHeight,
+                html.clientHeight, html.scrollHeight, html.offsetHeight
             );
-            
+
             canvas.width = width;
             canvas.height = height;
         }
@@ -468,7 +468,7 @@
             constructor() {
                 // Ensure dimensions are set before init
                 if (!width || !height) resize();
-                
+
                 this.reset();
                 // Randomize start y to fill the ENTIRE page height initially
                 this.y = Math.random() * height;
@@ -476,46 +476,46 @@
 
             reset() {
                 this.x = Math.random() * width;
-                
+
                 // Fix: Spawn relative to current scroll position so they don't disappear
                 // if the user is scrolled down.
                 const scrollY = window.scrollY || window.pageYOffset;
                 this.y = scrollY - 50 - (Math.random() * 50);
-                
+
                 // Scale: Random range [0.5, 0.9] - Keeping them small/background
-                this.scale = 0.5 + Math.random() * 0.4; 
-                
+                this.scale = 0.5 + Math.random() * 0.4;
+
                 // No blur needed for background planes, keeping it sharp and clean
                 this.blur = 0;
 
                 // Initial velocity: Downward bias with random spread
                 // Much Slower initial speed
-                const baseSpeed = 1.5 + Math.random() * 1.5; 
-                const speed = baseSpeed * this.scale * 0.8; 
-                
-                const angle = (Math.PI / 2) + (Math.random() - 0.5) * 1.5; 
-                
+                const baseSpeed = 1.5 + Math.random() * 1.5;
+                const speed = baseSpeed * this.scale * 0.8;
+
+                const angle = (Math.PI / 2) + (Math.random() - 0.5) * 1.5;
+
                 this.vx = Math.cos(angle) * speed;
                 this.vy = Math.sin(angle) * speed;
 
                 this.history = [];
                 this.historyLimit = 40;
-                
+
                 // Physics constants
                 // Low drag to keep energy for loops
-                const baseDrag = 0.0005 + Math.random() * 0.0005; 
+                const baseDrag = 0.0005 + Math.random() * 0.0005;
                 // Higher lift to make them floaty
-                const baseLift = 0.005 + Math.random() * 0.002;   
+                const baseLift = 0.005 + Math.random() * 0.002;
                 // Lower gravity for slow motion feel
-                const baseGravity = 0.015; 
+                const baseGravity = 0.015;
 
-                this.dragCoeff = baseDrag / this.scale; 
-                this.liftCoeff = baseLift / this.scale;   
-                this.gravity = baseGravity * this.scale; 
-                
+                this.dragCoeff = baseDrag / this.scale;
+                this.liftCoeff = baseLift / this.scale;
+                this.gravity = baseGravity * this.scale;
+
                 this.turbulence = Math.random() * 100;
                 this.loopBoost = 0; // Timer for "updraft" lift boost
-                
+
                 // Independent wobble phase for visual flutter
                 this.wobblePhase = Math.random() * Math.PI * 2;
             }
@@ -545,7 +545,7 @@
 
                     let lx = (this.vy / speed);
                     let ly = (-this.vx / speed);
-                    
+
                     if (this.vx < 0) {
                         lx = -lx;
                         ly = -ly;
@@ -585,16 +585,16 @@
                     this.x = width + 50;
                     wrapped = true;
                 }
-                
+
                 // Reset if falls past the BOTTOM of the entire page OR far below viewport
                 // We use scrollY to detect if it's way below the user to recycle it faster
                 const scrollY = window.scrollY || window.pageYOffset;
                 const viewportHeight = window.innerHeight;
-                
+
                 // If plane is > 100px below the current viewport bottom, recycle it
                 if (this.y > scrollY + viewportHeight + 100) {
                     this.reset();
-                    wrapped = true; 
+                    wrapped = true;
                 }
                 // Also safety check for document bottom
                 else if (this.y > height + 100) {
@@ -614,20 +614,20 @@
 
             draw() {
                 const angle = Math.atan2(this.vy, this.vx);
-                
+
                 // Add visual "Wobble" / Flutter
                 // Decoupled from position (this.x) to prevent high-speed jitter
                 // Slower frequency, random phase offset
                 const flutter = Math.sin(Date.now() * 0.003 + this.wobblePhase) * 0.08;
-                
+
                 ctx.save();
-                
+
                 // Draw Trail
                 if (this.history.length > 1) {
                     ctx.beginPath();
                     ctx.strokeStyle = 'rgba(68, 64, 60, 0.4)'; // Lower opacity trail
-                    ctx.setLineDash([3 * this.scale, 5 * this.scale]); 
-                    ctx.lineWidth = 1 * this.scale; 
+                    ctx.setLineDash([3 * this.scale, 5 * this.scale]);
+                    ctx.lineWidth = 1 * this.scale;
                     ctx.moveTo(this.history[0].x, this.history[0].y);
                     for (let i = 1; i < this.history.length; i++) {
                         ctx.lineTo(this.history[i].x, this.history[i].y);
@@ -638,21 +638,21 @@
 
                 // Draw Plane
                 ctx.translate(this.x, this.y);
-                ctx.scale(this.scale, this.scale); 
+                ctx.scale(this.scale, this.scale);
                 ctx.rotate(angle + flutter); // Apply flutter here
 
                 ctx.beginPath();
-                ctx.fillStyle = '#e7e5e4'; 
-                ctx.strokeStyle = '#292524'; 
+                ctx.fillStyle = '#e7e5e4';
+                ctx.strokeStyle = '#292524';
                 ctx.lineWidth = 1.5;
-                
+
                 // Plane Geometry
                 ctx.moveTo(10, 0);   // Nose
                 ctx.lineTo(-8, 7);   // Left Wing
                 ctx.lineTo(-4, 0);   // Center Notch
                 ctx.lineTo(-8, -7);  // Right Wing
                 ctx.closePath();
-                
+
                 ctx.fill();
                 ctx.stroke();
 
@@ -674,7 +674,7 @@
 
         function animate() {
             ctx.clearRect(0, 0, width, height);
-            
+
             planes.forEach(plane => {
                 plane.update();
                 plane.draw();
@@ -683,6 +683,7 @@
         }
 
         animate();
+
     </script>
 
     <!-- Content for Modals -->
@@ -695,7 +696,7 @@
                 content: `
                     <h4 class="font-bold mb-2">Overview</h4>
                     <p class="mb-4 text-stone-600">Pursued a rigorous program of self-directed alignment research focused on reducing existential risk from advanced AI systems.</p>
-                    
+
                     <h4 class="font-bold mb-2">Key Contributions</h4>
                     <ul class="list-disc pl-5 space-y-2 text-stone-600 mb-6">
                         <li>Conducted extensive technical literature reviews in the field of AI safety.</li>
@@ -716,7 +717,7 @@
                 content: `
                     <h4 class="font-bold mb-2">Overview</h4>
                     <p class="mb-4 text-stone-600">Collaborated with the ACLU of Massachusetts and "The Black Response" to analyze the efficacy and impact of ShotSpotter acoustic surveillance technology.</p>
-                    
+
                     <h4 class="font-bold mb-2">Key Contributions</h4>
                     <ul class="list-disc pl-5 space-y-2 text-stone-600 mb-6">
                         <li>Investigated and retrieved relevant data via FOIA requests, public records, and governmental agents.</li>
@@ -737,7 +738,7 @@
                 content: `
                     <h4 class="font-bold mb-2">Overview</h4>
                     <p class="mb-4 text-stone-600">Founded an initiative to help unhoused individuals access medical care by locating General Mailing Addresses (GMAs) nationwide for secure medication delivery.</p>
-                    
+
                     <h4 class="font-bold mb-2">Key Contributions</h4>
                     <ul class="list-disc pl-5 space-y-2 text-stone-600 mb-6">
                         <li>Architected and developed a full-stack web application serving a comprehensive GMA database.</li>
@@ -758,7 +759,7 @@
                 content: `
                     <h4 class="font-bold mb-2">Overview</h4>
                     <p class="mb-4 text-stone-600">Orchestrated one of Boston's largest student-run hackathons.</p>
-                    
+
                     <h4 class="font-bold mb-2">Key Contributions</h4>
                     <ul class="list-disc pl-5 space-y-2 text-stone-600 mb-6">
                         <li> managed event logistics for a multi-day event with over 400 attendees.</li>
@@ -778,7 +779,7 @@
                 content: `
                     <h4 class="font-bold mb-2">Overview</h4>
                     <p class="mb-4 text-stone-600">Built a Chrome extension during a 24-hour hackathon that allows users to visually edit and rearrange any webpage for better accessibility.</p>
-                    
+
                     <h4 class="font-bold mb-2">Key Contributions</h4>
                     <ul class="list-disc pl-5 space-y-2 text-stone-600 mb-6">
                         <li>Engineered DOM manipulation logic to make static page elements draggable and editable.</li>
@@ -799,7 +800,7 @@
                 content: `
                     <h4 class="font-bold mb-2">Overview</h4>
                     <p class="mb-4 text-stone-600">Contributed to the digital transformation of a beloved local children's museum.</p>
-                    
+
                     <h4 class="font-bold mb-2">Key Contributions</h4>
                     <ul class="list-disc pl-5 space-y-2 text-stone-600 mb-6">
                         <li>Aided in the technical and graphical overhaul of the company website.</li>
@@ -818,7 +819,7 @@
             const data = resumeDetails[key];
             const content = document.getElementById('detail-content');
             const overlay = document.getElementById('detail-overlay');
-            
+
             content.innerHTML = `
                 <h2 class="font-serif text-3xl text-stone-900 mb-2">${data.title}</h2>
                 <p class="font-mono text-stone-500 mb-8 border-b border-stone-100 pb-4">${data.role} • ${data.date}</p>
@@ -826,7 +827,7 @@
                     ${data.content}
                 </div>
             `;
-            
+
             overlay.classList.remove('invisible', 'opacity-0');
             overlay.classList.add('active');
             document.body.style.overflow = 'hidden'; // Prevent scrolling background
@@ -852,6 +853,7 @@
                 closeDetail();
             }
         });
+
     </script>
 </body>
 </html>
