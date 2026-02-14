@@ -52,6 +52,7 @@
 </head>
 <body class="bg-stone-50 text-stone-900 antialiased selection:bg-stone-200 selection:text-stone-900 relative">
 
+
     <!-- Paper Plane Canvas Layers -->
     <!-- Changed from fixed to absolute, set to full height/width -->
     <canvas id="planes-canvas" class="absolute top-0 left-0 w-full h-full pointer-events-none z-0 opacity-40"></canvas>
@@ -72,6 +73,7 @@
         </div>
     </nav>
 
+
     <!-- Detail Overlay (Simulated Page) -->
     <div id="detail-overlay" class="fixed inset-0 z-[60] bg-stone-50/95 backdrop-blur-md opacity-0 invisible modal overflow-y-auto">
         <div class="min-h-screen flex items-center justify-center p-6">
@@ -85,6 +87,7 @@
             </div>
         </div>
     </div>
+
 
     <!-- Hero Section -->
     <section class="min-h-[80vh] flex flex-col justify-center max-w-5xl mx-auto px-6 pt-24 relative z-10">
@@ -115,7 +118,7 @@
             </div>
             <div class="md:col-span-8 space-y-8">
                 <blockquote class="font-serif text-2xl italic text-stone-800 border-l-2 border-stone-900 pl-6 py-1">
-                    "Logic and science do not dispel the magic of reality; they catalogue and explain it."
+                    “Logic and science do not dispel the magic of reality; they catalogue and explain it.”
                 </blockquote>
 
                 <div class="prose prose-stone text-stone-600">
@@ -159,6 +162,7 @@
             <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-12">Discipline & Practice</h2>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-px bg-stone-200 border border-stone-200">
+
                 <!-- Writer -->
                 <div class="bg-stone-50 p-10 hover:bg-white transition-colors">
                     <div class="mb-4 text-stone-400">01</div>
@@ -247,7 +251,7 @@
             <!-- Experience Grid -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                <!-- Card 1 -->
+                <!-- Card -->
                 <button onclick="openDetail('seri')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
                     <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                         <i class="fa-solid fa-arrow-right -rotate-45 text-stone-400"></i>
@@ -260,7 +264,7 @@
                     </p>
                 </button>
 
-                <!-- Card 2 -->
+                <!-- Card -->
                 <button onclick="openDetail('spark')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
                     <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                         <i class="fa-solid fa-arrow-right -rotate-45 text-stone-400"></i>
@@ -273,7 +277,7 @@
                     </p>
                 </button>
 
-                <!-- Card 3 -->
+                <!-- Card -->
                 <button onclick="openDetail('mailbox')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
                     <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                         <i class="fa-solid fa-arrow-right -rotate-45 text-stone-400"></i>
@@ -286,7 +290,7 @@
                     </p>
                 </button>
 
-                <!-- Card 4 -->
+                <!-- Card -->
                 <button onclick="openDetail('hacks')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
                     <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                         <i class="fa-solid fa-arrow-right -rotate-45 text-stone-400"></i>
@@ -299,7 +303,7 @@
                     </p>
                 </button>
 
-                <!-- Card 5 -->
+                <!-- Card -->
                 <button onclick="openDetail('extension')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
                     <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                         <i class="fa-solid fa-arrow-right -rotate-45 text-stone-400"></i>
@@ -312,7 +316,7 @@
                     </p>
                 </button>
 
-                <!-- Card 6 -->
+                <!-- Card -->
                 <button onclick="openDetail('habitot')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
                     <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                         <i class="fa-solid fa-arrow-right -rotate-45 text-stone-400"></i>
@@ -355,7 +359,7 @@
             </div>
 
             <div class="space-y-0">
-                <!-- Project 1 -->
+                <!-- Project -->
                 <div class="group py-8 border-t border-stone-200 flex flex-col md:flex-row gap-6 md:items-start hover:bg-stone-100 transition-colors px-4 -mx-4">
                     <div class="md:w-1/4">
                         <h3 class="font-serif text-xl text-stone-900 group-hover:underline decoration-1 underline-offset-4">Democracy Protocol</h3>
@@ -372,7 +376,7 @@
                     </div>
                 </div>
 
-                <!-- Project 2 -->
+                <!-- Project -->
                 <div class="group py-8 border-t border-stone-200 flex flex-col md:flex-row gap-6 md:items-start hover:bg-stone-100 transition-colors px-4 -mx-4">
                     <div class="md:w-1/4">
                         <h3 class="font-serif text-xl text-stone-900 group-hover:underline decoration-1 underline-offset-4">The Village</h3>
@@ -389,7 +393,7 @@
                     </div>
                 </div>
 
-                <!-- Project 3 -->
+                <!-- Project -->
                 <div class="group py-8 border-t border-b border-stone-200 flex flex-col md:flex-row gap-6 md:items-start hover:bg-stone-100 transition-colors px-4 -mx-4">
                     <div class="md:w-1/4">
                         <h3 class="font-serif text-xl text-stone-900 group-hover:underline decoration-1 underline-offset-4">The Codex</h3>
@@ -431,7 +435,7 @@
                     Theme: The New Romantic
                 </p>
                 <p class="font-serif text-lg italic text-stone-300">
-                    "A life is constructed through chance guided by genuine interest."
+                    “A life is constructed through chance guided by genuine interest.”
                 </p>
             </div>
         </div>
@@ -762,7 +766,7 @@
 
                     <h4 class="font-bold mb-2">Key Contributions</h4>
                     <ul class="list-disc pl-5 space-y-2 text-stone-600 mb-6">
-                        <li> managed event logistics for a multi-day event with over 400 attendees.</li>
+                        <li>managed event logistics for a multi-day event with over 400 attendees.</li>
                         <li>Facilitated cross-team collaboration, leading a team of 57 organizers.</li>
                         <li>Handled vendor negotiations, venue setup, and emergency protocols.</li>
                     </ul>
@@ -799,7 +803,7 @@
                 date: '2022',
                 content: `
                     <h4 class="font-bold mb-2">Overview</h4>
-                    <p class="mb-4 text-stone-600">Contributed to the digital transformation of a beloved local children's museum.</p>
+                    <p class="mb-4 text-stone-600">Contributed to the digital transformation of a beloved local children’s museum.</p>
 
                     <h4 class="font-bold mb-2">Key Contributions</h4>
                     <ul class="list-disc pl-5 space-y-2 text-stone-600 mb-6">
@@ -853,7 +857,6 @@
                 closeDetail();
             }
         });
-
     </script>
 </body>
 </html>
