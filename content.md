@@ -6,7 +6,6 @@ Constructing a life of creativity, advocacy, and community.
 
 ## Description
 
-I am working to re-enchant the world through a synthesis of technology and natural philosophy. My work spans three distinct disciplines, all serving a singular vision of a more collaborative, democratic future.
 
 ## Tags
 
