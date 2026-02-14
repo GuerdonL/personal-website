@@ -20,7 +20,7 @@ I am working to re-enchant the world through a synthesis of technology and natur
 
 ## Label
 
-Philosophy
+My Philosophy
 
 ## Quote
 
