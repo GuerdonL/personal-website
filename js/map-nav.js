@@ -91,6 +91,55 @@
     }
 
     /**
+     * Round sharp corners in a polyline by replacing each interior vertex
+     * with a short quadratic-bezier-style arc.  `radius` controls how far
+     * back from the corner the rounding starts (in px).
+     */
+    function roundCorners(pts, radius) {
+        if (pts.length < 3) return pts;
+        radius = radius || 120;
+        var SUBDIVS = 8;           // points per rounded corner
+        var out = [pts[0]];
+
+        for (var i = 1; i < pts.length - 1; i++) {
+            var prev = pts[i - 1];
+            var cur  = pts[i];
+            var next = pts[i + 1];
+
+            // Vectors into and out of the corner
+            var dxIn  = cur.x - prev.x, dyIn  = cur.y - prev.y;
+            var dxOut = next.x - cur.x,  dyOut = next.y - cur.y;
+            var lenIn  = Math.sqrt(dxIn * dxIn + dyIn * dyIn);
+            var lenOut = Math.sqrt(dxOut * dxOut + dyOut * dyOut);
+
+            if (lenIn < 1 || lenOut < 1) { out.push(cur); continue; }
+
+            // Don't round if the direction barely changes
+            var dot = (dxIn * dxOut + dyIn * dyOut) / (lenIn * lenOut);
+            if (dot > 0.98) { out.push(cur); continue; }
+
+            // Clamp radius so we don't overshoot either segment
+            var r = Math.min(radius, lenIn * 0.4, lenOut * 0.4);
+
+            var pA = { x: cur.x - (dxIn / lenIn) * r, y: cur.y - (dyIn / lenIn) * r };
+            var pB = { x: cur.x + (dxOut / lenOut) * r, y: cur.y + (dyOut / lenOut) * r };
+
+            // Quadratic bezier: P = (1-t)^2 * pA + 2(1-t)t * cur + t^2 * pB
+            for (var s = 0; s <= SUBDIVS; s++) {
+                var t = s / SUBDIVS;
+                var u = 1 - t;
+                out.push({
+                    x: u * u * pA.x + 2 * u * t * cur.x + t * t * pB.x,
+                    y: u * u * pA.y + 2 * u * t * cur.y + t * t * pB.y
+                });
+            }
+        }
+
+        out.push(pts[pts.length - 1]);
+        return out;
+    }
+
+    /**
      * Compute cumulative arc-length distances along a polyline.
      * Returns array of same length as pts, starting at 0.
      */
@@ -198,6 +247,9 @@
             applyTransform(endTransform.tx, endTransform.ty, endTransform.scale);
             return;
         }
+
+        // Smooth out sharp direction changes
+        route = roundCorners(route, 150);
 
         var dists = cumulativeDistances(route);
         var totalDist = dists[dists.length - 1];
