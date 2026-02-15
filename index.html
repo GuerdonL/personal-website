@@ -1564,11 +1564,19 @@ community.
         var dists = cumulativeDistances(route);
         var totalDist = dists[dists.length - 1];
 
-        // Duration: 0.5ms per px of path distance, clamped to [600, 2000]ms
-        var duration = Math.max(600, Math.min(totalDist * 0.5, 2000));
+        // Duration: 1.2ms per px of path distance, clamped to [1000, 3500]ms
+        var pathDuration = Math.max(1000, Math.min(totalDist * 1.2, 3500));
+        // Extra time at the end for the zoom-out reveal
+        var zoomOutDuration = 600;
+        var totalDuration = pathDuration + zoomOutDuration;
 
         var startScale = startTransform.scale;
         var endScale = endTransform.scale;
+        // Zoom in while traveling: closer to 1:1 world scale
+        var travelScale = Math.min(1.15, Math.max(startScale, endScale) * 1.6);
+
+        // Fraction of total time spent following the path
+        var pathFrac = pathDuration / totalDuration;
 
         // Disable CSS transition during RAF animation
         world.style.transition = 'none';
@@ -1578,14 +1586,21 @@ community.
         function tick(timestamp) {
             if (!startTime) startTime = timestamp;
             var elapsed = timestamp - startTime;
-            var rawT = Math.min(elapsed / duration, 1);
-            var t = easeInOutCubic(rawT);
+            var rawT = Math.min(elapsed / totalDuration, 1);
 
-            // Interpolate position along the path
-            var pos = interpolateAlongPath(route, dists, t * totalDist);
+            var pos, scale;
 
-            // Interpolate scale
-            var scale = startScale + (endScale - startScale) * t;
+            if (rawT <= pathFrac) {
+                // Phase 1: follow the path, zooming in to travelScale
+                var pt = easeInOutCubic(rawT / pathFrac);
+                pos = interpolateAlongPath(route, dists, pt * totalDist);
+                scale = startScale + (travelScale - startScale) * pt;
+            } else {
+                // Phase 2: hold at destination, zoom out to fit station
+                var zt = easeInOutCubic((rawT - pathFrac) / (1 - pathFrac));
+                pos = route[route.length - 1];
+                scale = travelScale + (endScale - travelScale) * zt;
+            }
 
             // Compute transform to center this world point
             var transform = computePointTransform(pos.x, pos.y, scale);
