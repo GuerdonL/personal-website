@@ -2,14 +2,16 @@
  * Map Navigation — panning engine for the 2D metro world.
  *
  * panTo(stationId) smoothly translates #metro-world so the target
- * station is centered in the viewport.  On mobile (<768px) falls
- * back to scrollIntoView().
+ * station is centered in the viewport.  When a metro route exists
+ * between the current and target stations, the viewport follows
+ * the metro line path.  On mobile (<768px) falls back to scrollIntoView().
  */
 (function () {
     var world = null;
     var viewport = null;
     var hubBtn = null;
     var currentStation = 'hero';
+    var animFrameId = null;
 
     var WORLD_W = 4000;
     var WORLD_H = 4000;
@@ -19,60 +21,128 @@
     }
 
     /**
-     * Pan (and scale) the world so the given station fits and is
-     * centered in the viewport.
+     * Compute the transform parameters (tx, ty, scale) needed to
+     * center a given station in the viewport.
      */
-    function panTo(stationId) {
+    function computeStationTransform(stationId) {
         var station = document.getElementById(stationId);
-        if (!station) return;
+        if (!station || !viewport) return null;
 
-        if (isMobile()) {
-            station.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            currentStation = stationId;
-            return;
-        }
-
-        if (!world || !viewport) return;
-
-        // Station dimensions and center in world coordinates
         var sw = station.offsetWidth;
         var sh = station.offsetHeight;
         var sx = station.offsetLeft + sw / 2;
         var sy = station.offsetTop + sh / 2;
 
-        // Viewport dimensions
         var vw = viewport.offsetWidth;
         var vh = viewport.offsetHeight;
 
-        // Available space (account for navbar and padding)
         var padTop = 80;
         var padBottom = 40;
         var padX = 60;
         var availW = vw - padX * 2;
         var availH = vh - padTop - padBottom;
 
-        // Scale to fit station in available space (never scale up)
         var scale = Math.min(availW / sw, availH / sh, 1);
 
-        // Target center point in viewport (offset for navbar)
         var targetX = vw / 2;
         var targetY = padTop + availH / 2;
 
-        // With transform-origin 0 0 and translate(tx,ty) scale(s),
-        // world point (wx,wy) maps to screen (tx + wx*s, ty + wy*s)
         var tx = targetX - sx * scale;
         var ty = targetY - sy * scale;
 
-        // Clamp so we don't show space beyond the scaled world
         var scaledW = WORLD_W * scale;
         var scaledH = WORLD_H * scale;
         tx = Math.min(0, Math.max(tx, -(scaledW - vw)));
         ty = Math.min(0, Math.max(ty, -(scaledH - vh)));
 
-        world.style.transform = 'translate(' + tx + 'px, ' + ty + 'px) scale(' + scale + ')';
-        currentStation = stationId;
+        return { tx: tx, ty: ty, scale: scale, cx: sx, cy: sy };
+    }
 
-        // Show/hide hub button
+    /**
+     * Compute the transform to center an arbitrary world point (wx, wy)
+     * at a given scale.
+     */
+    function computePointTransform(wx, wy, scale) {
+        if (!viewport) return null;
+
+        var vw = viewport.offsetWidth;
+        var vh = viewport.offsetHeight;
+        var padTop = 80;
+        var padBottom = 40;
+        var availH = vh - padTop - padBottom;
+
+        var targetX = vw / 2;
+        var targetY = padTop + availH / 2;
+
+        var tx = targetX - wx * scale;
+        var ty = targetY - wy * scale;
+
+        var scaledW = WORLD_W * scale;
+        var scaledH = WORLD_H * scale;
+        tx = Math.min(0, Math.max(tx, -(scaledW - vw)));
+        ty = Math.min(0, Math.max(ty, -(scaledH - vh)));
+
+        return { tx: tx, ty: ty };
+    }
+
+    /** Cubic ease-in-out */
+    function easeInOutCubic(t) {
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    /**
+     * Compute cumulative arc-length distances along a polyline.
+     * Returns array of same length as pts, starting at 0.
+     */
+    function cumulativeDistances(pts) {
+        var dists = [0];
+        for (var i = 1; i < pts.length; i++) {
+            var dx = pts[i].x - pts[i - 1].x;
+            var dy = pts[i].y - pts[i - 1].y;
+            dists.push(dists[i - 1] + Math.sqrt(dx * dx + dy * dy));
+        }
+        return dists;
+    }
+
+    /**
+     * Given cumulative distances and a target distance, interpolate
+     * the position along the polyline.
+     */
+    function interpolateAlongPath(pts, dists, targetDist) {
+        if (targetDist <= 0) return { x: pts[0].x, y: pts[0].y };
+        var totalDist = dists[dists.length - 1];
+        if (targetDist >= totalDist) return { x: pts[pts.length - 1].x, y: pts[pts.length - 1].y };
+
+        // Binary search for the segment
+        var lo = 0, hi = dists.length - 1;
+        while (lo < hi - 1) {
+            var mid = (lo + hi) >> 1;
+            if (dists[mid] <= targetDist) lo = mid;
+            else hi = mid;
+        }
+
+        var segLen = dists[hi] - dists[lo];
+        var frac = segLen > 0 ? (targetDist - dists[lo]) / segLen : 0;
+        return {
+            x: pts[lo].x + (pts[hi].x - pts[lo].x) * frac,
+            y: pts[lo].y + (pts[hi].y - pts[lo].y) * frac
+        };
+    }
+
+    /** Cancel any running path animation. */
+    function cancelAnimation() {
+        if (animFrameId) {
+            cancelAnimationFrame(animFrameId);
+            animFrameId = null;
+        }
+    }
+
+    /** Apply transform and update hub button visibility. */
+    function applyTransform(tx, ty, scale) {
+        world.style.transform = 'translate(' + tx + 'px, ' + ty + 'px) scale(' + scale + ')';
+    }
+
+    function updateHubButton(stationId) {
         if (hubBtn) {
             if (stationId === 'hero') {
                 hubBtn.classList.remove('visible');
@@ -80,6 +150,98 @@
                 hubBtn.classList.add('visible');
             }
         }
+    }
+
+    /**
+     * Pan (and scale) the world so the given station fits and is
+     * centered in the viewport.  If a metro route exists, animate
+     * along it.
+     */
+    function panTo(stationId) {
+        var station = document.getElementById(stationId);
+        if (!station) return;
+
+        if (isMobile()) {
+            cancelAnimation();
+            station.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            currentStation = stationId;
+            return;
+        }
+
+        if (!world || !viewport) return;
+
+        var endTransform = computeStationTransform(stationId);
+        if (!endTransform) return;
+
+        var prevStation = currentStation;
+        currentStation = stationId;
+        updateHubButton(stationId);
+
+        // Try to get a metro route for path-following animation
+        var route = null;
+        if (prevStation !== stationId && window.getMetroRoute) {
+            route = window.getMetroRoute(prevStation, stationId);
+        }
+
+        cancelAnimation();
+
+        if (!route || route.length < 2) {
+            // No route — instant jump
+            world.style.transition = '';
+            applyTransform(endTransform.tx, endTransform.ty, endTransform.scale);
+            return;
+        }
+
+        // Compute animation parameters
+        var startTransform = computeStationTransform(prevStation);
+        if (!startTransform) {
+            applyTransform(endTransform.tx, endTransform.ty, endTransform.scale);
+            return;
+        }
+
+        var dists = cumulativeDistances(route);
+        var totalDist = dists[dists.length - 1];
+
+        // Duration: 0.5ms per px of path distance, clamped to [600, 2000]ms
+        var duration = Math.max(600, Math.min(totalDist * 0.5, 2000));
+
+        var startScale = startTransform.scale;
+        var endScale = endTransform.scale;
+
+        // Disable CSS transition during RAF animation
+        world.style.transition = 'none';
+
+        var startTime = null;
+
+        function tick(timestamp) {
+            if (!startTime) startTime = timestamp;
+            var elapsed = timestamp - startTime;
+            var rawT = Math.min(elapsed / duration, 1);
+            var t = easeInOutCubic(rawT);
+
+            // Interpolate position along the path
+            var pos = interpolateAlongPath(route, dists, t * totalDist);
+
+            // Interpolate scale
+            var scale = startScale + (endScale - startScale) * t;
+
+            // Compute transform to center this world point
+            var transform = computePointTransform(pos.x, pos.y, scale);
+            if (transform) {
+                applyTransform(transform.tx, transform.ty, scale);
+            }
+
+            if (rawT < 1) {
+                animFrameId = requestAnimationFrame(tick);
+            } else {
+                // Snap to exact final position
+                animFrameId = null;
+                applyTransform(endTransform.tx, endTransform.ty, endTransform.scale);
+                world.style.transition = '';
+            }
+        }
+
+        animFrameId = requestAnimationFrame(tick);
     }
 
     // Expose globally
@@ -109,6 +271,7 @@
 
         // Re-center on resize
         window.addEventListener('resize', function () {
+            cancelAnimation();
             panTo(currentStation);
         });
     }
