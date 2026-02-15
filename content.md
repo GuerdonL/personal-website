@@ -2,7 +2,11 @@
 
 ## Title
 
-Constructing a life of creativity, advocacy, and community.
+Constructing a 
+life of 
+creativity, 
+advocacy, and 
+community.
 
 ## Description
 
