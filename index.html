@@ -787,9 +787,9 @@ community.
  *   Activist (purple): Hero → About Me → Society+Projects
  *
  * About Me is a shared station (Writer + Activist).
- * Lines are continuous through stations using 45° diagonal routing.
- * Station circles are placed on station edges and are clickable.
- * Hidden on mobile (<768px).
+ * Lines are continuous through stations, routed around station edges
+ * using 45° diagonal routing. Station circles are placed on station
+ * edges and are clickable. Hidden on mobile (<768px).
  */
 (function () {
     var NS = 'http://www.w3.org/2000/svg';
@@ -816,7 +816,7 @@ community.
         activist: {
             color: '#7B6D8D',
             segments: [
-                { from: 'hero', fromSide: 'bottom', to: 'about-me', toSide: 'top-right' },
+                { from: 'hero', fromSide: 'bottom', to: 'about-me', toSide: 'top' },
                 { from: 'about-me', fromSide: 'right', to: 'society-projects', toSide: 'left' }
             ]
         }
@@ -834,7 +834,7 @@ community.
         return node;
     }
 
-    /* ── Station anchor calculation ─────────────────────────── */
+    /* ── Station geometry ───────────────────────────────────── */
 
     /**
      * Get an anchor point on a station's edge.
@@ -851,7 +851,7 @@ community.
         var h = s.offsetHeight;
         var cx = left + w / 2;
         var cy = top + h / 2;
-        var d = 0.7071; // 1/sqrt(2)
+        var d = 0.7071;
 
         switch (side) {
             case 'left':
@@ -873,6 +873,62 @@ community.
             default:
                 return { x: cx, y: cy, dx: 0, dy: 0 };
         }
+    }
+
+    /**
+     * Get the outside corner point of a station (with MARGIN offset).
+     */
+    function stationCorner(id, corner) {
+        var s = document.getElementById(id);
+        if (!s) return null;
+
+        var l = s.offsetLeft;
+        var t = s.offsetTop;
+        var w = s.offsetWidth;
+        var h = s.offsetHeight;
+
+        switch (corner) {
+            case 'top-right':    return { x: l + w + MARGIN, y: t - MARGIN };
+            case 'bottom-right': return { x: l + w + MARGIN, y: t + h + MARGIN };
+            case 'bottom-left':  return { x: l - MARGIN,     y: t + h + MARGIN };
+            case 'top-left':     return { x: l - MARGIN,     y: t - MARGIN };
+        }
+        return null;
+    }
+
+    /**
+     * Determine which outside corners to route through when a line
+     * passes through a station (arrival side → departure side).
+     * Returns array of corner names in order, taking the shortest path
+     * around the station perimeter.
+     */
+    function throughStationCorners(arrivalSide, departureSide) {
+        var sideIdx = { top: 0, right: 1, bottom: 2, left: 3 };
+        var cornerNames = ['top-right', 'bottom-right', 'bottom-left', 'top-left'];
+
+        var a = sideIdx[arrivalSide];
+        var d = sideIdx[departureSide];
+
+        if (a === undefined || d === undefined || a === d) return [];
+
+        // Clockwise path: from a, step clockwise collecting corners until reaching d
+        var cw = [];
+        var i = a;
+        while (i !== d) {
+            cw.push(cornerNames[i]);
+            i = (i + 1) % 4;
+        }
+
+        // Counter-clockwise path
+        var ccw = [];
+        i = a;
+        while (i !== d) {
+            var prev = (i + 3) % 4;
+            ccw.push(cornerNames[prev]);
+            i = prev;
+        }
+
+        return cw.length <= ccw.length ? cw : ccw;
     }
 
     /* ── Metro-style path routing ───────────────────────────── */
@@ -916,7 +972,7 @@ community.
     }
 
     /**
-     * Route from point A to point B through optional waypoints.
+     * Route from anchor A to anchor B through optional waypoints.
      * Returns SVG path fragment (L commands only, no M).
      */
     function routeThrough(from, to, waypoints) {
@@ -945,13 +1001,13 @@ community.
     }
 
     /**
-     * Build one continuous SVG path for an entire line (all segments).
-     * The line passes through intermediate stations by connecting
-     * arrival anchor → departure anchor.
+     * Build one continuous SVG path for an entire line.
+     * Between consecutive segments at the same station, the line routes
+     * around the outside corners of the station rather than cutting through.
      */
     function buildLinePath(lineDef) {
         var segments = lineDef.segments;
-        var anchors = []; // collect { stationId, x, y } for circle placement
+        var anchors = [];
         var d = '';
 
         for (var i = 0; i < segments.length; i++) {
@@ -961,17 +1017,23 @@ community.
             if (!from || !to) return null;
 
             if (i === 0) {
-                // Start the path at the first departure anchor
                 d = 'M ' + from.x + ' ' + from.y;
             } else {
-                // Connect previous arrival to this departure through the station
+                // Route around the outside of the intermediate station
+                var prevSeg = segments[i - 1];
+                var stationId = seg.from; // same station as prevSeg.to
+                var corners = throughStationCorners(prevSeg.toSide, seg.fromSide);
+
+                for (var c = 0; c < corners.length; c++) {
+                    var cp = stationCorner(stationId, corners[c]);
+                    if (cp) d += ' L ' + cp.x + ' ' + cp.y;
+                }
+
                 d += ' L ' + from.x + ' ' + from.y;
             }
 
-            // Route from departure to arrival
             d += routeThrough(from, to, seg.waypoints);
 
-            // Record arrival anchor for circle placement
             anchors.push({
                 stationId: seg.to,
                 x: to.x,
@@ -987,7 +1049,6 @@ community.
 
     /**
      * Draw a half-circle arc path for split station circles.
-     * side: 'left' or 'right'
      */
     function halfCirclePath(cx, cy, r, side) {
         if (side === 'left') {
@@ -1000,20 +1061,17 @@ community.
     }
 
     /**
-     * Draw all metro lines and collect station circle data,
-     * then draw circles (merging shared stations).
+     * Draw all metro lines and station circles.
+     * Shared stations (e.g. about-me) get a split-color circle.
      */
     function drawAll() {
-        // stationCircles: { stationId -> [{ color, x, y, lineKey, nextStop }] }
         var stationCircles = {};
 
-        // Draw each line as one continuous path and collect circle info
         for (var key in LINES) {
             var lineDef = LINES[key];
             var result = buildLinePath(lineDef);
             if (!result) continue;
 
-            // Draw the continuous path
             svg.appendChild(el('path', {
                 d: result.d,
                 stroke: lineDef.color,
@@ -1024,7 +1082,6 @@ community.
                 opacity: '0.6'
             }));
 
-            // Collect circle info for non-hero stations
             var segments = lineDef.segments;
             for (var i = 0; i < result.anchors.length; i++) {
                 var a = result.anchors[i];
@@ -1051,22 +1108,24 @@ community.
         for (var stationId in stationCircles) {
             var entries = stationCircles[stationId];
 
-            // Use the average position of all arrivals for the circle center
-            var cx = 0, cy = 0;
-            for (var i = 0; i < entries.length; i++) {
-                cx += entries[i].x;
-                cy += entries[i].y;
-            }
-            cx /= entries.length;
-            cy /= entries.length;
+            // Use first entry's position (all arrivals at same side now for shared stations)
+            var cx = entries[0].x;
+            var cy = entries[0].y;
 
             var R = 12;
             var sid = stationId;
-            // Default next stop: first entry's next
+
+            // For shared stations, prefer the next-stop that continues the journey
+            // (i.e. not 'hero') so clicking advances meaningfully
             var defaultNext = entries[0].nextStop;
+            for (var i = 0; i < entries.length; i++) {
+                if (entries[i].nextStop !== 'hero') {
+                    defaultNext = entries[i].nextStop;
+                    break;
+                }
+            }
 
             if (entries.length === 1) {
-                // Single-line station: normal circle
                 var color = entries[0].color;
                 var outer = el('circle', {
                     cx: cx, cy: cy, r: R,
@@ -1094,18 +1153,18 @@ community.
                     'pointer-events': 'none'
                 }));
             } else {
-                // Shared station: split circle (left half = first color, right half = second)
+                // Shared station: split circle
                 var color1 = entries[0].color;
                 var color2 = entries[1].color;
 
-                // White background circle
+                // White background
                 svg.appendChild(el('circle', {
                     cx: cx, cy: cy, r: R + 2,
                     fill: 'white',
                     'pointer-events': 'none'
                 }));
 
-                // Left half stroke arc (color1)
+                // Left half stroke (color1)
                 svg.appendChild(el('path', {
                     d: halfCirclePath(cx, cy, R, 'left'),
                     stroke: color1,
@@ -1115,7 +1174,7 @@ community.
                     'pointer-events': 'none'
                 }));
 
-                // Right half stroke arc (color2)
+                // Right half stroke (color2)
                 svg.appendChild(el('path', {
                     d: halfCirclePath(cx, cy, R, 'right'),
                     stroke: color2,
@@ -1141,7 +1200,7 @@ community.
                     'pointer-events': 'none'
                 }));
 
-                // Invisible clickable circle on top
+                // Invisible clickable circle
                 var clickCircle = el('circle', {
                     cx: cx, cy: cy, r: R + 2,
                     fill: 'transparent',
