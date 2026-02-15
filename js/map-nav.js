@@ -12,7 +12,7 @@
     var currentStation = 'hero';
 
     var WORLD_W = 4000;
-    var WORLD_H = 3000;
+    var WORLD_H = 4000;
 
     function isMobile() {
         return window.innerWidth < 768;

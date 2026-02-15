@@ -29,7 +29,7 @@
     };
 
     var WORLD_W = 4000;
-    var WORLD_H = 3000;
+    var WORLD_H = 4000;
 
     var svg = null;
 
