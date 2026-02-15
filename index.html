@@ -787,7 +787,7 @@ community.
  *   Activist (purple): Hero → About Me → Society+Projects
  *
  * About Me is a shared station (Writer + Activist).
- * Lines use 45° diagonal transitions with obstacle-avoiding routing.
+ * Lines are continuous through stations using 45° diagonal routing.
  * Station circles are placed on station edges and are clickable.
  * Hidden on mobile (<768px).
  */
@@ -878,7 +878,7 @@ community.
     /* ── Metro-style path routing ───────────────────────────── */
 
     /**
-     * Generate SVG path commands (without leading M) for a metro-style
+     * Generate SVG path commands (L commands only) for a metro-style
      * route between two points using H/V/45° segments.
      * Pattern: straight → centered diagonal → straight.
      */
@@ -890,13 +890,11 @@ community.
         var sx = dx >= 0 ? 1 : -1;
         var sy = dy >= 0 ? 1 : -1;
 
-        // Degenerate: basically the same point
         if (adx < 1 && ady < 1) {
             return ' L ' + x2 + ' ' + y2;
         }
 
         if (adx >= ady) {
-            // Horizontal dominant: H → 45° diagonal → H
             var diag = ady;
             var straight = adx - diag;
             var half = straight / 2;
@@ -906,7 +904,6 @@ community.
                  + ' L ' + mx2x + ' ' + y2
                  + ' L ' + x2 + ' ' + y2;
         } else {
-            // Vertical dominant: V → 45° diagonal → V
             var diag = adx;
             var straight = ady - diag;
             var half = straight / 2;
@@ -919,32 +916,23 @@ community.
     }
 
     /**
-     * Build the full SVG path 'd' string for a segment.
-     * Adds outward stubs at departure and arrival, then routes through
-     * optional waypoints using metroConnect.
+     * Route from point A to point B through optional waypoints.
+     * Returns SVG path fragment (L commands only, no M).
      */
-    function buildSegmentPath(seg) {
-        var a = stationAnchor(seg.from, seg.fromSide);
-        var b = stationAnchor(seg.to, seg.toSide);
-        if (!a || !b) return null;
+    function routeThrough(from, to, waypoints) {
+        var stubA = { x: from.x + from.dx * STUB, y: from.y + from.dy * STUB };
+        var stubB = { x: to.x + to.dx * STUB, y: to.y + to.dy * STUB };
 
-        // Stub endpoints (extend outward from anchor)
-        var stubA = { x: a.x + a.dx * STUB, y: a.y + a.dy * STUB };
-        var stubB = { x: b.x + b.dx * STUB, y: b.y + b.dy * STUB };
+        var d = ' L ' + stubA.x + ' ' + stubA.y;
 
-        // Start the path at the anchor, line to stub
-        var d = 'M ' + a.x + ' ' + a.y + ' L ' + stubA.x + ' ' + stubA.y;
-
-        // Build the chain of points to route through
         var points = [];
-        if (seg.waypoints) {
-            for (var i = 0; i < seg.waypoints.length; i++) {
-                points.push(seg.waypoints[i]);
+        if (waypoints) {
+            for (var i = 0; i < waypoints.length; i++) {
+                points.push(waypoints[i]);
             }
         }
         points.push(stubB);
 
-        // Route from stubA through each point
         var prev = stubA;
         for (var i = 0; i < points.length; i++) {
             var pt = points[i];
@@ -952,75 +940,225 @@ community.
             prev = pt;
         }
 
-        // Final line from stub to arrival anchor
-        d += ' L ' + b.x + ' ' + b.y;
+        d += ' L ' + to.x + ' ' + to.y;
+        return d;
+    }
 
-        return { d: d, arrival: b };
+    /**
+     * Build one continuous SVG path for an entire line (all segments).
+     * The line passes through intermediate stations by connecting
+     * arrival anchor → departure anchor.
+     */
+    function buildLinePath(lineDef) {
+        var segments = lineDef.segments;
+        var anchors = []; // collect { stationId, x, y } for circle placement
+        var d = '';
+
+        for (var i = 0; i < segments.length; i++) {
+            var seg = segments[i];
+            var from = stationAnchor(seg.from, seg.fromSide);
+            var to = stationAnchor(seg.to, seg.toSide);
+            if (!from || !to) return null;
+
+            if (i === 0) {
+                // Start the path at the first departure anchor
+                d = 'M ' + from.x + ' ' + from.y;
+            } else {
+                // Connect previous arrival to this departure through the station
+                d += ' L ' + from.x + ' ' + from.y;
+            }
+
+            // Route from departure to arrival
+            d += routeThrough(from, to, seg.waypoints);
+
+            // Record arrival anchor for circle placement
+            anchors.push({
+                stationId: seg.to,
+                x: to.x,
+                y: to.y,
+                segIndex: i
+            });
+        }
+
+        return { d: d, anchors: anchors };
     }
 
     /* ── Drawing ────────────────────────────────────────────── */
 
     /**
-     * Draw a single metro line with all its segments and station circles.
+     * Draw a half-circle arc path for split station circles.
+     * side: 'left' or 'right'
      */
-    function drawLine(lineKey, lineDef) {
-        var color = lineDef.color;
-        var segments = lineDef.segments;
+    function halfCirclePath(cx, cy, r, side) {
+        if (side === 'left') {
+            return 'M ' + cx + ' ' + (cy - r)
+                 + ' A ' + r + ' ' + r + ' 0 0 0 ' + cx + ' ' + (cy + r);
+        } else {
+            return 'M ' + cx + ' ' + (cy - r)
+                 + ' A ' + r + ' ' + r + ' 0 0 1 ' + cx + ' ' + (cy + r);
+        }
+    }
 
-        for (var i = 0; i < segments.length; i++) {
-            var seg = segments[i];
-            var result = buildSegmentPath(seg);
+    /**
+     * Draw all metro lines and collect station circle data,
+     * then draw circles (merging shared stations).
+     */
+    function drawAll() {
+        // stationCircles: { stationId -> [{ color, x, y, lineKey, nextStop }] }
+        var stationCircles = {};
+
+        // Draw each line as one continuous path and collect circle info
+        for (var key in LINES) {
+            var lineDef = LINES[key];
+            var result = buildLinePath(lineDef);
             if (!result) continue;
 
-            // Draw path
-            var path = el('path', {
+            // Draw the continuous path
+            svg.appendChild(el('path', {
                 d: result.d,
-                stroke: color,
+                stroke: lineDef.color,
                 'stroke-width': '4',
                 fill: 'none',
                 'stroke-linecap': 'round',
                 'stroke-linejoin': 'round',
                 opacity: '0.6'
-            });
-            svg.appendChild(path);
+            }));
 
-            // Draw station circle at arrival anchor (skip hero)
-            if (seg.to !== 'hero') {
-                var stopId = seg.to;
-                // Determine next stop: next segment's 'to', or loop to hero
-                var nextStopId = (i < segments.length - 1) ? segments[i + 1].to : 'hero';
+            // Collect circle info for non-hero stations
+            var segments = lineDef.segments;
+            for (var i = 0; i < result.anchors.length; i++) {
+                var a = result.anchors[i];
+                if (a.stationId === 'hero') continue;
 
-                var cx = result.arrival.x;
-                var cy = result.arrival.y;
+                var nextStop = (a.segIndex < segments.length - 1)
+                    ? segments[a.segIndex + 1].to
+                    : 'hero';
 
-                // Outer circle (white with line color stroke)
+                if (!stationCircles[a.stationId]) {
+                    stationCircles[a.stationId] = [];
+                }
+                stationCircles[a.stationId].push({
+                    color: lineDef.color,
+                    x: a.x,
+                    y: a.y,
+                    lineKey: key,
+                    nextStop: nextStop
+                });
+            }
+        }
+
+        // Draw station circles, merging shared stations
+        for (var stationId in stationCircles) {
+            var entries = stationCircles[stationId];
+
+            // Use the average position of all arrivals for the circle center
+            var cx = 0, cy = 0;
+            for (var i = 0; i < entries.length; i++) {
+                cx += entries[i].x;
+                cy += entries[i].y;
+            }
+            cx /= entries.length;
+            cy /= entries.length;
+
+            var R = 12;
+            var sid = stationId;
+            // Default next stop: first entry's next
+            var defaultNext = entries[0].nextStop;
+
+            if (entries.length === 1) {
+                // Single-line station: normal circle
+                var color = entries[0].color;
                 var outer = el('circle', {
-                    cx: cx, cy: cy, r: '12',
+                    cx: cx, cy: cy, r: R,
                     fill: 'white',
                     stroke: color,
                     'stroke-width': '4',
                     'class': 'metro-stop',
-                    'data-station': stopId,
+                    'data-station': sid,
                     style: 'cursor:pointer; pointer-events:all;'
                 });
-                outer.addEventListener('click', (function (sid, nextSid) {
+                outer.addEventListener('click', (function (s, ns) {
                     return function () {
-                        if (window.getCurrentStation && window.getCurrentStation() === sid) {
-                            window.panTo(nextSid);
+                        if (window.getCurrentStation && window.getCurrentStation() === s) {
+                            window.panTo(ns);
                         } else {
-                            window.panTo(sid);
+                            window.panTo(s);
                         }
                     };
-                })(stopId, nextStopId));
+                })(sid, defaultNext));
                 svg.appendChild(outer);
 
-                // Inner dot
-                var inner = el('circle', {
+                svg.appendChild(el('circle', {
                     cx: cx, cy: cy, r: '5',
                     fill: color,
                     'pointer-events': 'none'
+                }));
+            } else {
+                // Shared station: split circle (left half = first color, right half = second)
+                var color1 = entries[0].color;
+                var color2 = entries[1].color;
+
+                // White background circle
+                svg.appendChild(el('circle', {
+                    cx: cx, cy: cy, r: R + 2,
+                    fill: 'white',
+                    'pointer-events': 'none'
+                }));
+
+                // Left half stroke arc (color1)
+                svg.appendChild(el('path', {
+                    d: halfCirclePath(cx, cy, R, 'left'),
+                    stroke: color1,
+                    'stroke-width': '4',
+                    fill: 'none',
+                    'stroke-linecap': 'round',
+                    'pointer-events': 'none'
+                }));
+
+                // Right half stroke arc (color2)
+                svg.appendChild(el('path', {
+                    d: halfCirclePath(cx, cy, R, 'right'),
+                    stroke: color2,
+                    'stroke-width': '4',
+                    fill: 'none',
+                    'stroke-linecap': 'round',
+                    'pointer-events': 'none'
+                }));
+
+                // Left half inner fill
+                svg.appendChild(el('path', {
+                    d: halfCirclePath(cx, cy, 5, 'left') + ' Z',
+                    fill: color1,
+                    stroke: 'none',
+                    'pointer-events': 'none'
+                }));
+
+                // Right half inner fill
+                svg.appendChild(el('path', {
+                    d: halfCirclePath(cx, cy, 5, 'right') + ' Z',
+                    fill: color2,
+                    stroke: 'none',
+                    'pointer-events': 'none'
+                }));
+
+                // Invisible clickable circle on top
+                var clickCircle = el('circle', {
+                    cx: cx, cy: cy, r: R + 2,
+                    fill: 'transparent',
+                    'class': 'metro-stop',
+                    'data-station': sid,
+                    style: 'cursor:pointer; pointer-events:all;'
                 });
-                svg.appendChild(inner);
+                clickCircle.addEventListener('click', (function (s, ns) {
+                    return function () {
+                        if (window.getCurrentStation && window.getCurrentStation() === s) {
+                            window.panTo(ns);
+                        } else {
+                            window.panTo(s);
+                        }
+                    };
+                })(sid, defaultNext));
+                svg.appendChild(clickCircle);
             }
         }
     }
@@ -1059,12 +1197,7 @@ community.
 
         if (window.innerWidth < 768) return;
 
-        // Draw lines
-        for (var key in LINES) {
-            drawLine(key, LINES[key]);
-        }
-
-        // Draw hero departure indicators
+        drawAll();
         drawHeroDepartures();
     }
 
