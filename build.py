@@ -333,21 +333,23 @@ def build_writings(data):
     sx = station_style('writings')
 
     return f"""    <!-- Writings Station -->
-    <section id="writings" class="station" style="{sx}">
+    <section id="writings" class="station-wide" style="{sx}">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
             <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">{label}</h2>
 
-            <!-- Substack CTA -->
-            <div class="bg-stone-100 border border-stone-200 p-6 mb-8">
-                <p class="font-serif text-lg text-stone-900 mb-4">{substack_text}</p>
-                <a href="#" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors font-mono text-xs uppercase tracking-wide">
-                    Subscribe <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
-                </a>
-            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Substack CTA -->
+                <div class="bg-stone-100 border border-stone-200 p-6 self-start">
+                    <p class="font-serif text-lg text-stone-900 mb-4">{substack_text}</p>
+                    <a href="#" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors font-mono text-xs uppercase tracking-wide">
+                        Subscribe <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
+                    </a>
+                </div>
 
-            <!-- Poetry Grid -->
-            <div class="space-y-4">
+                <!-- Poetry Grid -->
+                <div class="space-y-4">
 {poems_html}
+                </div>
             </div>
         </div>
     </section>"""
@@ -524,30 +526,29 @@ def build_resume(data):
     resume_html = f"""    <!-- Resume Station -->
     <section id="resume" class="station-wide" style="{sx}">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
-            <div class="flex justify-between items-end mb-12">
+            <div class="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-8">
+                <!-- Left: Header + Skills -->
                 <div>
-                    <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400">{label}</h2>
-                    <p class="font-serif text-3xl text-stone-900 mt-2">{subtitle}</p>
-                </div>
-                <a href="{pdf_link}" target="_blank" class="hidden md:inline-flex items-center gap-2 text-stone-500 hover:text-stone-900 transition-colors font-mono text-xs border border-stone-300 px-3 py-2 rounded-sm bg-white">
-                    <i class="fa-solid fa-file-pdf"></i> View PDF
-                </a>
-            </div>
+                    <div class="mb-8">
+                        <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400">{label}</h2>
+                        <p class="font-serif text-3xl text-stone-900 mt-2">{subtitle}</p>
+                        <a href="{pdf_link}" target="_blank" class="hidden md:inline-flex items-center gap-2 text-stone-500 hover:text-stone-900 transition-colors font-mono text-xs border border-stone-300 px-3 py-2 rounded-sm bg-white mt-4">
+                            <i class="fa-solid fa-file-pdf"></i> View PDF
+                        </a>
+                    </div>
 
-            <!-- Skills Cards -->
-            <div class="mb-16">
-                <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-6 border-b border-stone-200 pb-2">Proficiencies</h3>
-
-                <div class="space-y-6">
+                    <div>
+                        <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-6 border-b border-stone-200 pb-2">Proficiencies</h3>
+                        <div class="space-y-6">
 {skills_html}
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Experience Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
+                <!-- Right: Experience Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 {cards_html}
-
+                </div>
             </div>
         </div>
     </section>"""
@@ -617,19 +618,25 @@ def build_society_projects(data):
     sx = station_style('society-projects')
 
     return f"""    <!-- Society & Projects Station -->
-    <section id="society-projects" class="station" style="{sx}">
+    <section id="society-projects" class="station-wide" style="{sx}">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
-            <!-- Society -->
-            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">{soc_label}</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Left: Society -->
+                <div>
+                    <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">{soc_label}</h2>
 {soc_paras_str}
-            <a href="mailto:{cta_email}" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors mb-12 block">
-                {cta_text} <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
-            </a>
+                    <a href="mailto:{cta_email}" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors">
+                        {cta_text} <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
+                    </a>
+                </div>
 
-            <!-- Projects -->
-            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6 mt-8">{proj_label}</h2>
-            <div class="space-y-0">
+                <!-- Right: Projects -->
+                <div>
+                    <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">{proj_label}</h2>
+                    <div class="space-y-0">
 {items_html}
+                    </div>
+                </div>
             </div>
         </div>
     </section>"""

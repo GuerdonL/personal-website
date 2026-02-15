@@ -80,12 +80,12 @@
 
         .station {
             position: absolute;
-            width: 700px;
+            width: 1100px;
         }
 
         .station-wide {
             position: absolute;
-            width: 900px;
+            width: 1300px;
         }
 
         /* Return-to-hub button */
@@ -305,20 +305,21 @@ community.
     </section>
 
     <!-- Writings Station -->
-    <section id="writings" class="station" style="left:400px; top:700px;">
+    <section id="writings" class="station-wide" style="left:400px; top:700px;">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
             <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">Writings</h2>
 
-            <!-- Substack CTA -->
-            <div class="bg-stone-100 border border-stone-200 p-6 mb-8">
-                <p class="font-serif text-lg text-stone-900 mb-4">Join my Substack for essays on technology, poetry, and the New Romantic era.</p>
-                <a href="#" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors font-mono text-xs uppercase tracking-wide">
-                    Subscribe <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
-                </a>
-            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Substack CTA -->
+                <div class="bg-stone-100 border border-stone-200 p-6 self-start">
+                    <p class="font-serif text-lg text-stone-900 mb-4">Join my Substack for essays on technology, poetry, and the New Romantic era.</p>
+                    <a href="#" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors font-mono text-xs uppercase tracking-wide">
+                        Subscribe <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
+                    </a>
+                </div>
 
-            <!-- Poetry Grid -->
-            <div class="space-y-4">
+                <!-- Poetry Grid -->
+                <div class="space-y-4">
                 <div class="border border-stone-200 p-6 bg-white">
                     <h4 class="font-serif text-lg text-stone-900 mb-3">The Urban Ecology</h4>
                     <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
@@ -348,6 +349,7 @@ community.
                         when algorithms look away.
                     </p>
                 </div>
+                </div>
             </div>
         </div>
     </section>
@@ -374,21 +376,20 @@ community.
     <!-- Resume Station -->
     <section id="resume" class="station-wide" style="left:3800px; top:700px;">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
-            <div class="flex justify-between items-end mb-12">
+            <div class="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-8">
+                <!-- Left: Header + Skills -->
                 <div>
-                    <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400">Live Resume</h2>
-                    <p class="font-serif text-3xl text-stone-900 mt-2">History & Toolkit</p>
-                </div>
-                <a href="https://docs.google.com/document/d/18-Zc_nEQHMU7lTMQQeGHAtKmWmvCUEVMQu6HVv7g2j8/edit?tab=t.0#heading=h.mb6p9a1b80la" target="_blank" class="hidden md:inline-flex items-center gap-2 text-stone-500 hover:text-stone-900 transition-colors font-mono text-xs border border-stone-300 px-3 py-2 rounded-sm bg-white">
-                    <i class="fa-solid fa-file-pdf"></i> View PDF
-                </a>
-            </div>
+                    <div class="mb-8">
+                        <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400">Live Resume</h2>
+                        <p class="font-serif text-3xl text-stone-900 mt-2">History & Toolkit</p>
+                        <a href="https://docs.google.com/document/d/18-Zc_nEQHMU7lTMQQeGHAtKmWmvCUEVMQu6HVv7g2j8/edit?tab=t.0#heading=h.mb6p9a1b80la" target="_blank" class="hidden md:inline-flex items-center gap-2 text-stone-500 hover:text-stone-900 transition-colors font-mono text-xs border border-stone-300 px-3 py-2 rounded-sm bg-white mt-4">
+                            <i class="fa-solid fa-file-pdf"></i> View PDF
+                        </a>
+                    </div>
 
-            <!-- Skills Cards -->
-            <div class="mb-16">
-                <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-6 border-b border-stone-200 pb-2">Proficiencies</h3>
-
-                <div class="space-y-6">
+                    <div>
+                        <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-6 border-b border-stone-200 pb-2">Proficiencies</h3>
+                        <div class="space-y-6">
                     <div>
                         <span class="font-serif text-stone-400 italic text-sm mr-4">Languages</span>
                         <div class="inline-flex flex-wrap gap-2">
@@ -424,12 +425,12 @@ community.
                             <span class="px-3 py-1 bg-white border border-stone-200 text-stone-700 text-xs font-mono rounded shadow-sm">ArcGIS</span>
                         </div>
                     </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Experience Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
+                <!-- Right: Experience Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Card -->
                 <button onclick="openDetail('seri')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
                     <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -507,25 +508,29 @@ community.
                         Aided in the technical and graphical overhaul of the company website, enhancing user engagement and corporate branding.
                     </p>
                 </button>
-
+                </div>
             </div>
         </div>
     </section>
 
     <!-- Society & Projects Station -->
-    <section id="society-projects" class="station" style="left:2500px; top:2700px;">
+    <section id="society-projects" class="station-wide" style="left:2500px; top:2700px;">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
-            <!-- Society -->
-            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">The Society</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Left: Society -->
+                <div>
+                    <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">The Society</h2>
                 <p class="font-serif text-lg text-stone-900 mb-4 leading-relaxed">I maintain an informal society of talented, cool people aligned with the broad vision of a post-modern "romantic era".</p>
                 <p class="text-stone-600 text-lg leading-relaxed mb-8">If interested, please provide contact information and a brief bio.</p>
-            <a href="mailto:contact@guerdon.com" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors mb-12 block">
-                Send Introduction <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
-            </a>
+                    <a href="mailto:contact@guerdon.com" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors">
+                        Send Introduction <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
+                    </a>
+                </div>
 
-            <!-- Projects -->
-            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6 mt-8">Selected Projects from the Society</h2>
-            <div class="space-y-0">
+                <!-- Right: Projects -->
+                <div>
+                    <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">Selected Projects from the Society</h2>
+                    <div class="space-y-0">
                 <div class="group py-6 border-t border-stone-200 hover:bg-stone-100 transition-colors px-4 -mx-4">
                     <div class="flex flex-col gap-3">
                         <div>
@@ -565,6 +570,8 @@ community.
                         <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Literature</span>
                         <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Theory</span>
                         </div>
+                    </div>
+                </div>
                     </div>
                 </div>
             </div>
