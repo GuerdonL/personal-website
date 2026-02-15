@@ -44,8 +44,8 @@
         }
     };
 
-    var WORLD_W = 4000;
-    var WORLD_H = 4000;
+    var WORLD_W = 5000;
+    var WORLD_H = 5000;
 
     var svg = null;
     var routeData = null;

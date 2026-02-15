@@ -13,8 +13,8 @@
     var currentStation = 'hero';
     var animFrameId = null;
 
-    var WORLD_W = 4000;
-    var WORLD_H = 4000;
+    var WORLD_W = 5000;
+    var WORLD_H = 5000;
 
     function isMobile() {
         return window.innerWidth < 768;
@@ -249,7 +249,7 @@
         }
 
         // Smooth out sharp direction changes
-        route = roundCorners(route, 150);
+        route = roundCorners(route, 250);
 
         var dists = cumulativeDistances(route);
         var totalDist = dists[dists.length - 1];
