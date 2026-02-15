@@ -64,6 +64,7 @@
 
     // Expose globally
     window.panTo = panTo;
+    window.getCurrentStation = function () { return currentStation; };
 
     function init() {
         world = document.getElementById('metro-world');

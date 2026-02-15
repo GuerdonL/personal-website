@@ -98,6 +98,7 @@
         for (var i = 1; i < centers.length; i++) {
             var c = centers[i];
             var stopId = stops[i];
+            var nextStopId = (i < stops.length - 1) ? stops[i + 1] : 'hero';
 
             // Outer circle (line color)
             var outer = el('circle', {
@@ -109,9 +110,16 @@
                 'data-station': stopId,
                 style: 'cursor:pointer; pointer-events:all;'
             });
-            outer.addEventListener('click', (function (sid) {
-                return function () { window.panTo(sid); };
-            })(stopId));
+            outer.addEventListener('click', (function (sid, nextSid) {
+                return function () {
+                    // If already at this station, advance to next stop
+                    if (window.getCurrentStation && window.getCurrentStation() === sid) {
+                        window.panTo(nextSid);
+                    } else {
+                        window.panTo(sid);
+                    }
+                };
+            })(stopId, nextStopId));
             svg.appendChild(outer);
 
             // Inner dot
