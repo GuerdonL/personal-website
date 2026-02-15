@@ -2,11 +2,11 @@
  * Metro Lines — SVG route lines drawn on the 2D world canvas.
  *
  * Three lines radiate from the hero hub:
- *   Writer (red):     Hero → Writings → Poetry → Philosophy
+ *   Writer (red):     Hero → Writings → Poetry → About Me
  *   Programmer (teal): Hero → Resume
- *   Activist (purple): Hero → Philosophy → Society+Projects
+ *   Activist (purple): Hero → About Me → Society+Projects
  *
- * Philosophy is a shared station (Writer + Activist).
+ * About Me is a shared station (Writer + Activist).
  * Lines use orthogonal elbow routing. Station circles are clickable.
  * Hidden on mobile (<768px).
  */
@@ -16,7 +16,7 @@
     var LINES = {
         writer: {
             color: '#D64045',
-            stops: ['hero', 'writings', 'poetry', 'philosophy']
+            stops: ['hero', 'writings', 'poetry', 'about-me']
         },
         programmer: {
             color: '#2A9D8F',
@@ -24,7 +24,7 @@
         },
         activist: {
             color: '#7B6D8D',
-            stops: ['hero', 'philosophy', 'society-projects']
+            stops: ['hero', 'about-me', 'society-projects']
         }
     };
 

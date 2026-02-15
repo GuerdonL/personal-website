@@ -23,7 +23,7 @@ community.
 
 ## Label
 
-My Philosophy
+About Me
 
 ## Quote
 
@@ -41,6 +41,21 @@ I aim to bridge the gap between abstract ideals and concrete reality: building s
 - Training: Mendocino Coast 50k (Apr '26)
 - Reading: "The New Romantic" Implications
 - Status: Open for Freelance
+
+## Contact
+
+- github: https://github.com/GuerdonL
+- github_label: github.com/GuerdonL
+- email: [Email Address]
+- linkedin: LinkedIn
+
+## Theme
+
+Theme: The New Romantic
+
+## Closing Quote
+
+A life is constructed through chance guided by genuine interest.
 
 ---
 
@@ -326,21 +341,3 @@ A network of Intentional Collaborative Communities. Nodes of resident experts (d
 
 A "Dictionary of Implications." A living document connecting numerology, physics, myth, and sociology to define the symbols and language of the New Romantic era.
 
----
-
-# Footer
-
-## Contact
-
-- github: https://github.com/GuerdonL
-- github_label: github.com/GuerdonL
-- email: [Email Address]
-- linkedin: LinkedIn
-
-## Theme
-
-Theme: The New Romantic
-
-## Quote
-
-A life is constructed through chance guided by genuine interest.

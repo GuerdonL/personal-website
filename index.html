@@ -168,11 +168,10 @@
             <a href="#" onclick="panTo('hero'); return false;" class="font-sans font-bold text-lg tracking-tight uppercase">Guerdon</a>
 
             <div class="hidden md:flex space-x-8 font-sans text-sm font-medium text-stone-600">
-                <a href="#philosophy" onclick="panTo('philosophy'); return false;" class="hover:text-stone-900 transition-colors">Philosophy</a>
+                <a href="#about-me" onclick="panTo('about-me'); return false;" class="hover:text-stone-900 transition-colors">About Me</a>
                 <a href="#writings" onclick="panTo('writings'); return false;" class="hover:text-stone-900 transition-colors">Writings</a>
                 <a href="#resume" onclick="panTo('resume'); return false;" class="hover:text-stone-900 transition-colors">Resume</a>
                 <a href="#society-projects" onclick="panTo('society-projects'); return false;" class="hover:text-stone-900 transition-colors">Society & Projects</a>
-                <a href="#contact" onclick="panTo('contact'); return false;" class="hover:text-stone-900 transition-colors">Contact</a>
             </div>
         </div>
     </nav>
@@ -225,59 +224,88 @@ community.
                     <div class="flex flex-wrap gap-3 pt-4">
                     <button onclick="panTo('writings')" class="group px-4 py-2 border-2 rounded-sm font-mono text-xs uppercase tracking-wide text-stone-500 hover:text-stone-900 transition-all cursor-pointer flex items-center gap-2" style="border-color: #D64045;"><span class="inline-block w-3 h-3 rounded-full" style="background: #D64045;"></span>Writer</button>
                     <button onclick="panTo('resume')" class="group px-4 py-2 border-2 rounded-sm font-mono text-xs uppercase tracking-wide text-stone-500 hover:text-stone-900 transition-all cursor-pointer flex items-center gap-2" style="border-color: #2A9D8F;"><span class="inline-block w-3 h-3 rounded-full" style="background: #2A9D8F;"></span>Programmer</button>
-                    <button onclick="panTo('philosophy')" class="group px-4 py-2 border-2 rounded-sm font-mono text-xs uppercase tracking-wide text-stone-500 hover:text-stone-900 transition-all cursor-pointer flex items-center gap-2" style="border-color: #7B6D8D;"><span class="inline-block w-3 h-3 rounded-full" style="background: #7B6D8D;"></span>Activist</button>
+                    <button onclick="panTo('about-me')" class="group px-4 py-2 border-2 rounded-sm font-mono text-xs uppercase tracking-wide text-stone-500 hover:text-stone-900 transition-all cursor-pointer flex items-center gap-2" style="border-color: #7B6D8D;"><span class="inline-block w-3 h-3 rounded-full" style="background: #7B6D8D;"></span>Activist</button>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Philosophy Station -->
-    <section id="philosophy" class="station" style="left:500px; top:1700px;">
+    <!-- About Me Station -->
+    <section id="about-me" class="station-wide" style="left:400px; top:1900px;">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
-            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">My Philosophy</h2>
+            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">About Me</h2>
 
-            <div class="space-y-8">
-                <blockquote class="font-serif text-2xl italic text-stone-800 border-l-2 border-stone-900 pl-6 py-1">
-                    “Logic and science do not dispel the magic of reality; they catalogue and explain it.”
-                </blockquote>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Left: Philosophy -->
+                <div class="space-y-6">
+                    <blockquote class="font-serif text-2xl italic text-stone-800 border-l-2 border-stone-900 pl-6 py-1">
+                        “Logic and science do not dispel the magic of reality; they catalogue and explain it.”
+                    </blockquote>
 
-                <div class="prose prose-stone text-stone-600">
-                    <p class="leading-relaxed">
-                        We are currently at a plateau. Our hard secular culture offers tools, but lacks guidance. My approach—the "New Romantic" era—is a practical response to this depletion. It is not a rejection of reason, but an expansion of it to include the inherent strangeness and beauty of existence as a core data point.
-                    </p>
-                    <p class="leading-relaxed">
-                        I aim to bridge the gap between abstract ideals and concrete reality: building software that enforces democratic equality, and writing poetry that documents urban ecology.
-                    </p>
+                    <div class="prose prose-stone text-stone-600">
+                            <p class="leading-relaxed">
+                                We are currently at a plateau. Our hard secular culture offers tools, but lacks guidance. My approach—the "New Romantic" era—is a practical response to this depletion. It is not a rejection of reason, but an expansion of it to include the inherent strangeness and beauty of existence as a core data point.
+                            </p>
+                            <p class="leading-relaxed">
+                                I aim to bridge the gap between abstract ideals and concrete reality: building software that enforces democratic equality, and writing poetry that documents urban ecology.
+                            </p>
+                    </div>
+
+                    <div class="bg-stone-100 p-6 border border-stone-200">
+                        <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-4">Current Focus</h3>
+                        <ul class="space-y-3 font-mono text-sm text-stone-700">
+                                <li class="flex justify-between border-b border-stone-200 pb-2 ">
+                                    <span>Location</span>
+                                    <span>Bay Area, CA</span>
+                                </li>
+                                <li class="flex justify-between border-b border-stone-200 pb-2 ">
+                                    <span>Training</span>
+                                    <span>Mendocino Coast 50k (Apr '26)</span>
+                                </li>
+                                <li class="flex justify-between border-b border-stone-200 pb-2 ">
+                                    <span>Reading</span>
+                                    <span>"The New Romantic" Implications</span>
+                                </li>
+                                <li class="flex justify-between pt-1">
+                                    <span>Status</span>
+                                    <span class="text-green-700">● Open for Freelance</span>
+                                </li>
+                        </ul>
+                    </div>
                 </div>
 
-                <div class="bg-stone-100 p-6 border border-stone-200 mt-8">
-                    <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-4">Current Focus</h3>
-                    <ul class="space-y-3 font-mono text-sm text-stone-700">
-                        <li class="flex justify-between border-b border-stone-200 pb-2 ">
-                            <span>Location</span>
-                            <span>Bay Area, CA</span>
-                        </li>
-                        <li class="flex justify-between border-b border-stone-200 pb-2 ">
-                            <span>Training</span>
-                            <span>Mendocino Coast 50k (Apr '26)</span>
-                        </li>
-                        <li class="flex justify-between border-b border-stone-200 pb-2 ">
-                            <span>Reading</span>
-                            <span>"The New Romantic" Implications</span>
-                        </li>
-                        <li class="flex justify-between pt-1">
-                            <span>Status</span>
-                            <span class="text-green-700">● Open for Freelance</span>
-                        </li>
-                    </ul>
+                <!-- Right: Contact -->
+                <div class="bg-stone-900 text-stone-400 p-8 border border-stone-700 flex flex-col justify-between">
+                    <div>
+                        <h3 class="font-serif text-2xl text-stone-50 mb-6">Contact</h3>
+                        <div class="space-y-4">
+                            <a href="https://github.com/GuerdonL" target="_blank" class="block hover:text-white transition-colors flex items-center gap-3">
+                                <i class="fa-brands fa-github"></i> github.com/GuerdonL
+                            </a>
+                            <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
+                                <i class="fa-solid fa-envelope"></i> [Email Address]
+                            </a>
+                            <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
+                                <i class="fa-brands fa-linkedin"></i> LinkedIn
+                            </a>
+                        </div>
+                    </div>
+                    <div class="mt-8">
+                        <p class="font-mono text-xs uppercase tracking-wide text-stone-500 mb-2">
+                            Theme: The New Romantic
+                        </p>
+                        <p class="font-serif text-lg italic text-stone-300">
+                            “A life is constructed through chance guided by genuine interest.”
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
     </section>
 
     <!-- Writings Station -->
-    <section id="writings" class="station" style="left:600px; top:700px;">
+    <section id="writings" class="station" style="left:300px; top:700px;">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
             <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">Writings</h2>
 
@@ -325,7 +353,7 @@ community.
     </section>
 
     <!-- Poetry Station -->
-    <section id="poetry" class="station" style="left:200px; top:250px;">
+    <section id="poetry" class="station" style="left:50px; top:100px;">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
             <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">Selected Poetry</h2>
             <div class="border border-stone-200 p-6 bg-white mb-4">
@@ -485,7 +513,7 @@ community.
     </section>
 
     <!-- Society & Projects Station -->
-    <section id="society-projects" class="station" style="left:1200px; top:2300px;">
+    <section id="society-projects" class="station" style="left:2000px; top:2700px;">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
             <!-- Society -->
             <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">The Society</h2>
@@ -538,36 +566,6 @@ community.
                         <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Theory</span>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Contact Station -->
-    <section id="contact" class="station" style="left:1800px; top:2600px;">
-        <div class="py-12 px-6 bg-stone-900 text-stone-400 border border-stone-700">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
-                <div>
-                    <h2 class="font-serif text-2xl text-stone-50 mb-6">Contact</h2>
-                    <div class="space-y-4">
-                        <a href="https://github.com/GuerdonL" target="_blank" class="block hover:text-white transition-colors flex items-center gap-3">
-                            <i class="fa-brands fa-github"></i> github.com/GuerdonL
-                        </a>
-                        <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
-                            <i class="fa-solid fa-envelope"></i> [Email Address]
-                        </a>
-                        <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
-                            <i class="fa-brands fa-linkedin"></i> LinkedIn
-                        </a>
-                    </div>
-                </div>
-                <div class="md:text-right flex flex-col justify-end">
-                    <p class="font-mono text-xs uppercase tracking-wide text-stone-500 mb-2">
-                        Theme: The New Romantic
-                    </p>
-                    <p class="font-serif text-lg italic text-stone-300">
-                        “A life is constructed through chance guided by genuine interest.”
-                    </p>
                 </div>
             </div>
         </div>
@@ -784,11 +782,11 @@ community.
  * Metro Lines — SVG route lines drawn on the 2D world canvas.
  *
  * Three lines radiate from the hero hub:
- *   Writer (red):     Hero → Writings → Poetry → Philosophy
+ *   Writer (red):     Hero → Writings → Poetry → About Me
  *   Programmer (teal): Hero → Resume
- *   Activist (purple): Hero → Philosophy → Society+Projects
+ *   Activist (purple): Hero → About Me → Society+Projects
  *
- * Philosophy is a shared station (Writer + Activist).
+ * About Me is a shared station (Writer + Activist).
  * Lines use orthogonal elbow routing. Station circles are clickable.
  * Hidden on mobile (<768px).
  */
@@ -798,7 +796,7 @@ community.
     var LINES = {
         writer: {
             color: '#D64045',
-            stops: ['hero', 'writings', 'poetry', 'philosophy']
+            stops: ['hero', 'writings', 'poetry', 'about-me']
         },
         programmer: {
             color: '#2A9D8F',
@@ -806,7 +804,7 @@ community.
         },
         activist: {
             color: '#7B6D8D',
-            stops: ['hero', 'philosophy', 'society-projects']
+            stops: ['hero', 'about-me', 'society-projects']
         }
     };
 

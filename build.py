@@ -12,12 +12,11 @@ import html
 
 STATION_COORDS = {
     'hero':             (1650, 1200),
-    'writings':         (600,  700),
-    'poetry':           (200,  250),
-    'philosophy':       (500,  1700),
+    'writings':         (300,  700),
+    'poetry':           (50,   100),
+    'about-me':         (400,  1900),
     'resume':           (2800, 700),
-    'society-projects': (1200, 2300),
-    'contact':          (1800, 2600),
+    'society-projects': (2000, 2700),
 }
 
 
@@ -166,7 +165,7 @@ def build_hero(data):
     tag_defs = [
         ('Writer',     'writer',     LINE_COLORS['writer'],     'writings'),
         ('Programmer', 'programmer', LINE_COLORS['programmer'], 'resume'),
-        ('Activist',   'activist',   LINE_COLORS['activist'],   'philosophy'),
+        ('Activist',   'activist',   LINE_COLORS['activist'],   'about-me'),
     ]
 
     tags_html = '\n'.join(
@@ -203,19 +202,32 @@ def build_hero(data):
     </section>"""
 
 
-def build_philosophy(data):
+def build_about_me(data):
+    """Combined About Me station — philosophy + contact in a two-column layout."""
     body = data['About']
     label = get_simple_value(body, 'Label')
     quote = get_simple_value(body, 'Quote')
     content_raw = get_simple_value(body, 'Content')
     focus_raw = get_simple_value(body, 'Current Focus')
+    closing_quote = get_simple_value(body, 'Closing Quote')
+    theme_text = get_simple_value(body, 'Theme')
 
+    # Contact info
+    contact_raw = get_simple_value(body, 'Contact')
+    contact_meta, _ = parse_metadata_lines(contact_raw)
+    github_url = contact_meta.get('github', '#')
+    github_label = contact_meta.get('github_label', 'GitHub')
+    email_label = contact_meta.get('email', '[Email Address]')
+    linkedin_label = contact_meta.get('linkedin', 'LinkedIn')
+
+    # Philosophy paragraphs
     paragraphs = [p.strip() for p in content_raw.split('\n\n') if p.strip()]
     paragraphs_html = '\n'.join(
-        f'                    <p class="leading-relaxed">\n                        {p}\n                    </p>'
+        f'                            <p class="leading-relaxed">\n                                {p}\n                            </p>'
         for p in paragraphs
     )
 
+    # Current focus metadata
     focus_items = []
     for line in focus_raw.split('\n'):
         m = re.match(r'^- (.+?):\s*(.+)$', line)
@@ -233,34 +245,63 @@ def build_philosophy(data):
         border_cls = '' if is_last else ' border-b border-stone-200 pb-2'
         pad_cls = 'pt-1' if is_last else ''
         focus_lines.append(
-            f'                        <li class="flex justify-between{border_cls} {pad_cls}">\n'
-            f'                            <span>{key}</span>\n'
-            f'                            {value_html}\n'
-            f'                        </li>'
+            f'                                <li class="flex justify-between{border_cls} {pad_cls}">\n'
+            f'                                    <span>{key}</span>\n'
+            f'                                    {value_html}\n'
+            f'                                </li>'
         )
     focus_html = '\n'.join(focus_lines)
 
-    sx = station_style('philosophy')
+    sx = station_style('about-me')
 
-    return f"""    <!-- Philosophy Station -->
-    <section id="philosophy" class="station" style="{sx}">
+    return f"""    <!-- About Me Station -->
+    <section id="about-me" class="station-wide" style="{sx}">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
             <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">{label}</h2>
 
-            <div class="space-y-8">
-                <blockquote class="font-serif text-2xl italic text-stone-800 border-l-2 border-stone-900 pl-6 py-1">
-                    \u201c{quote}\u201d
-                </blockquote>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Left: Philosophy -->
+                <div class="space-y-6">
+                    <blockquote class="font-serif text-2xl italic text-stone-800 border-l-2 border-stone-900 pl-6 py-1">
+                        \u201c{quote}\u201d
+                    </blockquote>
 
-                <div class="prose prose-stone text-stone-600">
+                    <div class="prose prose-stone text-stone-600">
 {paragraphs_html}
+                    </div>
+
+                    <div class="bg-stone-100 p-6 border border-stone-200">
+                        <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-4">Current Focus</h3>
+                        <ul class="space-y-3 font-mono text-sm text-stone-700">
+{focus_html}
+                        </ul>
+                    </div>
                 </div>
 
-                <div class="bg-stone-100 p-6 border border-stone-200 mt-8">
-                    <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-4">Current Focus</h3>
-                    <ul class="space-y-3 font-mono text-sm text-stone-700">
-{focus_html}
-                    </ul>
+                <!-- Right: Contact -->
+                <div class="bg-stone-900 text-stone-400 p-8 border border-stone-700 flex flex-col justify-between">
+                    <div>
+                        <h3 class="font-serif text-2xl text-stone-50 mb-6">Contact</h3>
+                        <div class="space-y-4">
+                            <a href="{github_url}" target="_blank" class="block hover:text-white transition-colors flex items-center gap-3">
+                                <i class="fa-brands fa-github"></i> {github_label}
+                            </a>
+                            <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
+                                <i class="fa-solid fa-envelope"></i> {email_label}
+                            </a>
+                            <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
+                                <i class="fa-brands fa-linkedin"></i> {linkedin_label}
+                            </a>
+                        </div>
+                    </div>
+                    <div class="mt-8">
+                        <p class="font-mono text-xs uppercase tracking-wide text-stone-500 mb-2">
+                            {theme_text}
+                        </p>
+                        <p class="font-serif text-lg italic text-stone-300">
+                            \u201c{closing_quote}\u201d
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -594,50 +635,6 @@ def build_society_projects(data):
     </section>"""
 
 
-def build_contact(data):
-    body = data['Footer']
-    contact_raw = get_simple_value(body, 'Contact')
-    theme_text = get_simple_value(body, 'Theme')
-    quote = get_simple_value(body, 'Quote')
-
-    contact_meta, _ = parse_metadata_lines(contact_raw)
-    github_url = contact_meta.get('github', '#')
-    github_label = contact_meta.get('github_label', 'GitHub')
-    email_label = contact_meta.get('email', '[Email Address]')
-    linkedin_label = contact_meta.get('linkedin', 'LinkedIn')
-
-    sx = station_style('contact')
-
-    return f"""    <!-- Contact Station -->
-    <section id="contact" class="station" style="{sx}">
-        <div class="py-12 px-6 bg-stone-900 text-stone-400 border border-stone-700">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
-                <div>
-                    <h2 class="font-serif text-2xl text-stone-50 mb-6">Contact</h2>
-                    <div class="space-y-4">
-                        <a href="{github_url}" target="_blank" class="block hover:text-white transition-colors flex items-center gap-3">
-                            <i class="fa-brands fa-github"></i> {github_label}
-                        </a>
-                        <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
-                            <i class="fa-solid fa-envelope"></i> {email_label}
-                        </a>
-                        <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
-                            <i class="fa-brands fa-linkedin"></i> {linkedin_label}
-                        </a>
-                    </div>
-                </div>
-                <div class="md:text-right flex flex-col justify-end">
-                    <p class="font-mono text-xs uppercase tracking-wide text-stone-500 mb-2">
-                        {theme_text}
-                    </p>
-                    <p class="font-serif text-lg italic text-stone-300">
-                        \u201c{quote}\u201d
-                    </p>
-                </div>
-            </div>
-        </div>
-    </section>"""
-
 
 def build_modal_js(modals_js):
     return f"""    <!-- Content for Modals -->
@@ -738,7 +735,7 @@ def main():
         '',
         build_hero(data),
         '',
-        build_philosophy(data),
+        build_about_me(data),
         '',
         build_writings(data),
         '',
@@ -747,8 +744,6 @@ def main():
         resume_html,
         '',
         build_society_projects(data),
-        '',
-        build_contact(data),
         '',
         '        </div>',
         '    </div>',
