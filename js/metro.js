@@ -26,7 +26,7 @@
                 { from: 'hero', fromSide: 'left', to: 'writings', toSide: 'right' },
                 { from: 'writings', fromSide: 'top', to: 'poetry', toSide: 'bottom' },
                 { from: 'poetry', fromSide: 'left', to: 'about-me', toSide: 'top',
-                  waypoints: [{ x: 520, y: 1850 }] }
+                  waypoints: [{ x: 200, y: 1850 }] }
             ]
         },
         programmer: {
