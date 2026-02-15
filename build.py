@@ -11,12 +11,12 @@ import html
 # ─── Station Coordinates (left, top in px on the 4000x3000 world) ────────────
 
 STATION_COORDS = {
-    'hero':             (1650, 1200),
-    'writings':         (300,  700),
-    'poetry':           (50,   100),
-    'about-me':         (400,  1900),
-    'resume':           (2800, 700),
-    'society-projects': (2000, 2700),
+    'hero':             (2150, 1200),
+    'writings':         (800,  700),
+    'poetry':           (550,  100),
+    'about-me':         (900,  1900),
+    'resume':           (3300, 700),
+    'society-projects': (2500, 2700),
 }
 
 
