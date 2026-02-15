@@ -40,29 +40,38 @@ I aim to bridge the gap between abstract ideals and concrete reality: building s
 
 ---
 
-# Roles
+# Writings
 
 ## Label
 
-Discipline & Practice
+Writings
 
-### The Writer
+## Substack
 
-font: serif
+Join my Substack for essays on technology, poetry, and the New Romantic era.
 
-Articulating the vision. Compiling the "Dictionary of Implications" to map the symbols of our era, merging mathematical constants with mythic archetypes.
+## Poetry
 
-### The Programmer
+### The Urban Ecology
 
-font: mono
+Above the grid of numbered streets,
+a peregrine traces thermals—
+mathematics written in feathers,
+equations the city forgot it posed.
 
-Building infrastructure. Developing the Democracy Protocol—a liquid democracy primitive designed to create parallel governance structures.
+### Constants & Variables
 
-### The Activist
+We name the stars for ancient gods
+then weigh their light in wavelengths.
+The romance is not diminished—
+it is catalogued, and deeper.
 
-font: serif
+### Infrastructure of Care
 
-Building power. Creating networks of Intentional Collaborative Communities that provide direct care, education, and shared resources.
+The village is not a metaphor.
+It is a street, a shared meal,
+a protocol for showing up
+when algorithms look away.
 
 ---
 

@@ -1,19 +1,33 @@
 #!/usr/bin/env python3
 """
 Build script for Guerdon's personal website.
-Parses content.md and assembles index.html from HTML templates.
+Parses content.md and assembles index.html as a 2D spatial metro map.
 """
 
 import re
 import html
 
 
+# ─── Station Coordinates (left, top in px on the 4000x3000 world) ────────────
+
+STATION_COORDS = {
+    'hero':             (1650, 1200),
+    'writings':         (600,  700),
+    'poetry':           (200,  250),
+    'philosophy':       (500,  1700),
+    'resume':           (2800, 700),
+    'society-projects': (1200, 2300),
+    'contact':          (1800, 2600),
+}
+
+
+# ─── Parsing Helpers ─────────────────────────────────────────────────────────
+
 def parse_content(filepath):
     """Parse content.md into structured sections."""
     with open(filepath, 'r', encoding='utf-8') as f:
         text = f.read()
 
-    # Split into major sections by horizontal rules
     raw_sections = re.split(r'\n---\n', text)
     sections = {}
 
@@ -21,8 +35,6 @@ def parse_content(filepath):
         raw = raw.strip()
         if not raw:
             continue
-
-        # Get section name from first H1
         m = re.match(r'^# (.+)', raw)
         if not m:
             continue
@@ -62,10 +74,8 @@ def parse_list_items(text):
 
 
 def get_subsection(body, heading, level=2):
-    """Extract content under a heading of given level, stopping at next heading of same or higher level."""
+    """Extract content under a heading of given level."""
     prefix = '#' * level
-    # Match the heading, then capture until next heading of same or higher level (1..level #'s)
-    # Build alternation for headings of level 1 through current level
     stop_patterns = '|'.join(rf'^{"#" * i} ' for i in range(1, level + 1))
     pattern = rf'^{prefix} {re.escape(heading)}\s*\n(.*?)(?={stop_patterns}|\Z)'
     m = re.search(pattern, body, re.MULTILINE | re.DOTALL)
@@ -77,10 +87,8 @@ def get_subsection(body, heading, level=2):
 def get_all_subsections(body, level=2):
     """Get all subsections at a given heading level as (name, content) pairs."""
     prefix = '#' * level
-    # Split by headings at this level
     pattern = rf'^{prefix} (.+)$'
     parts = re.split(pattern, body, flags=re.MULTILINE)
-    # parts[0] is text before first heading, then alternating name/content
     result = []
     for i in range(1, len(parts), 2):
         name = parts[i].strip()
@@ -103,9 +111,8 @@ def get_all_subsections_at(body, level=3):
 
 
 def get_simple_value(body, heading, level=2):
-    """Get the text content under a simple heading, stopping at any heading."""
+    """Get the text content under a simple heading."""
     prefix = '#' * level
-    # Match the heading, capture until next heading of ANY level
     pattern = rf'^{prefix} {re.escape(heading)}\s*\n(.*?)(?=^#+\s|\Z)'
     m = re.search(pattern, body, re.MULTILINE | re.DOTALL)
     if m:
@@ -116,6 +123,12 @@ def get_simple_value(body, heading, level=2):
 def escape(text):
     """Escape HTML entities in text."""
     return html.escape(text)
+
+
+def station_style(station_id):
+    """Return inline style for absolute positioning of a station."""
+    x, y = STATION_COORDS[station_id]
+    return f'left:{x}px; top:{y}px;'
 
 
 # ─── Section Builders ─────────────────────────────────────────────────────────
@@ -136,91 +149,105 @@ def build_modal():
         return f.read()
 
 
+# ─── Metro line colors ───────────────────────────────────────────────────────
+LINE_COLORS = {
+    'writer':     '#D64045',
+    'programmer': '#2A9D8F',
+    'activist':   '#7B6D8D',
+}
+
+
 def build_hero(data):
     body = data['Hero']
     title = get_simple_value(body, 'Title')
     description = get_simple_value(body, 'Description')
-    tags_raw = get_simple_value(body, 'Tags')
-    tags = parse_list_items(tags_raw)
+
+    # Role tags become clickable metro line triggers
+    tag_defs = [
+        ('Writer',     'writer',     LINE_COLORS['writer'],     'writings'),
+        ('Programmer', 'programmer', LINE_COLORS['programmer'], 'resume'),
+        ('Activist',   'activist',   LINE_COLORS['activist'],   'philosophy'),
+    ]
 
     tags_html = '\n'.join(
-        f'                    <span class="px-3 py-1 border border-stone-300 rounded-sm">{t}</span>'
-        for t in tags
+        f'                    <button onclick="panTo(\'{dest}\')" '
+        f'class="group px-4 py-2 border-2 rounded-sm font-mono text-xs uppercase tracking-wide '
+        f'text-stone-500 hover:text-stone-900 transition-all cursor-pointer flex items-center gap-2" '
+        f'style="border-color: {color};">'
+        f'<span class="inline-block w-3 h-3 rounded-full" style="background: {color};"></span>'
+        f'{name}</button>'
+        for name, line_id, color, dest in tag_defs
     )
 
-    return f"""    <!-- Hero Section -->
-    <section class="min-h-[80vh] flex flex-col justify-center max-w-5xl mx-auto px-6 pt-24 relative z-10">
-        <div class="max-w-3xl space-y-8">
-            <h1 class="font-serif text-5xl md:text-6xl leading-tight font-medium text-stone-900">
-                {title}
-            </h1>
+    sx = station_style('hero')
 
-            <div class="space-y-6">
-                <p class="font-sans text-lg text-stone-600 max-w-2xl leading-relaxed">
-                    {description}
-                </p>
+    return f"""    <!-- Hero Station (Central Hub) -->
+    <section id="hero" class="station-wide" style="{sx}">
+        <div class="min-h-[500px] flex flex-col justify-center px-6 pt-16">
+            <div class="max-w-3xl space-y-8">
+                <h1 class="font-serif text-5xl md:text-6xl leading-tight font-medium text-stone-900">
+                    {title}
+                </h1>
 
-                <div class="flex flex-wrap gap-3 font-mono text-xs uppercase tracking-wide text-stone-500 pt-4">
+                <div class="space-y-6">
+                    <p class="font-sans text-lg text-stone-600 max-w-2xl leading-relaxed">
+                        {description}
+                    </p>
+
+                    <div class="flex flex-wrap gap-3 pt-4">
 {tags_html}
+                    </div>
                 </div>
             </div>
         </div>
     </section>"""
 
 
-def build_about(data):
+def build_philosophy(data):
     body = data['About']
     label = get_simple_value(body, 'Label')
     quote = get_simple_value(body, 'Quote')
     content_raw = get_simple_value(body, 'Content')
     focus_raw = get_simple_value(body, 'Current Focus')
 
-    # Split content into paragraphs
     paragraphs = [p.strip() for p in content_raw.split('\n\n') if p.strip()]
     paragraphs_html = '\n'.join(
         f'                    <p class="leading-relaxed">\n                        {p}\n                    </p>'
         for p in paragraphs
     )
 
-    # Parse focus items
     focus_items = []
     for line in focus_raw.split('\n'):
         m = re.match(r'^- (.+?):\s*(.+)$', line)
         if m:
             focus_items.append((m.group(1).strip(), m.group(2).strip()))
 
-    # Build focus list - last item has no border, special styling for "Status"
     focus_lines = []
     for i, (key, value) in enumerate(focus_items):
         is_last = (i == len(focus_items) - 1)
-        if is_last:
-            # Check if it's a status with a green dot
-            if key.lower() == 'status':
-                value_html = f'<span class="text-green-700">\u25cf {value}</span>'
-            else:
-                value_html = f'<span>{value}</span>'
-            focus_lines.append(
-                f'                        <li class="flex justify-between pt-1">\n'
-                f'                            <span>{key}</span>\n'
-                f'                            {value_html}\n'
-                f'                        </li>'
-            )
+        if is_last and key.lower() == 'status':
+            value_html = f'<span class="text-green-700">\u25cf {value}</span>'
         else:
-            focus_lines.append(
-                f'                        <li class="flex justify-between border-b border-stone-200 pb-2">\n'
-                f'                            <span>{key}</span>\n'
-                f'                            <span>{value}</span>\n'
-                f'                        </li>'
-            )
+            value_html = f'<span>{value}</span>'
+
+        border_cls = '' if is_last else ' border-b border-stone-200 pb-2'
+        pad_cls = 'pt-1' if is_last else ''
+        focus_lines.append(
+            f'                        <li class="flex justify-between{border_cls} {pad_cls}">\n'
+            f'                            <span>{key}</span>\n'
+            f'                            {value_html}\n'
+            f'                        </li>'
+        )
     focus_html = '\n'.join(focus_lines)
 
-    return f"""    <!-- Philosophy / About -->
-    <section id="about" class="py-20 border-t border-stone-200 relative z-10 bg-stone-50/80 backdrop-blur-sm">
-        <div class="max-w-5xl mx-auto px-6 grid grid-cols-1 md:grid-cols-12 gap-12">
-            <div class="md:col-span-4">
-                <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400">{label}</h2>
-            </div>
-            <div class="md:col-span-8 space-y-8">
+    sx = station_style('philosophy')
+
+    return f"""    <!-- Philosophy Station -->
+    <section id="philosophy" class="station" style="{sx}">
+        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
+            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">{label}</h2>
+
+            <div class="space-y-8">
                 <blockquote class="font-serif text-2xl italic text-stone-800 border-l-2 border-stone-900 pl-6 py-1">
                     \u201c{quote}\u201d
                 </blockquote>
@@ -229,7 +256,6 @@ def build_about(data):
 {paragraphs_html}
                 </div>
 
-                <!-- Current Status Box -->
                 <div class="bg-stone-100 p-6 border border-stone-200 mt-8">
                     <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-4">Current Focus</h3>
                     <ul class="space-y-3 font-mono text-sm text-stone-700">
@@ -241,45 +267,81 @@ def build_about(data):
     </section>"""
 
 
-def build_roles(data):
-    body = data['Roles']
+def build_writings(data):
+    body = data['Writings']
     label = get_simple_value(body, 'Label')
-    roles = get_all_subsections_at(body, level=3)
+    substack_text = get_simple_value(body, 'Substack')
 
-    cards = []
-    for i, (name, content) in enumerate(roles):
-        # Parse font preference
-        font_match = re.match(r'^font:\s*(\w+)\s*\n', content)
-        font = 'serif'
-        if font_match:
-            font = font_match.group(1)
-            content = content[font_match.end():].strip()
+    # Parse poems from ### subsections under ## Poetry
+    poetry_body = get_subsection(body, 'Poetry')
+    poems = get_all_subsections_at(poetry_body, level=3)
 
-        num = f'{i + 1:02d}'
-        description = content.strip()
-
-        if font == 'mono':
-            title_html = f'<h3 class="font-mono text-xl text-stone-900 mb-4 font-medium">{name}</h3>'
-        else:
-            title_html = f'<h3 class="font-serif text-2xl text-stone-900 mb-4">{name}</h3>'
-
-        cards.append(f"""                <!-- {name.replace('The ', '')} -->
-                <div class="bg-stone-50 p-10 hover:bg-white transition-colors">
-                    <div class="mb-4 text-stone-400">{num}</div>
-                    {title_html}
-                    <p class="text-stone-600 leading-relaxed text-sm">
-                        {description}
+    poems_html_parts = []
+    for title, text in poems:
+        lines = text.strip().split('\n')
+        lines_html = '<br>\n'.join(f'                        {l}' for l in lines)
+        poems_html_parts.append(f"""                <div class="border border-stone-200 p-6 bg-white">
+                    <h4 class="font-serif text-lg text-stone-900 mb-3">{title}</h4>
+                    <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
+{lines_html}
                     </p>
                 </div>""")
 
-    cards_html = '\n\n' + '\n\n'.join(cards) + '\n'
+    poems_html = '\n\n'.join(poems_html_parts)
 
-    return f"""    <!-- Roles Grid -->
-    <section id="roles" class="py-20 border-t border-stone-200 relative z-10 bg-stone-50">
-        <div class="max-w-5xl mx-auto px-6">
-            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-12">{label}</h2>
+    sx = station_style('writings')
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-px bg-stone-200 border border-stone-200">{cards_html}            </div>
+    return f"""    <!-- Writings Station -->
+    <section id="writings" class="station" style="{sx}">
+        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
+            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">{label}</h2>
+
+            <!-- Substack CTA -->
+            <div class="bg-stone-100 border border-stone-200 p-6 mb-8">
+                <p class="font-serif text-lg text-stone-900 mb-4">{substack_text}</p>
+                <a href="#" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors font-mono text-xs uppercase tracking-wide">
+                    Subscribe <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
+                </a>
+            </div>
+
+            <!-- Poetry Grid -->
+            <div class="space-y-4">
+{poems_html}
+            </div>
+        </div>
+    </section>"""
+
+
+def build_poetry(data):
+    """Poetry station — a lighter station linking to the full writings."""
+    sx = station_style('poetry')
+
+    body = data['Writings']
+    poetry_body = get_subsection(body, 'Poetry')
+    poems = get_all_subsections_at(poetry_body, level=3)
+
+    # Show just the first poem as a teaser
+    if poems:
+        title, text = poems[0]
+        lines = text.strip().split('\n')
+        lines_html = '<br>\n'.join(f'                    {l}' for l in lines)
+        poem_html = f"""            <div class="border border-stone-200 p-6 bg-white mb-4">
+                <h4 class="font-serif text-lg text-stone-900 mb-3">{title}</h4>
+                <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
+{lines_html}
+                </p>
+            </div>"""
+    else:
+        poem_html = ''
+
+    return f"""    <!-- Poetry Station -->
+    <section id="poetry" class="station" style="{sx}">
+        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
+            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">Selected Poetry</h2>
+{poem_html}
+            <button onclick="panTo('writings')" class="font-mono text-xs text-stone-500 hover:text-stone-900 transition-colors uppercase tracking-wide">
+                View all writings <i class="fa-solid fa-arrow-right text-xs"></i>
+            </button>
         </div>
     </section>"""
 
@@ -341,23 +403,19 @@ def build_resume(data):
         role = meta.get('role', '')
         date = meta.get('date', '')
 
-        # Split card description from detail section
         detail_split = re.split(r'^#### Detail\s*$', card_description, flags=re.MULTILINE)
         card_text = detail_split[0].strip()
         detail_body = detail_split[1].strip() if len(detail_split) > 1 else ''
 
-        # Parse detail: overview paragraph, key contributions, tech
         detail_paragraphs = []
         detail_contributions = []
         detail_tech = []
 
         if detail_body:
-            # Overview is text before first #####
             overview_split = re.split(r'^##### ', detail_body, flags=re.MULTILINE)
             overview = overview_split[0].strip()
             detail_paragraphs = [p.strip() for p in overview.split('\n\n') if p.strip()]
 
-            # Parse ##### sections
             for j in range(1, len(overview_split)):
                 section_text = overview_split[j]
                 section_lines = section_text.strip().split('\n', 1)
@@ -369,7 +427,6 @@ def build_resume(data):
                 elif section_name == 'Tech':
                     detail_tech = parse_list_items(section_content)
 
-        # Build modal detail entry
         contributions_html = '\n'.join(
             f'                        <li>{c}</li>' for c in detail_contributions
         )
@@ -381,7 +438,6 @@ def build_resume(data):
             f'                    <p class="mb-4 text-stone-600">{p}</p>' for p in detail_paragraphs
         )
 
-        # Modal role/date can differ from card display
         modal_role = meta.get('modal_role', role)
         modal_date = date
         card_date = meta.get('card_date', date)
@@ -405,7 +461,6 @@ def build_resume(data):
                 `
             }}""")
 
-        # Build experience card HTML
         card_role_line = role + ' \u2022 ' + card_date if card_date != 'none' else role
         cards.append(f"""                <!-- Card -->
                 <button onclick="openDetail('{exp_id}')" class="text-left group bg-white border border-stone-200 p-8 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
@@ -423,9 +478,11 @@ def build_resume(data):
     cards_html = '\n\n'.join(cards)
     modals_js = ',\n'.join(modal_entries)
 
-    resume_html = f"""    <!-- Live Resume Section -->
-    <section id="resume" class="py-20 border-t border-stone-200 relative z-10 bg-stone-50/80 backdrop-blur-sm">
-        <div class="max-w-5xl mx-auto px-6">
+    sx = station_style('resume')
+
+    resume_html = f"""    <!-- Resume Station -->
+    <section id="resume" class="station-wide" style="{sx}">
+        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
             <div class="flex justify-between items-end mb-12">
                 <div>
                     <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400">{label}</h2>
@@ -457,54 +514,34 @@ def build_resume(data):
     return resume_html, modals_js
 
 
-def build_society(data):
-    body = data['Society']
-    label = get_simple_value(body, 'Label')
-    content_raw = get_simple_value(body, 'Content')
-    cta_raw = get_simple_value(body, 'CTA')
-
-    paragraphs = [p.strip() for p in content_raw.split('\n\n') if p.strip()]
-
-    # Parse CTA
+def build_society_projects(data):
+    """Combined Society + Projects station."""
+    # Society part
+    soc_body = data['Society']
+    soc_label = get_simple_value(soc_body, 'Label')
+    soc_content_raw = get_simple_value(soc_body, 'Content')
+    cta_raw = get_simple_value(soc_body, 'CTA')
     cta_meta, _ = parse_metadata_lines(cta_raw)
     cta_text = cta_meta.get('text', 'Send Introduction')
     cta_email = cta_meta.get('email', '')
 
-    paras_html = []
-    for i, p in enumerate(paragraphs):
+    soc_paragraphs = [p.strip() for p in soc_content_raw.split('\n\n') if p.strip()]
+    soc_paras_html = []
+    for i, p in enumerate(soc_paragraphs):
         if i == 0:
-            paras_html.append(
-                f'                <p class="font-serif text-lg text-stone-900 mb-4 leading-relaxed">\n'
-                f'                    {p}\n'
-                f'                </p>'
+            soc_paras_html.append(
+                f'                <p class="font-serif text-lg text-stone-900 mb-4 leading-relaxed">{p}</p>'
             )
         else:
-            paras_html.append(
-                f'                <p class="text-stone-600 text-lg leading-relaxed mb-8">\n'
-                f'                    {p}\n'
-                f'                </p>'
+            soc_paras_html.append(
+                f'                <p class="text-stone-600 text-lg leading-relaxed mb-8">{p}</p>'
             )
+    soc_paras_str = '\n'.join(soc_paras_html)
 
-    paras_html_str = '\n'.join(paras_html)
-
-    return f"""    <!-- The Society / Call to Action -->
-    <section id="society" class="py-20 border-t border-stone-200 bg-stone-100 relative z-10">
-        <div class="max-w-5xl mx-auto px-6">
-            <div class="max-w-3xl">
-                <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">{label}</h2>
-{paras_html_str}
-                <a href="mailto:{cta_email}" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors">
-                    {cta_text} <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
-                </a>
-            </div>
-        </div>
-    </section>"""
-
-
-def build_projects(data):
-    body = data['Projects']
-    label = get_simple_value(body, 'Label')
-    projects = get_all_subsections_at(body, level=3)
+    # Projects part
+    proj_body = data['Projects']
+    proj_label = get_simple_value(proj_body, 'Label')
+    projects = get_all_subsections_at(proj_body, level=3)
 
     items = []
     for i, (name, content) in enumerate(projects):
@@ -521,31 +558,35 @@ def build_projects(data):
             for t in tags
         )
 
-        items.append(f"""                <!-- Project -->
-                <div class="group py-8 {border_class} border-stone-200 flex flex-col md:flex-row gap-6 md:items-start hover:bg-stone-100 transition-colors px-4 -mx-4">
-                    <div class="md:w-1/4">
-                        <h3 class="font-serif text-xl text-stone-900 group-hover:underline decoration-1 underline-offset-4">{name}</h3>
-                        <span class="font-mono text-xs text-stone-500 mt-1 block">{subtitle}</span>
-                    </div>
-                    <div class="md:w-2/4">
-                        <p class="text-stone-600 leading-relaxed text-sm">
-                            {description}
-                        </p>
-                    </div>
-                    <div class="md:w-1/4 text-right md:text-right flex gap-2 justify-end">
+        items.append(f"""                <div class="group py-6 {border_class} border-stone-200 hover:bg-stone-100 transition-colors px-4 -mx-4">
+                    <div class="flex flex-col gap-3">
+                        <div>
+                            <h3 class="font-serif text-lg text-stone-900 group-hover:underline decoration-1 underline-offset-4">{name}</h3>
+                            <span class="font-mono text-xs text-stone-500 mt-1 block">{subtitle}</span>
+                        </div>
+                        <p class="text-stone-600 leading-relaxed text-sm">{description}</p>
+                        <div class="flex gap-2">
 {tags_html}
+                        </div>
                     </div>
                 </div>""")
 
     items_html = '\n\n'.join(items)
 
-    return f"""    <!-- Projects List -->
-    <section id="projects" class="py-20 border-t border-stone-200 relative z-10 bg-stone-50">
-        <div class="max-w-5xl mx-auto px-6">
-            <div class="flex items-baseline justify-between mb-12">
-                <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400">{label}</h2>
-            </div>
+    sx = station_style('society-projects')
 
+    return f"""    <!-- Society & Projects Station -->
+    <section id="society-projects" class="station" style="{sx}">
+        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
+            <!-- Society -->
+            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">{soc_label}</h2>
+{soc_paras_str}
+            <a href="mailto:{cta_email}" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors mb-12 block">
+                {cta_text} <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
+            </a>
+
+            <!-- Projects -->
+            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6 mt-8">{proj_label}</h2>
             <div class="space-y-0">
 {items_html}
             </div>
@@ -553,43 +594,46 @@ def build_projects(data):
     </section>"""
 
 
-def build_footer(data):
+def build_contact(data):
     body = data['Footer']
     contact_raw = get_simple_value(body, 'Contact')
     theme_text = get_simple_value(body, 'Theme')
     quote = get_simple_value(body, 'Quote')
 
-    # Parse contact links
     contact_meta, _ = parse_metadata_lines(contact_raw)
     github_url = contact_meta.get('github', '#')
     github_label = contact_meta.get('github_label', 'GitHub')
     email_label = contact_meta.get('email', '[Email Address]')
     linkedin_label = contact_meta.get('linkedin', 'LinkedIn')
 
-    return f"""    <!-- Footer -->
-    <section id="contact" class="py-20 bg-stone-900 text-stone-400 relative z-10">
-        <div class="max-w-5xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-12">
-            <div>
-                <h2 class="font-serif text-2xl text-stone-50 mb-6">Contact</h2>
-                <div class="space-y-4">
-                    <a href="{github_url}" target="_blank" class="block hover:text-white transition-colors flex items-center gap-3">
-                        <i class="fa-brands fa-github"></i> {github_label}
-                    </a>
-                    <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
-                        <i class="fa-solid fa-envelope"></i> {email_label}
-                    </a>
-                    <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
-                        <i class="fa-brands fa-linkedin"></i> {linkedin_label}
-                    </a>
+    sx = station_style('contact')
+
+    return f"""    <!-- Contact Station -->
+    <section id="contact" class="station" style="{sx}">
+        <div class="py-12 px-6 bg-stone-900 text-stone-400 border border-stone-700">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <div>
+                    <h2 class="font-serif text-2xl text-stone-50 mb-6">Contact</h2>
+                    <div class="space-y-4">
+                        <a href="{github_url}" target="_blank" class="block hover:text-white transition-colors flex items-center gap-3">
+                            <i class="fa-brands fa-github"></i> {github_label}
+                        </a>
+                        <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
+                            <i class="fa-solid fa-envelope"></i> {email_label}
+                        </a>
+                        <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
+                            <i class="fa-brands fa-linkedin"></i> {linkedin_label}
+                        </a>
+                    </div>
                 </div>
-            </div>
-            <div class="md:text-right flex flex-col justify-end">
-                <p class="font-mono text-xs uppercase tracking-wide text-stone-500 mb-2">
-                    {theme_text}
-                </p>
-                <p class="font-serif text-lg italic text-stone-300">
-                    \u201c{quote}\u201d
-                </p>
+                <div class="md:text-right flex flex-col justify-end">
+                    <p class="font-mono text-xs uppercase tracking-wide text-stone-500 mb-2">
+                        {theme_text}
+                    </p>
+                    <p class="font-serif text-lg italic text-stone-300">
+                        \u201c{quote}\u201d
+                    </p>
+                </div>
             </div>
         </div>
     </section>"""
@@ -617,20 +661,23 @@ def build_modal_js(modals_js):
 
             overlay.classList.remove('invisible', 'opacity-0');
             overlay.classList.add('active');
-            document.body.style.overflow = 'hidden'; // Prevent scrolling background
+            document.body.style.overflow = 'hidden';
         }}
 
         function closeDetail() {{
             const overlay = document.getElementById('detail-overlay');
             overlay.classList.add('invisible', 'opacity-0');
             overlay.classList.remove('active');
-            document.body.style.overflow = ''; // Restore scrolling
+            document.body.style.overflow = '';
         }}
 
-        // Close on escape key
+        // Close on escape key (only if modal is open)
         document.addEventListener('keydown', function(event) {{
             if (event.key === "Escape") {{
-                closeDetail();
+                const overlay = document.getElementById('detail-overlay');
+                if (overlay && !overlay.classList.contains('invisible')) {{
+                    closeDetail();
+                }}
             }}
         }});
 
@@ -661,6 +708,15 @@ def build_metro_js():
     </script>"""
 
 
+def build_map_nav_js():
+    with open('js/map-nav.js', 'r', encoding='utf-8') as f:
+        content = f.read()
+    return f"""    <!-- Map Navigation -->
+    <script>
+{content}
+    </script>"""
+
+
 def main():
     data = parse_content('content.md')
 
@@ -673,23 +729,35 @@ def main():
         '',
         build_modal(),
         '',
+        '    <!-- Paper Plane Canvas (fixed viewport) -->',
+        '    <canvas id="planes-canvas" class="fixed top-0 left-0 w-screen h-screen pointer-events-none z-0 opacity-40"></canvas>',
+        '',
+        '    <!-- Metro Viewport -->',
+        '    <div id="metro-viewport">',
+        '        <div id="metro-world">',
+        '',
         build_hero(data),
         '',
-        build_about(data),
+        build_philosophy(data),
         '',
-        build_roles(data),
+        build_writings(data),
+        '',
+        build_poetry(data),
         '',
         resume_html,
         '',
-        build_society(data),
+        build_society_projects(data),
         '',
-        build_projects(data),
+        build_contact(data),
         '',
-        build_footer(data),
+        '        </div>',
+        '    </div>',
         '',
         build_planes_js(),
         '',
         build_metro_js(),
+        '',
+        build_map_nav_js(),
         '',
         build_modal_js(modals_js),
         '</body>',

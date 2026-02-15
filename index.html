@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,6 +23,11 @@
                             50: '#fafaf9',
                             100: '#f5f5f4',
                             200: '#e7e5e4',
+                            300: '#d6d3d1',
+                            400: '#a8a29e',
+                            500: '#78716c',
+                            600: '#57534e',
+                            700: '#44403c',
                             800: '#292524',
                             900: '#1c1917',
                         }
@@ -48,30 +53,131 @@
         .modal.active .modal-content {
             transform: translateY(0);
         }
+
+        /* ── Metro Map 2D World ─────────────────────────────── */
+        body.metro-active {
+            overflow: hidden;
+            margin: 0;
+        }
+
+        #metro-viewport {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+            background: #fafaf9;
+        }
+
+        #metro-world {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4000px;
+            height: 3000px;
+            transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .station {
+            position: absolute;
+            width: 700px;
+        }
+
+        .station-wide {
+            position: absolute;
+            width: 900px;
+        }
+
+        /* Return-to-hub button */
+        #hub-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 55;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: #1c1917;
+            color: #fafaf9;
+            border: 2px solid #e7e5e4;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        #hub-btn.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+        #hub-btn:hover {
+            transform: scale(1.1);
+        }
+
+        /* Station circle hover */
+        .metro-stop {
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .metro-stop:hover {
+            transform: scale(1.3);
+        }
+
+        /* ── Mobile fallback: vertical scroll ───────────────── */
+        @media (max-width: 767px) {
+            body.metro-active {
+                overflow: auto;
+            }
+            #metro-viewport {
+                width: auto;
+                height: auto;
+                overflow: visible;
+            }
+            #metro-world {
+                position: static;
+                width: auto;
+                height: auto;
+                transform: none !important;
+                transition: none;
+            }
+            .station, .station-wide {
+                position: static !important;
+                width: 100% !important;
+            }
+            #hub-btn {
+                display: none;
+            }
+            #metro-svg {
+                display: none;
+            }
+        }
     </style>
 </head>
-<body class="bg-stone-50 text-stone-900 antialiased selection:bg-stone-200 selection:text-stone-900 relative">
+<body class="bg-stone-50 text-stone-900 antialiased selection:bg-stone-200 selection:text-stone-900 relative metro-active">
 
-
-    <!-- Paper Plane Canvas Layers -->
-    <!-- Changed from fixed to absolute, set to full height/width -->
-    <canvas id="planes-canvas" class="absolute top-0 left-0 w-full h-full pointer-events-none z-0 opacity-40"></canvas>
 
     <!-- Navigation -->
     <nav class="fixed w-full z-50 bg-stone-50/90 backdrop-blur-sm border-b border-stone-200" id="navbar">
         <div class="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
-            <a href="#" class="font-sans font-bold text-lg tracking-tight uppercase">Guerdon</a>
+            <a href="#" onclick="panTo('hero'); return false;" class="font-sans font-bold text-lg tracking-tight uppercase">Guerdon</a>
 
             <div class="hidden md:flex space-x-8 font-sans text-sm font-medium text-stone-600">
-                <a href="#about" class="hover:text-stone-900 transition-colors">About</a>
-                <a href="#roles" class="hover:text-stone-900 transition-colors">Roles</a>
-                <a href="#resume" class="hover:text-stone-900 transition-colors">Resume</a>
-                <a href="#society" class="hover:text-stone-900 transition-colors">Society</a>
-                <a href="#projects" class="hover:text-stone-900 transition-colors">Projects</a>
-                <a href="#contact" class="hover:text-stone-900 transition-colors">Contact</a>
+                <a href="#philosophy" onclick="panTo('philosophy'); return false;" class="hover:text-stone-900 transition-colors">Philosophy</a>
+                <a href="#writings" onclick="panTo('writings'); return false;" class="hover:text-stone-900 transition-colors">Writings</a>
+                <a href="#resume" onclick="panTo('resume'); return false;" class="hover:text-stone-900 transition-colors">Resume</a>
+                <a href="#society-projects" onclick="panTo('society-projects'); return false;" class="hover:text-stone-900 transition-colors">Society & Projects</a>
+                <a href="#contact" onclick="panTo('contact'); return false;" class="hover:text-stone-900 transition-colors">Contact</a>
             </div>
         </div>
     </nav>
+
+    <!-- Return to Hub button -->
+    <button id="hub-btn" onclick="panTo('hero')" title="Return to Hub">
+        <i class="fa-solid fa-house"></i>
+    </button>
 
 
     <!-- Detail Overlay (Simulated Page) -->
@@ -89,34 +195,42 @@
     </div>
 
 
-    <!-- Hero Section -->
-    <section class="min-h-[80vh] flex flex-col justify-center max-w-5xl mx-auto px-6 pt-24 relative z-10">
-        <div class="max-w-3xl space-y-8">
-            <h1 class="font-serif text-5xl md:text-6xl leading-tight font-medium text-stone-900">
-                Constructing a life of creativity, advocacy, and community.
-            </h1>
+    <!-- Paper Plane Canvas (fixed viewport) -->
+    <canvas id="planes-canvas" class="fixed top-0 left-0 w-screen h-screen pointer-events-none z-0 opacity-40"></canvas>
 
-            <div class="space-y-6">
-                <p class="font-sans text-lg text-stone-600 max-w-2xl leading-relaxed">
-                    
-                </p>
+    <!-- Metro Viewport -->
+    <div id="metro-viewport">
+        <div id="metro-world">
 
-                <div class="flex flex-wrap gap-3 font-mono text-xs uppercase tracking-wide text-stone-500 pt-4">
-                    <span class="px-3 py-1 border border-stone-300 rounded-sm">Writer</span>
-                    <span class="px-3 py-1 border border-stone-300 rounded-sm">Programmer</span>
-                    <span class="px-3 py-1 border border-stone-300 rounded-sm">Activist</span>
+    <!-- Hero Station (Central Hub) -->
+    <section id="hero" class="station-wide" style="left:1650px; top:1200px;">
+        <div class="min-h-[500px] flex flex-col justify-center px-6 pt-16">
+            <div class="max-w-3xl space-y-8">
+                <h1 class="font-serif text-5xl md:text-6xl leading-tight font-medium text-stone-900">
+                    Constructing a life of creativity, advocacy, and community.
+                </h1>
+
+                <div class="space-y-6">
+                    <p class="font-sans text-lg text-stone-600 max-w-2xl leading-relaxed">
+                        
+                    </p>
+
+                    <div class="flex flex-wrap gap-3 pt-4">
+                    <button onclick="panTo('writings')" class="group px-4 py-2 border-2 rounded-sm font-mono text-xs uppercase tracking-wide text-stone-500 hover:text-stone-900 transition-all cursor-pointer flex items-center gap-2" style="border-color: #D64045;"><span class="inline-block w-3 h-3 rounded-full" style="background: #D64045;"></span>Writer</button>
+                    <button onclick="panTo('resume')" class="group px-4 py-2 border-2 rounded-sm font-mono text-xs uppercase tracking-wide text-stone-500 hover:text-stone-900 transition-all cursor-pointer flex items-center gap-2" style="border-color: #2A9D8F;"><span class="inline-block w-3 h-3 rounded-full" style="background: #2A9D8F;"></span>Programmer</button>
+                    <button onclick="panTo('philosophy')" class="group px-4 py-2 border-2 rounded-sm font-mono text-xs uppercase tracking-wide text-stone-500 hover:text-stone-900 transition-all cursor-pointer flex items-center gap-2" style="border-color: #7B6D8D;"><span class="inline-block w-3 h-3 rounded-full" style="background: #7B6D8D;"></span>Activist</button>
+                    </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Philosophy / About -->
-    <section id="about" class="py-20 border-t border-stone-200 relative z-10 bg-stone-50/80 backdrop-blur-sm">
-        <div class="max-w-5xl mx-auto px-6 grid grid-cols-1 md:grid-cols-12 gap-12">
-            <div class="md:col-span-4">
-                <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400">My Philosophy</h2>
-            </div>
-            <div class="md:col-span-8 space-y-8">
+    <!-- Philosophy Station -->
+    <section id="philosophy" class="station" style="left:500px; top:1700px;">
+        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
+            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">My Philosophy</h2>
+
+            <div class="space-y-8">
                 <blockquote class="font-serif text-2xl italic text-stone-800 border-l-2 border-stone-900 pl-6 py-1">
                     “Logic and science do not dispel the magic of reality; they catalogue and explain it.”
                 </blockquote>
@@ -130,19 +244,18 @@
                     </p>
                 </div>
 
-                <!-- Current Status Box -->
                 <div class="bg-stone-100 p-6 border border-stone-200 mt-8">
                     <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-4">Current Focus</h3>
                     <ul class="space-y-3 font-mono text-sm text-stone-700">
-                        <li class="flex justify-between border-b border-stone-200 pb-2">
+                        <li class="flex justify-between border-b border-stone-200 pb-2 ">
                             <span>Location</span>
                             <span>Bay Area, CA</span>
                         </li>
-                        <li class="flex justify-between border-b border-stone-200 pb-2">
+                        <li class="flex justify-between border-b border-stone-200 pb-2 ">
                             <span>Training</span>
                             <span>Mendocino Coast 50k (Apr '26)</span>
                         </li>
-                        <li class="flex justify-between border-b border-stone-200 pb-2">
+                        <li class="flex justify-between border-b border-stone-200 pb-2 ">
                             <span>Reading</span>
                             <span>"The New Romantic" Implications</span>
                         </li>
@@ -156,46 +269,76 @@
         </div>
     </section>
 
-    <!-- Roles Grid -->
-    <section id="roles" class="py-20 border-t border-stone-200 relative z-10 bg-stone-50">
-        <div class="max-w-5xl mx-auto px-6">
-            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-12">Discipline & Practice</h2>
+    <!-- Writings Station -->
+    <section id="writings" class="station" style="left:600px; top:700px;">
+        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
+            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">Writings</h2>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-px bg-stone-200 border border-stone-200">
+            <!-- Substack CTA -->
+            <div class="bg-stone-100 border border-stone-200 p-6 mb-8">
+                <p class="font-serif text-lg text-stone-900 mb-4">Join my Substack for essays on technology, poetry, and the New Romantic era.</p>
+                <a href="#" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors font-mono text-xs uppercase tracking-wide">
+                    Subscribe <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
+                </a>
+            </div>
 
-                <!-- Writer -->
-                <div class="bg-stone-50 p-10 hover:bg-white transition-colors">
-                    <div class="mb-4 text-stone-400">01</div>
-                    <h3 class="font-serif text-2xl text-stone-900 mb-4">The Writer</h3>
-                    <p class="text-stone-600 leading-relaxed text-sm">
-                        Articulating the vision. Compiling the "Dictionary of Implications" to map the symbols of our era, merging mathematical constants with mythic archetypes.
+            <!-- Poetry Grid -->
+            <div class="space-y-4">
+                <div class="border border-stone-200 p-6 bg-white">
+                    <h4 class="font-serif text-lg text-stone-900 mb-3">The Urban Ecology</h4>
+                    <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
+                        Above the grid of numbered streets,<br>
+                        a peregrine traces thermals—<br>
+                        mathematics written in feathers,<br>
+                        equations the city forgot it posed.
                     </p>
                 </div>
 
-                <!-- Programmer -->
-                <div class="bg-stone-50 p-10 hover:bg-white transition-colors">
-                    <div class="mb-4 text-stone-400">02</div>
-                    <h3 class="font-mono text-xl text-stone-900 mb-4 font-medium">The Programmer</h3>
-                    <p class="text-stone-600 leading-relaxed text-sm">
-                        Building infrastructure. Developing the Democracy Protocol—a liquid democracy primitive designed to create parallel governance structures.
+                <div class="border border-stone-200 p-6 bg-white">
+                    <h4 class="font-serif text-lg text-stone-900 mb-3">Constants & Variables</h4>
+                    <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
+                        We name the stars for ancient gods<br>
+                        then weigh their light in wavelengths.<br>
+                        The romance is not diminished—<br>
+                        it is catalogued, and deeper.
                     </p>
                 </div>
 
-                <!-- Activist -->
-                <div class="bg-stone-50 p-10 hover:bg-white transition-colors">
-                    <div class="mb-4 text-stone-400">03</div>
-                    <h3 class="font-serif text-2xl text-stone-900 mb-4">The Activist</h3>
-                    <p class="text-stone-600 leading-relaxed text-sm">
-                        Building power. Creating networks of Intentional Collaborative Communities that provide direct care, education, and shared resources.
+                <div class="border border-stone-200 p-6 bg-white">
+                    <h4 class="font-serif text-lg text-stone-900 mb-3">Infrastructure of Care</h4>
+                    <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
+                        The village is not a metaphor.<br>
+                        It is a street, a shared meal,<br>
+                        a protocol for showing up<br>
+                        when algorithms look away.
                     </p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Live Resume Section -->
-    <section id="resume" class="py-20 border-t border-stone-200 relative z-10 bg-stone-50/80 backdrop-blur-sm">
-        <div class="max-w-5xl mx-auto px-6">
+    <!-- Poetry Station -->
+    <section id="poetry" class="station" style="left:200px; top:250px;">
+        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
+            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">Selected Poetry</h2>
+            <div class="border border-stone-200 p-6 bg-white mb-4">
+                <h4 class="font-serif text-lg text-stone-900 mb-3">The Urban Ecology</h4>
+                <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
+                    Above the grid of numbered streets,<br>
+                    a peregrine traces thermals—<br>
+                    mathematics written in feathers,<br>
+                    equations the city forgot it posed.
+                </p>
+            </div>
+            <button onclick="panTo('writings')" class="font-mono text-xs text-stone-500 hover:text-stone-900 transition-colors uppercase tracking-wide">
+                View all writings <i class="fa-solid fa-arrow-right text-xs"></i>
+            </button>
+        </div>
+    </section>
+
+    <!-- Resume Station -->
+    <section id="resume" class="station-wide" style="left:2800px; top:700px;">
+        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
             <div class="flex justify-between items-end mb-12">
                 <div>
                     <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400">Live Resume</h2>
@@ -334,113 +477,97 @@
         </div>
     </section>
 
-    <!-- The Society / Call to Action -->
-    <section id="society" class="py-20 border-t border-stone-200 bg-stone-100 relative z-10">
-        <div class="max-w-5xl mx-auto px-6">
-            <div class="max-w-3xl">
-                <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">The Society</h2>
-                <p class="font-serif text-lg text-stone-900 mb-4 leading-relaxed">
-                    I maintain an informal society of talented, cool people aligned with the broad vision of a post-modern "romantic era".
-                </p>
-                <p class="text-stone-600 text-lg leading-relaxed mb-8">
-                    If interested, please provide contact information and a brief bio.
-                </p>
-                <a href="mailto:contact@guerdon.com" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors">
-                    Send Introduction <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
-                </a>
-            </div>
-        </div>
-    </section>
+    <!-- Society & Projects Station -->
+    <section id="society-projects" class="station" style="left:1200px; top:2300px;">
+        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
+            <!-- Society -->
+            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">The Society</h2>
+                <p class="font-serif text-lg text-stone-900 mb-4 leading-relaxed">I maintain an informal society of talented, cool people aligned with the broad vision of a post-modern "romantic era".</p>
+                <p class="text-stone-600 text-lg leading-relaxed mb-8">If interested, please provide contact information and a brief bio.</p>
+            <a href="mailto:contact@guerdon.com" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors mb-12 block">
+                Send Introduction <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
+            </a>
 
-    <!-- Projects List -->
-    <section id="projects" class="py-20 border-t border-stone-200 relative z-10 bg-stone-50">
-        <div class="max-w-5xl mx-auto px-6">
-            <div class="flex items-baseline justify-between mb-12">
-                <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400">Selected Projects from the Society</h2>
-            </div>
-
+            <!-- Projects -->
+            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6 mt-8">Selected Projects from the Society</h2>
             <div class="space-y-0">
-                <!-- Project -->
-                <div class="group py-8 border-t border-stone-200 flex flex-col md:flex-row gap-6 md:items-start hover:bg-stone-100 transition-colors px-4 -mx-4">
-                    <div class="md:w-1/4">
-                        <h3 class="font-serif text-xl text-stone-900 group-hover:underline decoration-1 underline-offset-4">Democracy Protocol</h3>
-                        <span class="font-mono text-xs text-stone-500 mt-1 block">Keystone Project</span>
-                    </div>
-                    <div class="md:w-2/4">
-                        <p class="text-stone-600 leading-relaxed text-sm">
-                            A liquid democracy social network protocol allowing users to draft legislation and direct strategic funds. The goal is to evolve from a social network into a defined, parallel government.
-                        </p>
-                    </div>
-                    <div class="md:w-1/4 text-right md:text-right flex gap-2 justify-end">
+                <div class="group py-6 border-t border-stone-200 hover:bg-stone-100 transition-colors px-4 -mx-4">
+                    <div class="flex flex-col gap-3">
+                        <div>
+                            <h3 class="font-serif text-lg text-stone-900 group-hover:underline decoration-1 underline-offset-4">Democracy Protocol</h3>
+                            <span class="font-mono text-xs text-stone-500 mt-1 block">Keystone Project</span>
+                        </div>
+                        <p class="text-stone-600 leading-relaxed text-sm">A liquid democracy social network protocol allowing users to draft legislation and direct strategic funds. The goal is to evolve from a social network into a defined, parallel government.</p>
+                        <div class="flex gap-2">
                         <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Governance</span>
                         <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Web3</span>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Project -->
-                <div class="group py-8 border-t border-stone-200 flex flex-col md:flex-row gap-6 md:items-start hover:bg-stone-100 transition-colors px-4 -mx-4">
-                    <div class="md:w-1/4">
-                        <h3 class="font-serif text-xl text-stone-900 group-hover:underline decoration-1 underline-offset-4">The Village</h3>
-                        <span class="font-mono text-xs text-stone-500 mt-1 block">Living Vision</span>
-                    </div>
-                    <div class="md:w-2/4">
-                        <p class="text-stone-600 leading-relaxed text-sm">
-                            A network of Intentional Collaborative Communities. Nodes of resident experts (doctors, tradespeople) providing direct care and education. Anti-elitist and service-oriented.
-                        </p>
-                    </div>
-                    <div class="md:w-1/4 text-right md:text-right flex gap-2 justify-end">
+                <div class="group py-6 border-t border-stone-200 hover:bg-stone-100 transition-colors px-4 -mx-4">
+                    <div class="flex flex-col gap-3">
+                        <div>
+                            <h3 class="font-serif text-lg text-stone-900 group-hover:underline decoration-1 underline-offset-4">The Village</h3>
+                            <span class="font-mono text-xs text-stone-500 mt-1 block">Living Vision</span>
+                        </div>
+                        <p class="text-stone-600 leading-relaxed text-sm">A network of Intentional Collaborative Communities. Nodes of resident experts (doctors, tradespeople) providing direct care and education. Anti-elitist and service-oriented.</p>
+                        <div class="flex gap-2">
                         <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Architecture</span>
                         <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Community</span>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Project -->
-                <div class="group py-8 border-t border-b border-stone-200 flex flex-col md:flex-row gap-6 md:items-start hover:bg-stone-100 transition-colors px-4 -mx-4">
-                    <div class="md:w-1/4">
-                        <h3 class="font-serif text-xl text-stone-900 group-hover:underline decoration-1 underline-offset-4">The Codex</h3>
-                        <span class="font-mono text-xs text-stone-500 mt-1 block">Cultural Infrastructure</span>
-                    </div>
-                    <div class="md:w-2/4">
-                        <p class="text-stone-600 leading-relaxed text-sm">
-                            A "Dictionary of Implications." A living document connecting numerology, physics, myth, and sociology to define the symbols and language of the New Romantic era.
-                        </p>
-                    </div>
-                    <div class="md:w-1/4 text-right md:text-right flex gap-2 justify-end">
+                <div class="group py-6 border-t border-b border-stone-200 hover:bg-stone-100 transition-colors px-4 -mx-4">
+                    <div class="flex flex-col gap-3">
+                        <div>
+                            <h3 class="font-serif text-lg text-stone-900 group-hover:underline decoration-1 underline-offset-4">The Codex</h3>
+                            <span class="font-mono text-xs text-stone-500 mt-1 block">Cultural Infrastructure</span>
+                        </div>
+                        <p class="text-stone-600 leading-relaxed text-sm">A "Dictionary of Implications." A living document connecting numerology, physics, myth, and sociology to define the symbols and language of the New Romantic era.</p>
+                        <div class="flex gap-2">
                         <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Literature</span>
                         <span class="text-xs font-mono bg-white border border-stone-200 px-2 py-1 text-stone-600">Theory</span>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Footer -->
-    <section id="contact" class="py-20 bg-stone-900 text-stone-400 relative z-10">
-        <div class="max-w-5xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-12">
-            <div>
-                <h2 class="font-serif text-2xl text-stone-50 mb-6">Contact</h2>
-                <div class="space-y-4">
-                    <a href="https://github.com/GuerdonL" target="_blank" class="block hover:text-white transition-colors flex items-center gap-3">
-                        <i class="fa-brands fa-github"></i> github.com/GuerdonL
-                    </a>
-                    <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
-                        <i class="fa-solid fa-envelope"></i> [Email Address]
-                    </a>
-                    <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
-                        <i class="fa-brands fa-linkedin"></i> LinkedIn
-                    </a>
+    <!-- Contact Station -->
+    <section id="contact" class="station" style="left:1800px; top:2600px;">
+        <div class="py-12 px-6 bg-stone-900 text-stone-400 border border-stone-700">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <div>
+                    <h2 class="font-serif text-2xl text-stone-50 mb-6">Contact</h2>
+                    <div class="space-y-4">
+                        <a href="https://github.com/GuerdonL" target="_blank" class="block hover:text-white transition-colors flex items-center gap-3">
+                            <i class="fa-brands fa-github"></i> github.com/GuerdonL
+                        </a>
+                        <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
+                            <i class="fa-solid fa-envelope"></i> [Email Address]
+                        </a>
+                        <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
+                            <i class="fa-brands fa-linkedin"></i> LinkedIn
+                        </a>
+                    </div>
                 </div>
-            </div>
-            <div class="md:text-right flex flex-col justify-end">
-                <p class="font-mono text-xs uppercase tracking-wide text-stone-500 mb-2">
-                    Theme: The New Romantic
-                </p>
-                <p class="font-serif text-lg italic text-stone-300">
-                    “A life is constructed through chance guided by genuine interest.”
-                </p>
+                <div class="md:text-right flex flex-col justify-end">
+                    <p class="font-mono text-xs uppercase tracking-wide text-stone-500 mb-2">
+                        Theme: The New Romantic
+                    </p>
+                    <p class="font-serif text-lg italic text-stone-300">
+                        “A life is constructed through chance guided by genuine interest.”
+                    </p>
+                </div>
             </div>
         </div>
     </section>
+
+        </div>
+    </div>
 
     <!-- Script for Paper Airplanes -->
     <script>
@@ -449,52 +576,35 @@
 
         let width, height;
 
-        // Resize Canvas to full document height
+        // Resize Canvas to viewport size (fixed positioning)
         function resize() {
             width = window.innerWidth;
-            // Use the max height of the document to cover the whole scrollable area
-            const body = document.body;
-            const html = document.documentElement;
-
-            height = Math.max(
-                body.scrollHeight, body.offsetHeight,
-                html.clientHeight, html.scrollHeight, html.offsetHeight
-            );
-
+            height = window.innerHeight;
             canvas.width = width;
             canvas.height = height;
         }
         window.addEventListener('resize', resize);
-        // Call resize immediately to set initial size
-        // Use setTimeout to ensure DOM is fully calculated
         setTimeout(resize, 100);
 
         class Plane {
             constructor() {
-                // Ensure dimensions are set before init
                 if (!width || !height) resize();
-
                 this.reset();
-                // Randomize start y to fill the ENTIRE page height initially
+                // Randomize start y across the viewport
                 this.y = Math.random() * height;
             }
 
             reset() {
                 this.x = Math.random() * width;
+                // Spawn above the viewport
+                this.y = -50 - (Math.random() * 50);
 
-                // Fix: Spawn relative to current scroll position so they don't disappear
-                // if the user is scrolled down.
-                const scrollY = window.scrollY || window.pageYOffset;
-                this.y = scrollY - 50 - (Math.random() * 50);
-
-                // Scale: Random range [0.5, 0.9] - Keeping them small/background
+                // Scale: Random range [0.5, 0.9]
                 this.scale = 0.5 + Math.random() * 0.4;
 
-                // No blur needed for background planes, keeping it sharp and clean
                 this.blur = 0;
 
                 // Initial velocity: Downward bias with random spread
-                // Much Slower initial speed
                 const baseSpeed = 1.5 + Math.random() * 1.5;
                 const speed = baseSpeed * this.scale * 0.8;
 
@@ -507,11 +617,8 @@
                 this.historyLimit = 40;
 
                 // Physics constants
-                // Low drag to keep energy for loops
                 const baseDrag = 0.0005 + Math.random() * 0.0005;
-                // Higher lift to make them floaty
                 const baseLift = 0.005 + Math.random() * 0.002;
-                // Lower gravity for slow motion feel
                 const baseGravity = 0.015;
 
                 this.dragCoeff = baseDrag / this.scale;
@@ -519,34 +626,26 @@
                 this.gravity = baseGravity * this.scale;
 
                 this.turbulence = Math.random() * 100;
-                this.loopBoost = 0; // Timer for "updraft" lift boost
-
-                // Independent wobble phase for visual flutter
+                this.loopBoost = 0;
                 this.wobblePhase = Math.random() * Math.PI * 2;
             }
 
             update() {
-                // 1. Calculate Speed
                 const speedSq = this.vx * this.vx + this.vy * this.vy;
                 const speed = Math.sqrt(speedSq);
 
-                // Randomly trigger a "Loop" (Updraft)
                 if (this.loopBoost > 0) {
                     this.loopBoost--;
-                } else if (Math.random() < 0.001) { // Reduced chance slightly
-                    this.loopBoost = 60; // Boost lift for 60 frames
+                } else if (Math.random() < 0.001) {
+                    this.loopBoost = 60;
                 }
 
                 if (speed < 0.1) {
                     this.vy += this.gravity;
                 } else {
-                    // 2. Forces
                     const dragMag = this.dragCoeff * speedSq;
                     const dragX = -dragMag * (this.vx / speed);
                     const dragY = -dragMag * (this.vy / speed);
-
-                    let liftDir = 1;
-                    if (this.vx < 0) liftDir = -1;
 
                     let lx = (this.vy / speed);
                     let ly = (-this.vx / speed);
@@ -556,9 +655,6 @@
                         ly = -ly;
                     }
 
-                    // Apply Lift
-                    // If catching updraft (loopBoost), boost lift to force a loop
-                    // Reduced multiplier slightly for stability
                     let effectiveLift = this.liftCoeff;
                     if (this.loopBoost > 0) effectiveLift *= 2.5;
 
@@ -569,9 +665,8 @@
                     const gravY = this.gravity;
 
                     this.turbulence += 0.02;
-                    // Add Vertical drafts (windY) as well as horizontal
                     const windX = Math.sin(this.turbulence) * (0.002 * this.scale);
-                    const windY = Math.cos(this.turbulence * 0.5) * (0.002 * this.scale) - 0.001; // Slight updraft bias
+                    const windY = Math.cos(this.turbulence * 0.5) * (0.002 * this.scale) - 0.001;
 
                     this.vx += dragX + liftX + windX;
                     this.vy += dragY + liftY + gravY + windY;
@@ -580,7 +675,7 @@
                 this.x += this.vx;
                 this.y += this.vy;
 
-                // Bounds Check with History Reset
+                // Bounds check (viewport only, no scroll)
                 let wrapped = false;
                 if (this.x > width + 50) {
                     this.x = -50;
@@ -591,18 +686,8 @@
                     wrapped = true;
                 }
 
-                // Reset if falls past the BOTTOM of the entire page OR far below viewport
-                // We use scrollY to detect if it's way below the user to recycle it faster
-                const scrollY = window.scrollY || window.pageYOffset;
-                const viewportHeight = window.innerHeight;
-
-                // If plane is > 100px below the current viewport bottom, recycle it
-                if (this.y > scrollY + viewportHeight + 100) {
-                    this.reset();
-                    wrapped = true;
-                }
-                // Also safety check for document bottom
-                else if (this.y > height + 100) {
+                // Recycle if below viewport
+                if (this.y > height + 100) {
                     this.reset();
                     wrapped = true;
                 }
@@ -619,10 +704,6 @@
 
             draw() {
                 const angle = Math.atan2(this.vy, this.vx);
-
-                // Add visual "Wobble" / Flutter
-                // Decoupled from position (this.x) to prevent high-speed jitter
-                // Slower frequency, random phase offset
                 const flutter = Math.sin(Date.now() * 0.003 + this.wobblePhase) * 0.08;
 
                 ctx.save();
@@ -630,7 +711,7 @@
                 // Draw Trail
                 if (this.history.length > 1) {
                     ctx.beginPath();
-                    ctx.strokeStyle = 'rgba(68, 64, 60, 0.4)'; // Lower opacity trail
+                    ctx.strokeStyle = 'rgba(68, 64, 60, 0.4)';
                     ctx.setLineDash([3 * this.scale, 5 * this.scale]);
                     ctx.lineWidth = 1 * this.scale;
                     ctx.moveTo(this.history[0].x, this.history[0].y);
@@ -644,18 +725,17 @@
                 // Draw Plane
                 ctx.translate(this.x, this.y);
                 ctx.scale(this.scale, this.scale);
-                ctx.rotate(angle + flutter); // Apply flutter here
+                ctx.rotate(angle + flutter);
 
                 ctx.beginPath();
                 ctx.fillStyle = '#e7e5e4';
                 ctx.strokeStyle = '#292524';
                 ctx.lineWidth = 1.5;
 
-                // Plane Geometry
-                ctx.moveTo(10, 0);   // Nose
-                ctx.lineTo(-8, 7);   // Left Wing
-                ctx.lineTo(-4, 0);   // Center Notch
-                ctx.lineTo(-8, -7);  // Right Wing
+                ctx.moveTo(10, 0);
+                ctx.lineTo(-8, 7);
+                ctx.lineTo(-4, 0);
+                ctx.lineTo(-8, -7);
                 ctx.closePath();
 
                 ctx.fill();
@@ -671,7 +751,7 @@
         }
 
         const planes = [];
-        const planeCount = 18; // Increased slightly
+        const planeCount = 18;
 
         for (let i = 0; i < planeCount; i++) {
             planes.push(new Plane());
@@ -694,161 +774,295 @@
     <!-- Metro Lines -->
     <script>
 /**
- * Metro Lines — decorative elbow-connector routes in the page margins.
+ * Metro Lines — SVG route lines drawn on the 2D world canvas.
  *
- * All lines run EXCLUSIVELY in the left / right gutters (outside the
- * max-w-5xl content container) so they never overlap any text.
+ * Three lines radiate from the hero hub:
+ *   Writer (red):     Hero → Writings → Poetry → Philosophy
+ *   Programmer (teal): Hero → Resume
+ *   Activist (purple): Hero → Philosophy → Society+Projects
  *
- * Layout per side:
- *   1. Departure circles sit in a horizontal row in the margin,
- *      just below the hero, with labels above.
- *   2. Each line drops straight down in its own lane.
- *   3. At the target section's Y it makes a clean right-angle elbow
- *      inward toward the content edge and terminates with a circle.
- *
- * Innermost lane = shortest route (terminates first), so later
- * horizontals never cross a still-active vertical line.
- *
- * Hidden below 1280 px (not enough margin space).
+ * Philosophy is a shared station (Writer + Activist).
+ * Lines use orthogonal elbow routing. Station circles are clickable.
+ * Hidden on mobile (<768px).
  */
 (function () {
     var NS = 'http://www.w3.org/2000/svg';
 
-    /* ── line definitions (ordered top→bottom per side) ──────────── */
-    var leftLines = [
-        { id: 'about',    label: 'PHILOSOPHY', color: '#D64045', lane: 0 },
-        { id: 'resume',   label: 'RESUME',     color: '#2A9D8F', lane: 1 },
-        { id: 'projects', label: 'PROJECTS',   color: '#E76F51', lane: 2 }
-    ];
-    var rightLines = [
-        { id: 'roles',    label: 'DISCIPLINE', color: '#1B85B8', lane: 0 },
-        { id: 'society',  label: 'SOCIETY',    color: '#C27D38', lane: 1 },
-        { id: 'contact',  label: 'CONTACT',    color: '#7B6D8D', lane: 2 }
-    ];
+    var LINES = {
+        writer: {
+            color: '#D64045',
+            stops: ['hero', 'writings', 'poetry', 'philosophy']
+        },
+        programmer: {
+            color: '#2A9D8F',
+            stops: ['hero', 'resume']
+        },
+        activist: {
+            color: '#7B6D8D',
+            stops: ['hero', 'philosophy', 'society-projects']
+        }
+    };
+
+    var WORLD_W = 4000;
+    var WORLD_H = 3000;
 
     var svg = null;
 
-    /* ── SVG helpers ─────────────────────────────────────────────── */
+    /* ── SVG helpers ─────────────────────────────────────────── */
     function el(tag, attrs) {
         var node = document.createElementNS(NS, tag);
         for (var k in attrs) node.setAttribute(k, attrs[k]);
         return node;
     }
 
-    function addCircle(cx, cy, r, fill, stroke, sw) {
-        svg.appendChild(el('circle', {
-            cx: cx, cy: cy, r: r, fill: fill,
-            stroke: stroke || 'none', 'stroke-width': sw || 0
-        }));
+    /**
+     * Get the center point of a station element.
+     */
+    function stationCenter(id) {
+        var s = document.getElementById(id);
+        if (!s) return null;
+        return {
+            x: s.offsetLeft + s.offsetWidth / 2,
+            y: s.offsetTop + s.offsetHeight / 2
+        };
     }
 
-    function addLabel(x, y, text, color, anchor) {
-        var t = el('text', {
-            x: x, y: y, fill: color,
-            'text-anchor': anchor || 'middle',
-            'font-family': 'ui-monospace, SFMono-Regular, Menlo, monospace',
-            'font-size': '9', 'font-weight': '700',
-            'letter-spacing': '0.08em'
-        });
-        t.textContent = text;
-        svg.appendChild(t);
+    /**
+     * Build an orthogonal (elbow) path between two points.
+     * Routes: go vertical first to the target's Y, then horizontal.
+     */
+    function elbowPath(from, to) {
+        // Midpoint Y for the elbow
+        var midY = from.y + (to.y - from.y) * 0.5;
+        return 'M ' + from.x + ' ' + from.y
+             + ' L ' + from.x + ' ' + midY
+             + ' L ' + to.x + ' ' + midY
+             + ' L ' + to.x + ' ' + to.y;
     }
 
-    function addPath(d, color) {
-        svg.appendChild(el('path', {
-            d: d, stroke: color, 'stroke-width': '3',
-            fill: 'none', 'stroke-linecap': 'round',
-            'stroke-linejoin': 'round', opacity: '0.5'
-        }));
-    }
+    /**
+     * Draw a single metro line with all its segments and station circles.
+     */
+    function drawLine(lineKey, lineDef) {
+        var color = lineDef.color;
+        var stops = lineDef.stops;
+        var centers = [];
 
-    /* ── lane geometry ───────────────────────────────────────────── */
-    var LANE_GAP  = 20;   /* px between parallel lanes            */
-    var LANE_BASE = 28;   /* inner lane distance from content edge */
+        for (var i = 0; i < stops.length; i++) {
+            var c = stationCenter(stops[i]);
+            if (!c) return;
+            centers.push(c);
+        }
 
-    function laneX(contentEdge, lane, side) {
-        if (side === 'left')  return contentEdge - LANE_BASE - lane * LANE_GAP;
-        return contentEdge + LANE_BASE + lane * LANE_GAP;
-    }
+        // Draw path segments between consecutive stops
+        for (var i = 0; i < centers.length - 1; i++) {
+            var d = elbowPath(centers[i], centers[i + 1]);
+            var path = el('path', {
+                d: d,
+                stroke: color,
+                'stroke-width': '4',
+                fill: 'none',
+                'stroke-linecap': 'round',
+                'stroke-linejoin': 'round',
+                opacity: '0.6'
+            });
+            svg.appendChild(path);
+        }
 
-    /* ── draw one side ───────────────────────────────────────────── */
-    function drawSide(defs, contentEdge, side) {
-        var hero = document.querySelector('section');
-        if (!hero) return;
-        var depY = hero.offsetTop + hero.offsetHeight + 16;
+        // Draw station circles (skip hero — it gets special treatment)
+        for (var i = 1; i < centers.length; i++) {
+            var c = centers[i];
+            var stopId = stops[i];
 
-        /* departure connecting bar (horizontal line between outermost and innermost) */
-        var innerX = laneX(contentEdge, 0, side);
-        var outerX = laneX(contentEdge, defs.length - 1, side);
-        svg.appendChild(el('line', {
-            x1: innerX, y1: depY, x2: outerX, y2: depY,
-            stroke: '#a8a29e', 'stroke-width': '2', opacity: '0.3'
-        }));
+            // Outer circle (line color)
+            var outer = el('circle', {
+                cx: c.x, cy: c.y, r: '12',
+                fill: 'white',
+                stroke: color,
+                'stroke-width': '4',
+                'class': 'metro-stop',
+                'data-station': stopId,
+                style: 'cursor:pointer; pointer-events:all;'
+            });
+            outer.addEventListener('click', (function (sid) {
+                return function () { window.panTo(sid); };
+            })(stopId));
+            svg.appendChild(outer);
 
-        for (var i = 0; i < defs.length; i++) {
-            var ln      = defs[i];
-            var section = document.getElementById(ln.id);
-            if (!section) continue;
-
-            var lx  = laneX(contentEdge, ln.lane, side);
-            var ty  = section.offsetTop + 30;  /* target Y: just inside the section */
-
-            /* terminal X: near the content edge */
-            var termX = side === 'left' ? contentEdge - 8 : contentEdge + 8;
-
-            /* ── path: vertical drop → horizontal elbow ──────────── */
-            var d = 'M ' + lx + ' ' + depY
-                  + ' L ' + lx + ' ' + ty
-                  + ' L ' + termX + ' ' + ty;
-            addPath(d, ln.color);
-
-            /* ── departure circle ────────────────────────────────── */
-            addCircle(lx, depY, 5, ln.color);
-
-            /* departure label (above circle) */
-            addLabel(lx, depY - 12, ln.label, ln.color, 'middle');
-
-            /* ── terminal circle ─────────────────────────────────── */
-            addCircle(termX, ty, 6, 'white', ln.color, 3);
-
-            /* terminal label (below the horizontal arm, tucked under) */
-            var lblAnchor = side === 'left' ? 'end' : 'start';
-            var lblX = side === 'left' ? termX - 10 : termX + 10;
-            addLabel(lblX, ty + 18, ln.label, ln.color, lblAnchor);
+            // Inner dot
+            var inner = el('circle', {
+                cx: c.x, cy: c.y, r: '5',
+                fill: color,
+                'pointer-events': 'none'
+            });
+            svg.appendChild(inner);
         }
     }
 
-    /* ── main draw routine ───────────────────────────────────────── */
-    function draw() {
-        if (!svg) return;
-        var vw   = window.innerWidth;
-        var docH = Math.max(document.body.scrollHeight,
-                            document.documentElement.scrollHeight);
+    /**
+     * Draw departure indicators on the hero station.
+     */
+    function drawHeroDepartures() {
+        var hero = document.getElementById('hero');
+        if (!hero) return;
 
-        svg.setAttribute('width',  vw);
-        svg.setAttribute('height', docH);
-        svg.innerHTML = '';
+        var hx = hero.offsetLeft + hero.offsetWidth / 2;
+        var hy = hero.offsetTop + hero.offsetHeight - 20;
 
-        if (vw < 1280) return;
+        // Small colored departure circles at the bottom of hero
+        var lineKeys = ['writer', 'programmer', 'activist'];
+        var spacing = 40;
+        var startX = hx - (lineKeys.length - 1) * spacing / 2;
 
-        var contentW = 1024;
-        var contentL = (vw - contentW) / 2;
-        var contentR = contentL + contentW;
+        for (var i = 0; i < lineKeys.length; i++) {
+            var color = LINES[lineKeys[i]].color;
+            var cx = startX + i * spacing;
 
-        drawSide(leftLines,  contentL, 'left');
-        drawSide(rightLines, contentR, 'right');
+            svg.appendChild(el('circle', {
+                cx: cx, cy: hy, r: '8',
+                fill: color,
+                opacity: '0.8'
+            }));
+        }
     }
 
-    /* ── init ─────────────────────────────────────────────────────── */
+    /* ── main draw ───────────────────────────────────────────── */
+    function draw() {
+        if (!svg) return;
+
+        svg.innerHTML = '';
+        svg.setAttribute('width', WORLD_W);
+        svg.setAttribute('height', WORLD_H);
+
+        if (window.innerWidth < 768) return;
+
+        // Draw lines
+        for (var key in LINES) {
+            drawLine(key, LINES[key]);
+        }
+
+        // Draw hero departure indicators
+        drawHeroDepartures();
+    }
+
+    /* ── init ─────────────────────────────────────────────────── */
     function init() {
+        var world = document.getElementById('metro-world');
+        if (!world) return;
+
         svg = document.createElementNS(NS, 'svg');
-        svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;'
-                          + 'pointer-events:none;z-index:15;overflow:visible;';
-        document.body.style.position  = 'relative';
-        document.body.style.overflowX = 'hidden';
-        document.body.appendChild(svg);
+        svg.id = 'metro-svg';
+        svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;'
+                          + 'pointer-events:none;z-index:5;overflow:visible;';
+        world.appendChild(svg);
+
         draw();
         window.addEventListener('resize', draw);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+
+    </script>
+
+    <!-- Map Navigation -->
+    <script>
+/**
+ * Map Navigation — panning engine for the 2D metro world.
+ *
+ * panTo(stationId) smoothly translates #metro-world so the target
+ * station is centered in the viewport.  On mobile (<768px) falls
+ * back to scrollIntoView().
+ */
+(function () {
+    var world = null;
+    var viewport = null;
+    var hubBtn = null;
+    var currentStation = 'hero';
+
+    var WORLD_W = 4000;
+    var WORLD_H = 3000;
+
+    function isMobile() {
+        return window.innerWidth < 768;
+    }
+
+    /**
+     * Pan the world so the given station is centered in the viewport.
+     */
+    function panTo(stationId) {
+        var station = document.getElementById(stationId);
+        if (!station) return;
+
+        if (isMobile()) {
+            station.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            currentStation = stationId;
+            return;
+        }
+
+        if (!world || !viewport) return;
+
+        // Station center in world coordinates
+        var sx = station.offsetLeft + station.offsetWidth / 2;
+        var sy = station.offsetTop + station.offsetHeight / 2;
+
+        // Viewport dimensions
+        var vw = viewport.offsetWidth;
+        var vh = viewport.offsetHeight;
+
+        // Target translation: center station in viewport
+        var tx = -(sx - vw / 2);
+        var ty = -(sy - vh / 2);
+
+        // Clamp so we don't show space beyond the world
+        tx = Math.min(0, Math.max(tx, -(WORLD_W - vw)));
+        ty = Math.min(0, Math.max(ty, -(WORLD_H - vh)));
+
+        world.style.transform = 'translate(' + tx + 'px, ' + ty + 'px)';
+        currentStation = stationId;
+
+        // Show/hide hub button
+        if (hubBtn) {
+            if (stationId === 'hero') {
+                hubBtn.classList.remove('visible');
+            } else {
+                hubBtn.classList.add('visible');
+            }
+        }
+    }
+
+    // Expose globally
+    window.panTo = panTo;
+
+    function init() {
+        world = document.getElementById('metro-world');
+        viewport = document.getElementById('metro-viewport');
+        hubBtn = document.getElementById('hub-btn');
+
+        if (!world || !viewport) return;
+
+        // Start centered on the hero hub
+        panTo('hero');
+
+        // Escape key returns to hub (only when modal is not open)
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                var overlay = document.getElementById('detail-overlay');
+                if (overlay && !overlay.classList.contains('invisible')) {
+                    return; // Let modal handler deal with it
+                }
+                panTo('hero');
+            }
+        });
+
+        // Re-center on resize
+        window.addEventListener('resize', function () {
+            panTo(currentStation);
+        });
     }
 
     if (document.readyState === 'loading') {
@@ -1004,20 +1218,23 @@
 
             overlay.classList.remove('invisible', 'opacity-0');
             overlay.classList.add('active');
-            document.body.style.overflow = 'hidden'; // Prevent scrolling background
+            document.body.style.overflow = 'hidden';
         }
 
         function closeDetail() {
             const overlay = document.getElementById('detail-overlay');
             overlay.classList.add('invisible', 'opacity-0');
             overlay.classList.remove('active');
-            document.body.style.overflow = ''; // Restore scrolling
+            document.body.style.overflow = '';
         }
 
-        // Close on escape key
+        // Close on escape key (only if modal is open)
         document.addEventListener('keydown', function(event) {
             if (event.key === "Escape") {
-                closeDetail();
+                const overlay = document.getElementById('detail-overlay');
+                if (overlay && !overlay.classList.contains('invisible')) {
+                    closeDetail();
+                }
             }
         });
 

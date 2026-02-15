@@ -1,157 +1,186 @@
 /**
- * Metro Lines — decorative elbow-connector routes in the page margins.
+ * Metro Lines — SVG route lines drawn on the 2D world canvas.
  *
- * All lines run EXCLUSIVELY in the left / right gutters (outside the
- * max-w-5xl content container) so they never overlap any text.
+ * Three lines radiate from the hero hub:
+ *   Writer (red):     Hero → Writings → Poetry → Philosophy
+ *   Programmer (teal): Hero → Resume
+ *   Activist (purple): Hero → Philosophy → Society+Projects
  *
- * Layout per side:
- *   1. Departure circles sit in a horizontal row in the margin,
- *      just below the hero, with labels above.
- *   2. Each line drops straight down in its own lane.
- *   3. At the target section's Y it makes a clean right-angle elbow
- *      inward toward the content edge and terminates with a circle.
- *
- * Innermost lane = shortest route (terminates first), so later
- * horizontals never cross a still-active vertical line.
- *
- * Hidden below 1280 px (not enough margin space).
+ * Philosophy is a shared station (Writer + Activist).
+ * Lines use orthogonal elbow routing. Station circles are clickable.
+ * Hidden on mobile (<768px).
  */
 (function () {
     var NS = 'http://www.w3.org/2000/svg';
 
-    /* ── line definitions (ordered top→bottom per side) ──────────── */
-    var leftLines = [
-        { id: 'about',    label: 'PHILOSOPHY', color: '#D64045', lane: 0 },
-        { id: 'resume',   label: 'RESUME',     color: '#2A9D8F', lane: 1 },
-        { id: 'projects', label: 'PROJECTS',   color: '#E76F51', lane: 2 }
-    ];
-    var rightLines = [
-        { id: 'roles',    label: 'DISCIPLINE', color: '#1B85B8', lane: 0 },
-        { id: 'society',  label: 'SOCIETY',    color: '#C27D38', lane: 1 },
-        { id: 'contact',  label: 'CONTACT',    color: '#7B6D8D', lane: 2 }
-    ];
+    var LINES = {
+        writer: {
+            color: '#D64045',
+            stops: ['hero', 'writings', 'poetry', 'philosophy']
+        },
+        programmer: {
+            color: '#2A9D8F',
+            stops: ['hero', 'resume']
+        },
+        activist: {
+            color: '#7B6D8D',
+            stops: ['hero', 'philosophy', 'society-projects']
+        }
+    };
+
+    var WORLD_W = 4000;
+    var WORLD_H = 3000;
 
     var svg = null;
 
-    /* ── SVG helpers ─────────────────────────────────────────────── */
+    /* ── SVG helpers ─────────────────────────────────────────── */
     function el(tag, attrs) {
         var node = document.createElementNS(NS, tag);
         for (var k in attrs) node.setAttribute(k, attrs[k]);
         return node;
     }
 
-    function addCircle(cx, cy, r, fill, stroke, sw) {
-        svg.appendChild(el('circle', {
-            cx: cx, cy: cy, r: r, fill: fill,
-            stroke: stroke || 'none', 'stroke-width': sw || 0
-        }));
+    /**
+     * Get the center point of a station element.
+     */
+    function stationCenter(id) {
+        var s = document.getElementById(id);
+        if (!s) return null;
+        return {
+            x: s.offsetLeft + s.offsetWidth / 2,
+            y: s.offsetTop + s.offsetHeight / 2
+        };
     }
 
-    function addLabel(x, y, text, color, anchor) {
-        var t = el('text', {
-            x: x, y: y, fill: color,
-            'text-anchor': anchor || 'middle',
-            'font-family': 'ui-monospace, SFMono-Regular, Menlo, monospace',
-            'font-size': '9', 'font-weight': '700',
-            'letter-spacing': '0.08em'
-        });
-        t.textContent = text;
-        svg.appendChild(t);
+    /**
+     * Build an orthogonal (elbow) path between two points.
+     * Routes: go vertical first to the target's Y, then horizontal.
+     */
+    function elbowPath(from, to) {
+        // Midpoint Y for the elbow
+        var midY = from.y + (to.y - from.y) * 0.5;
+        return 'M ' + from.x + ' ' + from.y
+             + ' L ' + from.x + ' ' + midY
+             + ' L ' + to.x + ' ' + midY
+             + ' L ' + to.x + ' ' + to.y;
     }
 
-    function addPath(d, color) {
-        svg.appendChild(el('path', {
-            d: d, stroke: color, 'stroke-width': '3',
-            fill: 'none', 'stroke-linecap': 'round',
-            'stroke-linejoin': 'round', opacity: '0.5'
-        }));
-    }
+    /**
+     * Draw a single metro line with all its segments and station circles.
+     */
+    function drawLine(lineKey, lineDef) {
+        var color = lineDef.color;
+        var stops = lineDef.stops;
+        var centers = [];
 
-    /* ── lane geometry ───────────────────────────────────────────── */
-    var LANE_GAP  = 20;   /* px between parallel lanes            */
-    var LANE_BASE = 28;   /* inner lane distance from content edge */
+        for (var i = 0; i < stops.length; i++) {
+            var c = stationCenter(stops[i]);
+            if (!c) return;
+            centers.push(c);
+        }
 
-    function laneX(contentEdge, lane, side) {
-        if (side === 'left')  return contentEdge - LANE_BASE - lane * LANE_GAP;
-        return contentEdge + LANE_BASE + lane * LANE_GAP;
-    }
+        // Draw path segments between consecutive stops
+        for (var i = 0; i < centers.length - 1; i++) {
+            var d = elbowPath(centers[i], centers[i + 1]);
+            var path = el('path', {
+                d: d,
+                stroke: color,
+                'stroke-width': '4',
+                fill: 'none',
+                'stroke-linecap': 'round',
+                'stroke-linejoin': 'round',
+                opacity: '0.6'
+            });
+            svg.appendChild(path);
+        }
 
-    /* ── draw one side ───────────────────────────────────────────── */
-    function drawSide(defs, contentEdge, side) {
-        var hero = document.querySelector('section');
-        if (!hero) return;
-        var depY = hero.offsetTop + hero.offsetHeight + 16;
+        // Draw station circles (skip hero — it gets special treatment)
+        for (var i = 1; i < centers.length; i++) {
+            var c = centers[i];
+            var stopId = stops[i];
 
-        /* departure connecting bar (horizontal line between outermost and innermost) */
-        var innerX = laneX(contentEdge, 0, side);
-        var outerX = laneX(contentEdge, defs.length - 1, side);
-        svg.appendChild(el('line', {
-            x1: innerX, y1: depY, x2: outerX, y2: depY,
-            stroke: '#a8a29e', 'stroke-width': '2', opacity: '0.3'
-        }));
+            // Outer circle (line color)
+            var outer = el('circle', {
+                cx: c.x, cy: c.y, r: '12',
+                fill: 'white',
+                stroke: color,
+                'stroke-width': '4',
+                'class': 'metro-stop',
+                'data-station': stopId,
+                style: 'cursor:pointer; pointer-events:all;'
+            });
+            outer.addEventListener('click', (function (sid) {
+                return function () { window.panTo(sid); };
+            })(stopId));
+            svg.appendChild(outer);
 
-        for (var i = 0; i < defs.length; i++) {
-            var ln      = defs[i];
-            var section = document.getElementById(ln.id);
-            if (!section) continue;
-
-            var lx  = laneX(contentEdge, ln.lane, side);
-            var ty  = section.offsetTop + 30;  /* target Y: just inside the section */
-
-            /* terminal X: near the content edge */
-            var termX = side === 'left' ? contentEdge - 8 : contentEdge + 8;
-
-            /* ── path: vertical drop → horizontal elbow ──────────── */
-            var d = 'M ' + lx + ' ' + depY
-                  + ' L ' + lx + ' ' + ty
-                  + ' L ' + termX + ' ' + ty;
-            addPath(d, ln.color);
-
-            /* ── departure circle ────────────────────────────────── */
-            addCircle(lx, depY, 5, ln.color);
-
-            /* departure label (above circle) */
-            addLabel(lx, depY - 12, ln.label, ln.color, 'middle');
-
-            /* ── terminal circle ─────────────────────────────────── */
-            addCircle(termX, ty, 6, 'white', ln.color, 3);
-
-            /* terminal label (below the horizontal arm, tucked under) */
-            var lblAnchor = side === 'left' ? 'end' : 'start';
-            var lblX = side === 'left' ? termX - 10 : termX + 10;
-            addLabel(lblX, ty + 18, ln.label, ln.color, lblAnchor);
+            // Inner dot
+            var inner = el('circle', {
+                cx: c.x, cy: c.y, r: '5',
+                fill: color,
+                'pointer-events': 'none'
+            });
+            svg.appendChild(inner);
         }
     }
 
-    /* ── main draw routine ───────────────────────────────────────── */
-    function draw() {
-        if (!svg) return;
-        var vw   = window.innerWidth;
-        var docH = Math.max(document.body.scrollHeight,
-                            document.documentElement.scrollHeight);
+    /**
+     * Draw departure indicators on the hero station.
+     */
+    function drawHeroDepartures() {
+        var hero = document.getElementById('hero');
+        if (!hero) return;
 
-        svg.setAttribute('width',  vw);
-        svg.setAttribute('height', docH);
-        svg.innerHTML = '';
+        var hx = hero.offsetLeft + hero.offsetWidth / 2;
+        var hy = hero.offsetTop + hero.offsetHeight - 20;
 
-        if (vw < 1280) return;
+        // Small colored departure circles at the bottom of hero
+        var lineKeys = ['writer', 'programmer', 'activist'];
+        var spacing = 40;
+        var startX = hx - (lineKeys.length - 1) * spacing / 2;
 
-        var contentW = 1024;
-        var contentL = (vw - contentW) / 2;
-        var contentR = contentL + contentW;
+        for (var i = 0; i < lineKeys.length; i++) {
+            var color = LINES[lineKeys[i]].color;
+            var cx = startX + i * spacing;
 
-        drawSide(leftLines,  contentL, 'left');
-        drawSide(rightLines, contentR, 'right');
+            svg.appendChild(el('circle', {
+                cx: cx, cy: hy, r: '8',
+                fill: color,
+                opacity: '0.8'
+            }));
+        }
     }
 
-    /* ── init ─────────────────────────────────────────────────────── */
+    /* ── main draw ───────────────────────────────────────────── */
+    function draw() {
+        if (!svg) return;
+
+        svg.innerHTML = '';
+        svg.setAttribute('width', WORLD_W);
+        svg.setAttribute('height', WORLD_H);
+
+        if (window.innerWidth < 768) return;
+
+        // Draw lines
+        for (var key in LINES) {
+            drawLine(key, LINES[key]);
+        }
+
+        // Draw hero departure indicators
+        drawHeroDepartures();
+    }
+
+    /* ── init ─────────────────────────────────────────────────── */
     function init() {
+        var world = document.getElementById('metro-world');
+        if (!world) return;
+
         svg = document.createElementNS(NS, 'svg');
-        svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;'
-                          + 'pointer-events:none;z-index:15;overflow:visible;';
-        document.body.style.position  = 'relative';
-        document.body.style.overflowX = 'hidden';
-        document.body.appendChild(svg);
+        svg.id = 'metro-svg';
+        svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;'
+                          + 'pointer-events:none;z-index:5;overflow:visible;';
+        world.appendChild(svg);
+
         draw();
         window.addEventListener('resize', draw);
     }
