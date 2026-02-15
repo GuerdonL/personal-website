@@ -74,6 +74,7 @@
             left: 0;
             width: 4000px;
             height: 3000px;
+            transform-origin: 0 0;
             transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
@@ -1006,7 +1007,8 @@ community.
     }
 
     /**
-     * Pan the world so the given station is centered in the viewport.
+     * Pan (and scale) the world so the given station fits and is
+     * centered in the viewport.
      */
     function panTo(stationId) {
         var station = document.getElementById(stationId);
@@ -1020,23 +1022,42 @@ community.
 
         if (!world || !viewport) return;
 
-        // Station center in world coordinates
-        var sx = station.offsetLeft + station.offsetWidth / 2;
-        var sy = station.offsetTop + station.offsetHeight / 2;
+        // Station dimensions and center in world coordinates
+        var sw = station.offsetWidth;
+        var sh = station.offsetHeight;
+        var sx = station.offsetLeft + sw / 2;
+        var sy = station.offsetTop + sh / 2;
 
         // Viewport dimensions
         var vw = viewport.offsetWidth;
         var vh = viewport.offsetHeight;
 
-        // Target translation: center station in viewport
-        var tx = -(sx - vw / 2);
-        var ty = -(sy - vh / 2);
+        // Available space (account for navbar and padding)
+        var padTop = 80;
+        var padBottom = 40;
+        var padX = 60;
+        var availW = vw - padX * 2;
+        var availH = vh - padTop - padBottom;
 
-        // Clamp so we don't show space beyond the world
-        tx = Math.min(0, Math.max(tx, -(WORLD_W - vw)));
-        ty = Math.min(0, Math.max(ty, -(WORLD_H - vh)));
+        // Scale to fit station in available space (never scale up)
+        var scale = Math.min(availW / sw, availH / sh, 1);
 
-        world.style.transform = 'translate(' + tx + 'px, ' + ty + 'px)';
+        // Target center point in viewport (offset for navbar)
+        var targetX = vw / 2;
+        var targetY = padTop + availH / 2;
+
+        // With transform-origin 0 0 and translate(tx,ty) scale(s),
+        // world point (wx,wy) maps to screen (tx + wx*s, ty + wy*s)
+        var tx = targetX - sx * scale;
+        var ty = targetY - sy * scale;
+
+        // Clamp so we don't show space beyond the scaled world
+        var scaledW = WORLD_W * scale;
+        var scaledH = WORLD_H * scale;
+        tx = Math.min(0, Math.max(tx, -(scaledW - vw)));
+        ty = Math.min(0, Math.max(ty, -(scaledH - vh)));
+
+        world.style.transform = 'translate(' + tx + 'px, ' + ty + 'px) scale(' + scale + ')';
         currentStation = stationId;
 
         // Show/hide hub button
