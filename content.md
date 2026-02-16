@@ -33,7 +33,7 @@ We have art in order not to die of the truth.
 
 The world is in a period of change, of upset, of new directions and uncertain futures. I aim to live a simple life focused on projects that excite and provoke the collective imagination of what is possible for us all. 
 
-I aim to bridge the gap between abstract ideals and concrete reality: make my bread, share ideas, build together.
+I bridge the gap between abstract ideals and concrete reality: make my bread, share ideas, build together.
 
 ## Current Focus
 
