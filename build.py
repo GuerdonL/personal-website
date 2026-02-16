@@ -162,9 +162,9 @@ def build_hero(data):
 
     # Role tags become clickable metro line triggers
     tag_defs = [
-        ('Writer',     'writer',     LINE_COLORS['writer'],     'writings'),
         ('Programmer', 'programmer', LINE_COLORS['programmer'], 'resume'),
         ('Activist',   'activist',   LINE_COLORS['activist'],   'about-me'),
+        ('Writer',     'writer',     LINE_COLORS['writer'],     'writings'),
     ]
 
     tags_html = '\n'.join(
