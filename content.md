@@ -15,7 +15,7 @@ community.
 
 - Writer
 - Programmer
-- Activist
+- Advocate
 
 ---
 

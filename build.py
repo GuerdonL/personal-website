@@ -151,7 +151,7 @@ def build_modal():
 LINE_COLORS = {
     'writer':     '#D64045',
     'programmer': '#2A9D8F',
-    'activist':   '#7B6D8D',
+    'advocate':   '#7B6D8D',
 }
 
 
@@ -163,7 +163,7 @@ def build_hero(data):
     # Role tags become clickable metro line triggers
     tag_defs = [
         ('Programmer', 'programmer', LINE_COLORS['programmer'], 'resume'),
-        ('Activist',   'activist',   LINE_COLORS['activist'],   'about-me'),
+        ('Advocate',   'advocate',   LINE_COLORS['advocate'],   'about-me'),
         ('Writer',     'writer',     LINE_COLORS['writer'],     'writings'),
     ]
 

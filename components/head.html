@@ -118,14 +118,19 @@
             transform: scale(1.1);
         }
 
-        /* Station circle hover */
+        /* Station circle hover + pulse */
+        @keyframes metro-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
         .metro-stop {
             cursor: pointer;
-            transition: transform 0.2s ease;
             transform-box: fill-box;
             transform-origin: center;
+            animation: metro-pulse 2s ease-in-out infinite;
         }
         .metro-stop:hover {
+            animation: none;
             transform: scale(1.3);
         }
 

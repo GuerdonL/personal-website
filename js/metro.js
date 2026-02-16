@@ -4,9 +4,9 @@
  * Three lines radiate from the hero hub:
  *   Writer (red):      Hero → Writings → Poetry → About Me
  *   Programmer (teal): Hero → Resume
- *   Activist (purple): Hero → About Me → Society+Projects
+ *   Advocate (purple): Hero → About Me → Society+Projects
  *
- * About Me is a shared station (Writer + Activist).
+ * About Me is a shared station (Writer + Advocate).
  * Lines are continuous through stations, routed around station edges
  * using 45° diagonal routing. Station circles are placed on station
  * edges and are clickable. Hidden on mobile (<768px).
@@ -33,7 +33,7 @@
                 { from: 'hero', fromSide: 'left', to: 'resume', toSide: 'right' }
             ]
         },
-        activist: {
+        advocate: {
             color: '#7B6D8D',
             segments: [
                 { from: 'hero', fromSide: 'bottom', to: 'about-me', toSide: 'top' },
@@ -476,7 +476,7 @@
     }
 
     function drawHeroDepartures() {
-        var lineKeys = ['writer', 'programmer', 'activist'];
+        var lineKeys = ['writer', 'programmer', 'advocate'];
         for (var i = 0; i < lineKeys.length; i++) {
             var key = lineKeys[i];
             var line = LINES[key];

@@ -118,14 +118,19 @@
             transform: scale(1.1);
         }
 
-        /* Station circle hover */
+        /* Station circle hover + pulse */
+        @keyframes metro-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
         .metro-stop {
             cursor: pointer;
-            transition: transform 0.2s ease;
             transform-box: fill-box;
             transform-origin: center;
+            animation: metro-pulse 2s ease-in-out infinite;
         }
         .metro-stop:hover {
+            animation: none;
             transform: scale(1.3);
         }
 
@@ -224,7 +229,7 @@ community.
 
                     <div class="flex flex-wrap gap-3 pt-4">
                     <button onclick="panTo('resume')" class="group px-4 py-2 border-2 rounded-sm font-mono text-xs uppercase tracking-wide text-stone-500 hover:text-stone-900 transition-all cursor-pointer flex items-center gap-2" style="border-color: #2A9D8F;"><span class="inline-block w-3 h-3 rounded-full" style="background: #2A9D8F;"></span>Programmer</button>
-                    <button onclick="panTo('about-me')" class="group px-4 py-2 border-2 rounded-sm font-mono text-xs uppercase tracking-wide text-stone-500 hover:text-stone-900 transition-all cursor-pointer flex items-center gap-2" style="border-color: #7B6D8D;"><span class="inline-block w-3 h-3 rounded-full" style="background: #7B6D8D;"></span>Activist</button>
+                    <button onclick="panTo('about-me')" class="group px-4 py-2 border-2 rounded-sm font-mono text-xs uppercase tracking-wide text-stone-500 hover:text-stone-900 transition-all cursor-pointer flex items-center gap-2" style="border-color: #7B6D8D;"><span class="inline-block w-3 h-3 rounded-full" style="background: #7B6D8D;"></span>Advocate</button>
                     <button onclick="panTo('writings')" class="group px-4 py-2 border-2 rounded-sm font-mono text-xs uppercase tracking-wide text-stone-500 hover:text-stone-900 transition-all cursor-pointer flex items-center gap-2" style="border-color: #D64045;"><span class="inline-block w-3 h-3 rounded-full" style="background: #D64045;"></span>Writer</button>
                     </div>
                 </div>
@@ -773,9 +778,9 @@ community.
  * Three lines radiate from the hero hub:
  *   Writer (red):      Hero → Writings → Poetry → About Me
  *   Programmer (teal): Hero → Resume
- *   Activist (purple): Hero → About Me → Society+Projects
+ *   Advocate (purple): Hero → About Me → Society+Projects
  *
- * About Me is a shared station (Writer + Activist).
+ * About Me is a shared station (Writer + Advocate).
  * Lines are continuous through stations, routed around station edges
  * using 45° diagonal routing. Station circles are placed on station
  * edges and are clickable. Hidden on mobile (<768px).
@@ -802,7 +807,7 @@ community.
                 { from: 'hero', fromSide: 'left', to: 'resume', toSide: 'right' }
             ]
         },
-        activist: {
+        advocate: {
             color: '#7B6D8D',
             segments: [
                 { from: 'hero', fromSide: 'bottom', to: 'about-me', toSide: 'top' },
@@ -1245,7 +1250,7 @@ community.
     }
 
     function drawHeroDepartures() {
-        var lineKeys = ['writer', 'programmer', 'activist'];
+        var lineKeys = ['writer', 'programmer', 'advocate'];
         for (var i = 0; i < lineKeys.length; i++) {
             var key = lineKeys[i];
             var line = LINES[key];
