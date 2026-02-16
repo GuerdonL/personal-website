@@ -734,7 +734,7 @@ def main():
         build_modal(),
         '',
         '    <!-- Paper Plane Canvas (fixed viewport) -->',
-        '    <canvas id="planes-canvas" class="fixed top-0 left-0 w-screen h-screen pointer-events-none z-0 opacity-40"></canvas>',
+        '    <canvas id="planes-canvas" class="fixed top-0 left-0 w-screen h-screen pointer-events-none z-10 opacity-40"></canvas>',
         '',
         '    <!-- Metro Viewport -->',
         '    <div id="metro-viewport">',
