@@ -217,8 +217,10 @@ def build_about_me(data):
     contact_meta, _ = parse_metadata_lines(contact_raw)
     github_url = contact_meta.get('github', '#')
     github_label = contact_meta.get('github_label', 'GitHub')
-    email_label = contact_meta.get('email', '[Email Address]')
     linkedin_label = contact_meta.get('linkedin', 'LinkedIn')
+
+    # Email is pre-encoded to avoid plaintext in source files
+    email_b64 = 'R3VlcmRvbkBMaWdvbi5vcmc='
 
     # Philosophy paragraphs
     paragraphs = [p.strip() for p in content_raw.split('\n\n') if p.strip()]
@@ -286,9 +288,9 @@ def build_about_me(data):
                             <a href="{github_url}" target="_blank" class="block hover:text-white transition-colors flex items-center gap-3">
                                 <i class="fa-brands fa-github"></i> {github_label}
                             </a>
-                            <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
-                                <i class="fa-solid fa-envelope"></i> {email_label}
-                            </a>
+                            <button id="email-reveal" onclick="(function(b){{var e=atob('{email_b64}');b.outerHTML='<a href=\\'mailto:'+e+'\\' class=\\'block hover:text-white transition-colors flex items-center gap-3\\'><i class=\\'fa-solid fa-envelope\\'></i> '+e+'</a>'}})(this)" class="block hover:text-white transition-colors flex items-center gap-3 cursor-pointer bg-transparent border-none text-stone-400 p-0 text-base font-sans">
+                                <i class="fa-solid fa-envelope"></i> Click to reveal email
+                            </button>
                             <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
                                 <i class="fa-brands fa-linkedin"></i> {linkedin_label}
                             </a>

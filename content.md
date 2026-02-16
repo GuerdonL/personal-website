@@ -46,7 +46,7 @@ I aim to bridge the gap between abstract ideals and concrete reality: building s
 
 - github: https://github.com/GuerdonL
 - github_label: github.com/GuerdonL
-- email: [Email Address]
+- email: [protected]
 - linkedin: LinkedIn
 
 ## Theme
