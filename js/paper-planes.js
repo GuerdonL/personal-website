@@ -3,15 +3,20 @@
 
         let width, height;
 
-        // Resize Canvas to viewport size (fixed positioning)
+        // Size canvas to the metro world dimensions
         function resize() {
-            width = window.innerWidth;
-            height = window.innerHeight;
+            var world = document.getElementById('metro-world');
+            if (world) {
+                width = world.offsetWidth;
+                height = world.offsetHeight;
+            } else {
+                width = 8500;
+                height = 6000;
+            }
             canvas.width = width;
             canvas.height = height;
         }
-        window.addEventListener('resize', resize);
-        setTimeout(resize, 100);
+        resize();
 
         class Plane {
             constructor() {
@@ -178,7 +183,7 @@
         }
 
         const planes = [];
-        const planeCount = 18;
+        const planeCount = 60;
 
         for (let i = 0; i < planeCount; i++) {
             planes.push(new Plane());
