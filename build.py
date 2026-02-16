@@ -182,7 +182,7 @@ def build_hero(data):
 
     return f"""    <!-- Hero Station (Central Hub) -->
     <section id="hero" class="station-wide" style="{sx}">
-        <div class="min-h-[500px] flex flex-col justify-center px-6 pt-16">
+        <div class="min-h-[500px] flex flex-col justify-center px-6 pt-16 pl-[25%]">
             <div class="max-w-3xl space-y-8">
                 <h1 class="font-serif text-5xl md:text-6xl leading-tight font-medium text-stone-900">
                     {title}
