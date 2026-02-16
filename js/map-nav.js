@@ -16,6 +16,11 @@
     var WORLD_W = 8500;
     var WORLD_H = 6000;
 
+    // Per-station scale multipliers (zoom out a bit for tight stations)
+    var SCALE_FACTOR = {
+        'about-me': 0.85
+    };
+
     function isMobile() {
         return window.innerWidth < 768;
     }
@@ -43,6 +48,7 @@
         var availH = vh - padTop - padBottom;
 
         var scale = Math.min(availW / sw, availH / sh, 1);
+        if (SCALE_FACTOR[stationId]) scale *= SCALE_FACTOR[stationId];
 
         var targetX = vw / 2;
         var targetY = padTop + availH / 2;
