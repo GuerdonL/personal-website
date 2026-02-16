@@ -265,6 +265,7 @@ def build_about_me(data):
                 <div class="space-y-6">
                     <blockquote class="font-serif text-2xl italic text-stone-800 border-l-2 border-stone-900 pl-6 py-1">
                         \u201c{quote}\u201d
+                        <footer class="font-sans text-sm text-stone-500 not-italic mt-2">\u2014 Friedrich Nietzsche</footer>
                     </blockquote>
 
                     <div class="prose prose-stone text-stone-600">

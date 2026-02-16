@@ -27,19 +27,19 @@ About Me
 
 ## Quote
 
-Logic and science do not dispel the magic of reality; they catalogue and explain it.
+We have art in order not to die of the truth.
 
 ## Content
 
-We are currently at a plateau. Our hard secular culture offers tools, but lacks guidance. My approach—the "New Romantic" era—is a practical response to this depletion. It is not a rejection of reason, but an expansion of it to include the inherent strangeness and beauty of existence as a core data point.
+The world is in a period of change, of upset, of new directions and uncertain futures. I aim to live a simple life focused on projects that excite and provoke the collective imagination of what is possible for us all. 
 
-I aim to bridge the gap between abstract ideals and concrete reality: building software that enforces democratic equality, and writing poetry that documents urban ecology.
+I aim to bridge the gap between abstract ideals and concrete reality: make my bread, share ideas, build together.
 
 ## Current Focus
 
 - Location: Bay Area, CA
 - Training: Mendocino Coast 50k (Apr '26)
-- Reading: "The New Romantic" Implications
+- Reading: "On Photography" Susan Sontag
 - Status: Open for Freelance
 
 ## Contact
