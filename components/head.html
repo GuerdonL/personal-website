@@ -153,9 +153,16 @@
                 transform: none !important;
                 transition: none;
             }
+            #planes-canvas {
+                position: fixed !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                z-index: 0 !important;
+            }
             .station, .station-wide {
-                position: static !important;
+                position: relative !important;
                 width: 100% !important;
+                z-index: 2 !important;
             }
             #hub-btn {
                 display: none;

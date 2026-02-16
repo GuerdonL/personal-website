@@ -2,33 +2,40 @@
         const ctx = canvas.getContext('2d');
 
         let width, height;
+        const isMobile = window.innerWidth < 768;
 
-        // Size canvas to the metro world dimensions
+        // Size canvas to world (desktop) or viewport (mobile)
         function resize() {
-            var world = document.getElementById('metro-world');
-            if (world) {
-                width = world.offsetWidth;
-                height = world.offsetHeight;
+            if (isMobile) {
+                width = window.innerWidth;
+                height = window.innerHeight;
             } else {
-                width = 8500;
-                height = 6000;
+                var world = document.getElementById('metro-world');
+                if (world) {
+                    width = world.offsetWidth;
+                    height = world.offsetHeight;
+                } else {
+                    width = 8500;
+                    height = 6000;
+                }
             }
             canvas.width = width;
             canvas.height = height;
         }
         resize();
+        if (isMobile) window.addEventListener('resize', resize);
 
         class Plane {
             constructor() {
                 if (!width || !height) resize();
                 this.reset();
-                // Randomize start y across the viewport
+                // Randomize start y across the canvas
                 this.y = Math.random() * height;
             }
 
             reset() {
                 this.x = Math.random() * width;
-                // Spawn above the viewport
+                // Spawn above the canvas
                 this.y = -50 - (Math.random() * 50);
 
                 // Scale: Random range [0.5, 0.9]
@@ -107,7 +114,7 @@
                 this.x += this.vx;
                 this.y += this.vy;
 
-                // Bounds check (viewport only, no scroll)
+                // Bounds check
                 let wrapped = false;
                 if (this.x > width + 50) {
                     this.x = -50;
@@ -118,7 +125,7 @@
                     wrapped = true;
                 }
 
-                // Recycle if below viewport
+                // Recycle if below canvas
                 if (this.y > height + 100) {
                     this.reset();
                     wrapped = true;
@@ -183,7 +190,7 @@
         }
 
         const planes = [];
-        const planeCount = 180;
+        const planeCount = isMobile ? 20 : 180;
 
         for (let i = 0; i < planeCount; i++) {
             planes.push(new Plane());
