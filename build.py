@@ -322,7 +322,7 @@ def build_writings(data):
     for title, text in poems:
         lines = text.strip().split('\n')
         lines_html = '<br>\n'.join(f'                        {l}' for l in lines)
-        poems_html_parts.append(f"""                <div class="border border-stone-200 p-6 bg-white">
+        poems_html_parts.append(f"""                <div class="border border-stone-200 p-6 bg-white mb-4 break-inside-avoid">
                     <h4 class="font-serif text-lg text-stone-900 mb-3">{title}</h4>
                     <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
 {lines_html}
@@ -338,19 +338,17 @@ def build_writings(data):
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
             <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">{label}</h2>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="columns-1 md:columns-2 gap-8">
                 <!-- Substack CTA -->
-                <div class="bg-stone-100 border border-stone-200 p-6 self-start">
+                <div class="bg-stone-100 border border-stone-200 p-6 mb-4 break-inside-avoid">
                     <p class="font-serif text-lg text-stone-900 mb-4">{substack_text}</p>
                     <a href="#" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors font-mono text-xs uppercase tracking-wide">
                         Subscribe <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
                     </a>
                 </div>
 
-                <!-- Poetry Grid -->
-                <div class="space-y-4">
+                <!-- Poetry -->
 {poems_html}
-                </div>
             </div>
         </div>
     </section>"""
