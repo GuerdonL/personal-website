@@ -13,7 +13,6 @@ import html
 STATION_COORDS = {
     'hero':             (2800, 1800),
     'writings':         (800,  1100),
-    'poetry':           (700,  300),
     'about-me':         (1200, 2800),
     'resume':           (4800, 1100),
     'society-projects': (3200, 3600),
@@ -747,8 +746,6 @@ def main():
         build_about_me(data),
         '',
         build_writings(data),
-        '',
-        build_poetry(data),
         '',
         resume_html,
         '',

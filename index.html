@@ -354,25 +354,6 @@ community.
         </div>
     </section>
 
-    <!-- Poetry Station -->
-    <section id="poetry" class="station" style="left:700px; top:300px;">
-        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
-            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-6">Selected Poetry</h2>
-            <div class="border border-stone-200 p-6 bg-white mb-4">
-                <h4 class="font-serif text-lg text-stone-900 mb-3">The Urban Ecology</h4>
-                <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
-                    Above the grid of numbered streets,<br>
-                    a peregrine traces thermals—<br>
-                    mathematics written in feathers,<br>
-                    equations the city forgot it posed.
-                </p>
-            </div>
-            <button onclick="panTo('writings')" class="font-mono text-xs text-stone-500 hover:text-stone-900 transition-colors uppercase tracking-wide">
-                View all writings <i class="fa-solid fa-arrow-right text-xs"></i>
-            </button>
-        </div>
-    </section>
-
     <!-- Resume Station -->
     <section id="resume" class="station-wide" style="left:4800px; top:1100px;">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
@@ -811,9 +792,7 @@ community.
             color: '#D64045',
             segments: [
                 { from: 'hero', fromSide: 'left', to: 'writings', toSide: 'right' },
-                { from: 'writings', fromSide: 'top', to: 'poetry', toSide: 'bottom' },
-                { from: 'poetry', fromSide: 'left', to: 'about-me', toSide: 'top',
-                  waypoints: [{ x: 200, y: 1850 }] }
+                { from: 'writings', fromSide: 'bottom', to: 'about-me', toSide: 'top' }
             ]
         },
         programmer: {
@@ -831,8 +810,8 @@ community.
         }
     };
 
-    var WORLD_W = 5000;
-    var WORLD_H = 5000;
+    var WORLD_W = 8500;
+    var WORLD_H = 6000;
 
     var svg = null;
     var routeData = null;

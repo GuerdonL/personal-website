@@ -24,9 +24,7 @@
             color: '#D64045',
             segments: [
                 { from: 'hero', fromSide: 'left', to: 'writings', toSide: 'right' },
-                { from: 'writings', fromSide: 'top', to: 'poetry', toSide: 'bottom' },
-                { from: 'poetry', fromSide: 'left', to: 'about-me', toSide: 'top',
-                  waypoints: [{ x: 200, y: 1850 }] }
+                { from: 'writings', fromSide: 'bottom', to: 'about-me', toSide: 'top' }
             ]
         },
         programmer: {
@@ -44,8 +42,8 @@
         }
     };
 
-    var WORLD_W = 5000;
-    var WORLD_H = 5000;
+    var WORLD_W = 8500;
+    var WORLD_H = 6000;
 
     var svg = null;
     var routeData = null;
