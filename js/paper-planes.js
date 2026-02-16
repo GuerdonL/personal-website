@@ -183,7 +183,7 @@
         }
 
         const planes = [];
-        const planeCount = 60;
+        const planeCount = 180;
 
         for (let i = 0; i < planeCount; i++) {
             planes.push(new Plane());
