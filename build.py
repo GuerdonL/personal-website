@@ -12,10 +12,10 @@ import html
 
 STATION_COORDS = {
     'hero':             (2800, 1800),
-    'writings':         (800,  1100),
-    'about-me':         (1200, 2800),
-    'resume':           (4800, 1100),
-    'society-projects': (3200, 3600),
+    'writings':         (4800, 1100),
+    'about-me':         (4400, 2800),
+    'resume':           (800,  1100),
+    'society-projects': (2400, 3600),
 }
 
 

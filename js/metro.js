@@ -23,21 +23,21 @@
         writer: {
             color: '#D64045',
             segments: [
-                { from: 'hero', fromSide: 'left', to: 'writings', toSide: 'right' },
+                { from: 'hero', fromSide: 'right', to: 'writings', toSide: 'left' },
                 { from: 'writings', fromSide: 'bottom', to: 'about-me', toSide: 'top' }
             ]
         },
         programmer: {
             color: '#2A9D8F',
             segments: [
-                { from: 'hero', fromSide: 'right', to: 'resume', toSide: 'left' }
+                { from: 'hero', fromSide: 'left', to: 'resume', toSide: 'right' }
             ]
         },
         activist: {
             color: '#7B6D8D',
             segments: [
                 { from: 'hero', fromSide: 'bottom', to: 'about-me', toSide: 'top' },
-                { from: 'about-me', fromSide: 'right', to: 'society-projects', toSide: 'left' }
+                { from: 'about-me', fromSide: 'left', to: 'society-projects', toSide: 'right' }
             ]
         }
     };

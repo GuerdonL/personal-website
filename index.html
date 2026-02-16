@@ -232,7 +232,7 @@ community.
     </section>
 
     <!-- About Me Station -->
-    <section id="about-me" class="station-wide" style="left:1200px; top:2800px;">
+    <section id="about-me" class="station-wide" style="left:4400px; top:2800px;">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
             <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">About Me</h2>
 
@@ -305,7 +305,7 @@ community.
     </section>
 
     <!-- Writings Station -->
-    <section id="writings" class="station-wide" style="left:800px; top:1100px;">
+    <section id="writings" class="station-wide" style="left:4800px; top:1100px;">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
             <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">Writings</h2>
 
@@ -355,7 +355,7 @@ community.
     </section>
 
     <!-- Resume Station -->
-    <section id="resume" class="station-wide" style="left:4800px; top:1100px;">
+    <section id="resume" class="station-wide" style="left:800px; top:1100px;">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
             <div class="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-8">
                 <!-- Left: Header + Skills -->
@@ -495,7 +495,7 @@ community.
     </section>
 
     <!-- Society & Projects Station -->
-    <section id="society-projects" class="station-wide" style="left:3200px; top:3600px;">
+    <section id="society-projects" class="station-wide" style="left:2400px; top:3600px;">
         <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <!-- Left: Society -->
@@ -791,21 +791,21 @@ community.
         writer: {
             color: '#D64045',
             segments: [
-                { from: 'hero', fromSide: 'left', to: 'writings', toSide: 'right' },
+                { from: 'hero', fromSide: 'right', to: 'writings', toSide: 'left' },
                 { from: 'writings', fromSide: 'bottom', to: 'about-me', toSide: 'top' }
             ]
         },
         programmer: {
             color: '#2A9D8F',
             segments: [
-                { from: 'hero', fromSide: 'right', to: 'resume', toSide: 'left' }
+                { from: 'hero', fromSide: 'left', to: 'resume', toSide: 'right' }
             ]
         },
         activist: {
             color: '#7B6D8D',
             segments: [
                 { from: 'hero', fromSide: 'bottom', to: 'about-me', toSide: 'top' },
-                { from: 'about-me', fromSide: 'right', to: 'society-projects', toSide: 'left' }
+                { from: 'about-me', fromSide: 'left', to: 'society-projects', toSide: 'right' }
             ]
         }
     };
