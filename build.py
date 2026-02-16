@@ -181,7 +181,7 @@ def build_hero(data):
 
     return f"""    <!-- Hero Station (Central Hub) -->
     <section id="hero" class="station-wide" style="{sx}">
-        <div class="min-h-[500px] flex flex-col justify-center px-6 pt-16 pl-[25%]">
+        <div class="min-h-[500px] flex flex-col justify-center px-6 pt-16 md:pl-[25%]">
             <div class="max-w-3xl space-y-8">
                 <h1 class="font-serif text-5xl md:text-6xl leading-tight font-medium text-stone-900">
                     {title}
@@ -343,7 +343,7 @@ def build_writings(data):
                 <!-- Substack CTA -->
                 <div class="bg-stone-100 border border-stone-200 p-6 mb-4 break-inside-avoid">
                     <p class="font-serif text-lg text-stone-900 mb-4">{substack_text}</p>
-                    <a href="#" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors font-mono text-xs uppercase tracking-wide">
+                    <a href="https://guerdonligon.substack.com/" target="_blank" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors font-mono text-xs uppercase tracking-wide">
                         Subscribe <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
                     </a>
                 </div>
@@ -742,11 +742,11 @@ def main():
         '',
         build_hero(data),
         '',
+        resume_html,
+        '',
         build_about_me(data),
         '',
         build_writings(data),
-        '',
-        resume_html,
         '',
         build_society_projects(data),
         '',

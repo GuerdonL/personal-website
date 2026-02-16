@@ -212,7 +212,7 @@
 
     <!-- Hero Station (Central Hub) -->
     <section id="hero" class="station-wide" style="left:2800px; top:1800px;">
-        <div class="min-h-[500px] flex flex-col justify-center px-6 pt-16 pl-[25%]">
+        <div class="min-h-[500px] flex flex-col justify-center px-6 pt-16 md:pl-[25%]">
             <div class="max-w-3xl space-y-8">
                 <h1 class="font-serif text-5xl md:text-6xl leading-tight font-medium text-stone-900">
                     Constructing a 
@@ -232,153 +232,6 @@ community.
                     <button onclick="panTo('about-me')" class="group px-4 py-2 border-2 rounded-sm font-mono text-xs uppercase tracking-wide text-stone-500 hover:text-stone-900 transition-all cursor-pointer flex items-center gap-2" style="border-color: #7B6D8D;"><span class="inline-block w-3 h-3 rounded-full" style="background: #7B6D8D;"></span>Advocate</button>
                     <button onclick="panTo('writings')" class="group px-4 py-2 border-2 rounded-sm font-mono text-xs uppercase tracking-wide text-stone-500 hover:text-stone-900 transition-all cursor-pointer flex items-center gap-2" style="border-color: #D64045;"><span class="inline-block w-3 h-3 rounded-full" style="background: #D64045;"></span>Writer</button>
                     </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- About Me Station -->
-    <section id="about-me" class="station-wide" style="left:4400px; top:2800px;">
-        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
-            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">About Me</h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <!-- Left: Philosophy -->
-                <div class="space-y-6">
-                    <blockquote class="font-serif text-2xl italic text-stone-800 border-l-2 border-stone-900 pl-6 py-1">
-                        “We have art in order not to die of the truth.”
-                        <footer class="font-sans text-sm text-stone-500 not-italic mt-2">— Friedrich Nietzsche</footer>
-                    </blockquote>
-
-                    <div class="prose prose-stone text-stone-600">
-                            <p class="leading-relaxed">
-                                The world is in a period of change, of upset, of new directions and uncertain futures. I aim to live a simple life focused on projects that excite and provoke the collective imagination of what is possible for us all.
-                            </p>
-                            <p class="leading-relaxed">
-                                I bridge the gap between abstract ideals and concrete reality: make my bread, share ideas, build together.
-                            </p>
-                    </div>
-
-                    <div class="bg-stone-100 p-6 border border-stone-200">
-                        <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-4">Current Focus</h3>
-                        <ul class="space-y-3 font-mono text-sm text-stone-700">
-                                <li class="flex justify-between border-b border-stone-200 pb-2 ">
-                                    <span>Location</span>
-                                    <span>Bay Area, CA</span>
-                                </li>
-                                <li class="flex justify-between border-b border-stone-200 pb-2 ">
-                                    <span>Training</span>
-                                    <span>Mendocino Coast 50k (Apr '26)</span>
-                                </li>
-                                <li class="flex justify-between border-b border-stone-200 pb-2 ">
-                                    <span>Reading</span>
-                                    <span>"On Photography" Susan Sontag</span>
-                                </li>
-                                <li class="flex justify-between pt-1">
-                                    <span>Status</span>
-                                    <span class="text-green-700">● Open for Freelance</span>
-                                </li>
-                        </ul>
-                    </div>
-                </div>
-
-                <!-- Right: Contact -->
-                <div class="bg-stone-900 text-stone-400 p-8 border border-stone-700 flex flex-col justify-between">
-                    <div>
-                        <h3 class="font-serif text-2xl text-stone-50 mb-6">Contact</h3>
-                        <div class="space-y-4">
-                            <a href="https://github.com/GuerdonL" target="_blank" class="block hover:text-white transition-colors flex items-center gap-3">
-                                <i class="fa-brands fa-github"></i> github.com/GuerdonL
-                            </a>
-                            <button id="email-reveal" onclick="(function(b){var e=atob('R3VlcmRvbkBMaWdvbi5vcmc=');b.outerHTML='<a href=\'mailto:'+e+'\' class=\'block hover:text-white transition-colors flex items-center gap-3\'><i class=\'fa-solid fa-envelope\'></i> '+e+'</a>'})(this)" class="block hover:text-white transition-colors flex items-center gap-3 cursor-pointer bg-transparent border-none text-stone-400 p-0 text-base font-sans">
-                                <i class="fa-solid fa-envelope"></i> Click to reveal email
-                            </button>
-                            <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
-                                <i class="fa-brands fa-linkedin"></i> LinkedIn
-                            </a>
-                        </div>
-                    </div>
-                    <div class="mt-8">
-                        <p class="font-mono text-xs uppercase tracking-wide text-stone-500 mb-2">
-                            
-                        </p>
-                        <p class="font-serif text-lg italic text-stone-300">
-                            “A life is constructed through chance guided by genuine interest.”
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Writings Station -->
-    <section id="writings" class="station-wide" style="left:4800px; top:1100px;">
-        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
-            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">Writings</h2>
-
-            <div class="columns-1 md:columns-2 gap-8">
-                <!-- Substack CTA -->
-                <div class="bg-stone-100 border border-stone-200 p-6 mb-4 break-inside-avoid">
-                    <p class="font-serif text-lg text-stone-900 mb-4">Join my Substack or else.</p>
-                    <a href="#" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors font-mono text-xs uppercase tracking-wide">
-                        Subscribe <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
-                    </a>
-                </div>
-
-                <!-- Poetry -->
-                <div class="border border-stone-200 p-6 bg-white mb-4 break-inside-avoid">
-                    <h4 class="font-serif text-lg text-stone-900 mb-3">Fear on 8 Legs (the master’s parable)</h4>
-                    <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
-                        The man in the camera with the camera, he looks down, justifies collision collision poor boy collision with ignorance,<br>
-                        Conflates the elegance of dancers with inhumanity,<br>
-                        Is so confused by despised characters, who, sky-covering, are roof to master’s big small head desire heat, like burning clothes,<br>
-                        And loves loves loves his pictures in the box, and he can't cry cuz he's too scared falling over under it all—<br>
-                        He's, he’s, he’s so high u~p?
-                    </p>
-                </div>
-
-                <div class="border border-stone-200 p-6 bg-white mb-4 break-inside-avoid">
-                    <h4 class="font-serif text-lg text-stone-900 mb-3">The Lord Spake Unto Abraham (the slave’s parable)</h4>
-                    <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
-                        She was terribly ashamed that she wasn't terribly ashamed.<br>
-                        Bad girl soft weak slippery bar of soap, grasp tight in anger and private lashes in her bedroom,<br>
-                        This is seeing, this is caring, this is justice<br>
-                        But where is doing, where is sense, where is forgiven?<br>
-                        Everyone else took them first, got there early, and got the book written about them.<br>
-                        Now she just flip pages and ask the characters to be her friend, since you have the black eye they wanted?<br>
-                        If it's a lonely night the mirror will beat her some more, till sad as fuck is satisfied with her. Maybe then you can be loved.
-                    </p>
-                </div>
-
-                <div class="border border-stone-200 p-6 bg-white mb-4 break-inside-avoid">
-                    <h4 class="font-serif text-lg text-stone-900 mb-3">Life with the Buddha</h4>
-                    <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
-                        “<br>
-                        I hold my arms wide, this wide, look at me I'm a fat man<br>
-                        And there is nothing so amorous as fat<br>
-                        So that the heart on my sleeve may with some washing begin to send out textile tendrils catching,<br>
-                        And I snag on women, all the women!<br>
-                        <br>
-                        You see they creep in through the cracks in my mind, like mice through mouseholes<br>
-                        My diminutive mistresses!<br>
-                        Oh how I love<br>
-                        You, <br>
-                        Oh barista with one foot out of my monologue,<br>
-                        As you struggle desperately to free the other.<br>
-                        And mailman of awkward conversing, Borges of large library,<br>
-                        Oh frothing minds, how you spill yourselves on me!<br>
-                        <br>
-                        How could I not love you, in your millions, in your countless and perfect ejaculates, as you squirm like a worm on a spit, Yes That's Beauty! <br>
-                        So surrender to my Mother breast, your Mother head, us Mother's infant.<br>
-                        Do you hate me? Do you need me? Can you see me? Now you don't? I need not know lest you tell me, for I am the thing before asking, and all is love.<br>
-                        <br>
-                        I seem strange because I am so small, on Big you will know me.<br>
-                        I flap my wings and it looks silly, because only I know I'm flying.<br>
-                        <br>
-                        I AM THE UNIVERSE,<br>
-                        I AM THE UNIVERSE!<br>
-                        “
-                    </p>
                 </div>
             </div>
         </div>
@@ -519,6 +372,153 @@ community.
                         Aided in the technical and graphical overhaul of the company website, enhancing user engagement and corporate branding.
                     </p>
                 </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Me Station -->
+    <section id="about-me" class="station-wide" style="left:4400px; top:2800px;">
+        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
+            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">About Me</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Left: Philosophy -->
+                <div class="space-y-6">
+                    <blockquote class="font-serif text-2xl italic text-stone-800 border-l-2 border-stone-900 pl-6 py-1">
+                        “We have art in order not to die of the truth.”
+                        <footer class="font-sans text-sm text-stone-500 not-italic mt-2">— Friedrich Nietzsche</footer>
+                    </blockquote>
+
+                    <div class="prose prose-stone text-stone-600">
+                            <p class="leading-relaxed">
+                                The world is in a period of change, of upset, of new directions and uncertain futures. I aim to live a simple life focused on projects that excite and provoke the collective imagination of what is possible for us all.
+                            </p>
+                            <p class="leading-relaxed">
+                                I bridge the gap between abstract ideals and concrete reality: make my bread, share ideas, build together.
+                            </p>
+                    </div>
+
+                    <div class="bg-stone-100 p-6 border border-stone-200">
+                        <h3 class="font-mono text-xs font-bold uppercase text-stone-500 mb-4">Current Focus</h3>
+                        <ul class="space-y-3 font-mono text-sm text-stone-700">
+                                <li class="flex justify-between border-b border-stone-200 pb-2 ">
+                                    <span>Location</span>
+                                    <span>Bay Area, CA</span>
+                                </li>
+                                <li class="flex justify-between border-b border-stone-200 pb-2 ">
+                                    <span>Training</span>
+                                    <span>Mendocino Coast 50k (Apr '26)</span>
+                                </li>
+                                <li class="flex justify-between border-b border-stone-200 pb-2 ">
+                                    <span>Reading</span>
+                                    <span>"On Photography" Susan Sontag</span>
+                                </li>
+                                <li class="flex justify-between pt-1">
+                                    <span>Status</span>
+                                    <span class="text-green-700">● Open for Freelance</span>
+                                </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Right: Contact -->
+                <div class="bg-stone-900 text-stone-400 p-8 border border-stone-700 flex flex-col justify-between">
+                    <div>
+                        <h3 class="font-serif text-2xl text-stone-50 mb-6">Contact</h3>
+                        <div class="space-y-4">
+                            <a href="https://github.com/GuerdonL" target="_blank" class="block hover:text-white transition-colors flex items-center gap-3">
+                                <i class="fa-brands fa-github"></i> github.com/GuerdonL
+                            </a>
+                            <button id="email-reveal" onclick="(function(b){var e=atob('R3VlcmRvbkBMaWdvbi5vcmc=');b.outerHTML='<a href=\'mailto:'+e+'\' class=\'block hover:text-white transition-colors flex items-center gap-3\'><i class=\'fa-solid fa-envelope\'></i> '+e+'</a>'})(this)" class="block hover:text-white transition-colors flex items-center gap-3 cursor-pointer bg-transparent border-none text-stone-400 p-0 text-base font-sans">
+                                <i class="fa-solid fa-envelope"></i> Click to reveal email
+                            </button>
+                            <a href="#" class="block hover:text-white transition-colors flex items-center gap-3">
+                                <i class="fa-brands fa-linkedin"></i> LinkedIn
+                            </a>
+                        </div>
+                    </div>
+                    <div class="mt-8">
+                        <p class="font-mono text-xs uppercase tracking-wide text-stone-500 mb-2">
+                            
+                        </p>
+                        <p class="font-serif text-lg italic text-stone-300">
+                            “A life is constructed through chance guided by genuine interest.”
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Writings Station -->
+    <section id="writings" class="station-wide" style="left:4800px; top:1100px;">
+        <div class="py-12 px-6 bg-stone-50/80 backdrop-blur-sm border border-stone-200">
+            <h2 class="font-sans text-sm font-bold uppercase tracking-wider text-stone-400 mb-8">Writings</h2>
+
+            <div class="columns-1 md:columns-2 gap-8">
+                <!-- Substack CTA -->
+                <div class="bg-stone-100 border border-stone-200 p-6 mb-4 break-inside-avoid">
+                    <p class="font-serif text-lg text-stone-900 mb-4">Join my Substack or else.</p>
+                    <a href="https://guerdonligon.substack.com/" target="_blank" class="inline-flex items-center gap-2 text-stone-900 font-medium border-b border-stone-900 pb-1 hover:text-stone-600 hover:border-stone-600 transition-colors font-mono text-xs uppercase tracking-wide">
+                        Subscribe <i class="fa-solid fa-arrow-right -rotate-45 text-sm"></i>
+                    </a>
+                </div>
+
+                <!-- Poetry -->
+                <div class="border border-stone-200 p-6 bg-white mb-4 break-inside-avoid">
+                    <h4 class="font-serif text-lg text-stone-900 mb-3">Fear on 8 Legs (the master’s parable)</h4>
+                    <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
+                        The man in the camera with the camera, he looks down, justifies collision collision poor boy collision with ignorance,<br>
+                        Conflates the elegance of dancers with inhumanity,<br>
+                        Is so confused by despised characters, who, sky-covering, are roof to master’s big small head desire heat, like burning clothes,<br>
+                        And loves loves loves his pictures in the box, and he can't cry cuz he's too scared falling over under it all—<br>
+                        He's, he’s, he’s so high u~p?
+                    </p>
+                </div>
+
+                <div class="border border-stone-200 p-6 bg-white mb-4 break-inside-avoid">
+                    <h4 class="font-serif text-lg text-stone-900 mb-3">The Lord Spake Unto Abraham (the slave’s parable)</h4>
+                    <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
+                        She was terribly ashamed that she wasn't terribly ashamed.<br>
+                        Bad girl soft weak slippery bar of soap, grasp tight in anger and private lashes in her bedroom,<br>
+                        This is seeing, this is caring, this is justice<br>
+                        But where is doing, where is sense, where is forgiven?<br>
+                        Everyone else took them first, got there early, and got the book written about them.<br>
+                        Now she just flip pages and ask the characters to be her friend, since you have the black eye they wanted?<br>
+                        If it's a lonely night the mirror will beat her some more, till sad as fuck is satisfied with her. Maybe then you can be loved.
+                    </p>
+                </div>
+
+                <div class="border border-stone-200 p-6 bg-white mb-4 break-inside-avoid">
+                    <h4 class="font-serif text-lg text-stone-900 mb-3">Life with the Buddha</h4>
+                    <p class="font-serif text-sm text-stone-600 leading-relaxed italic">
+                        “<br>
+                        I hold my arms wide, this wide, look at me I'm a fat man<br>
+                        And there is nothing so amorous as fat<br>
+                        So that the heart on my sleeve may with some washing begin to send out textile tendrils catching,<br>
+                        And I snag on women, all the women!<br>
+                        <br>
+                        You see they creep in through the cracks in my mind, like mice through mouseholes<br>
+                        My diminutive mistresses!<br>
+                        Oh how I love<br>
+                        You, <br>
+                        Oh barista with one foot out of my monologue,<br>
+                        As you struggle desperately to free the other.<br>
+                        And mailman of awkward conversing, Borges of large library,<br>
+                        Oh frothing minds, how you spill yourselves on me!<br>
+                        <br>
+                        How could I not love you, in your millions, in your countless and perfect ejaculates, as you squirm like a worm on a spit, Yes That's Beauty! <br>
+                        So surrender to my Mother breast, your Mother head, us Mother's infant.<br>
+                        Do you hate me? Do you need me? Can you see me? Now you don't? I need not know lest you tell me, for I am the thing before asking, and all is love.<br>
+                        <br>
+                        I seem strange because I am so small, on Big you will know me.<br>
+                        I flap my wings and it looks silly, because only I know I'm flying.<br>
+                        <br>
+                        I AM THE UNIVERSE,<br>
+                        I AM THE UNIVERSE!<br>
+                        “
+                    </p>
                 </div>
             </div>
         </div>
