@@ -12,14 +12,14 @@
     --bg: #fafaf9; --t0: #ffffff; --t1: #f5f5f4;
     --line: #e7e5e4; --line-strong: #a8a29e;
     --ink: #292524; --faint: #a8a29e; --accent: #57534e; --danger: #dc2626;
-    --sel: #2563eb; --match: #fef3c7;
+    --sel: #2563eb; --match: #fef3c7; --amber: #b45309; --orange: #ea580c;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #1c1917; --t0: #292524; --t1: #221f1d;
       --line: #3a3532; --line-strong: #78716c;
       --ink: #e7e5e4; --faint: #78716c; --accent: #d6d3d1; --danger: #f87171;
-      --sel: #60a5fa; --match: #4a3b12;
+      --sel: #60a5fa; --match: #4a3b12; --amber: #fbbf24; --orange: #fb923c;
     }
   }
   * { box-sizing: border-box; }
@@ -50,7 +50,8 @@
 
   .head { display: flex; align-items: baseline; gap: 8px; }
   .name { font-weight: 500; white-space: pre-wrap; overflow-wrap: anywhere; cursor: default; }
-  .num { margin-left: auto; font: 10px/1 'JetBrains Mono', ui-monospace, monospace; color: var(--faint); }
+  .head > .name + * { margin-left: auto; }
+  .num { font: 10px/1 'JetBrains Mono', ui-monospace, monospace; color: var(--faint); }
 
   .sel { outline: 2px solid var(--sel); outline-offset: 1px; }
   #root.sel { outline: 1px solid var(--sel); outline-offset: -6px; }
@@ -88,6 +89,43 @@
   #cmd[hidden], #msg:empty { display: none; }
   #cmd { display: flex; color: var(--ink); }
 
+  /* due dates & urgency: l* colours a task's own due badge, u* is the most
+     urgent level anywhere inside the task (so parents show what they hide) */
+  .due { font: 11px/1 'JetBrains Mono', ui-monospace, monospace; color: var(--faint); white-space: nowrap; }
+  .due.l1 { color: var(--ink); }
+  .due.l2 { color: var(--amber); }
+  .due.l3 { color: var(--orange); }
+  .due.l4 { color: var(--danger); font-weight: 600; }
+  .task.u2 { border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); }
+  .task.u3 { border-color: color-mix(in srgb, var(--orange) 60%, var(--line)); }
+  .task.u4 { border-color: color-mix(in srgb, var(--danger) 70%, var(--line)); }
+
+  #sched {
+    position: fixed; z-index: 20; width: 252px; padding: 12px;
+    background: var(--t0); border: 1px solid var(--line-strong); border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.16); font-size: 13px;
+  }
+  #sched[hidden] { display: none; }
+  #sched button, #sched select { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; border-radius: 6px; }
+  #sched button:hover { background: var(--t1); }
+  #sq {
+    width: 100%; margin-bottom: 10px; padding: 6px 8px; font: 13px 'JetBrains Mono', ui-monospace, monospace;
+    color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; outline: none;
+  }
+  #sq:focus { border-color: var(--line-strong); }
+  #sq.bad { border-color: var(--danger); }
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; font-weight: 500; }
+  .cal-head button { width: 28px; height: 28px; font-size: 16px; }
+  #sgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+  #sgrid .wd { font-size: 11px; color: var(--faint); padding: 4px 0; }
+  #sgrid button { height: 30px; }
+  #sgrid button.today { font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+  #sgrid button.on { background: var(--sel); color: #fff; }
+  .srow { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+  .srow select { border: 1px solid var(--line); padding: 3px 6px; background: var(--bg); }
+  #ssave { font-weight: 500; padding: 4px 10px; }
+  #sclear { color: var(--faint); padding: 4px 8px; }
+
   #hint { position: fixed; inset: 0; display: grid; place-items: center; color: var(--faint); pointer-events: none; }
   #hint[hidden] { display: none; }
   #home { position: fixed; left: 18px; top: 14px; font-size: 12px; color: var(--faint); text-decoration: none; }
@@ -101,6 +139,19 @@
 <div id="bar">
   <form id="cmd" hidden><span id="cmdp">:</span><input id="cmdi" autocomplete="off" spellcheck="false"></form>
   <span id="msg"></span>
+</div>
+<div id="sched" hidden>
+  <input id="sq" placeholder="mm/dd/yy hh:mm" autocomplete="off" spellcheck="false">
+  <div class="cal-head"><button id="sprev" tabindex="-1">‹</button><span id="smonth"></span><button id="snext" tabindex="-1">›</button></div>
+  <div id="sgrid"></div>
+  <div class="srow">
+    <span>repeat</span>
+    <select id="srep">
+      <option value="">never</option><option value="daily">daily</option><option value="weekdays">weekdays</option>
+      <option value="weekly">weekly</option><option value="monthly">monthly</option><option value="yearly">yearly</option>
+    </select>
+  </div>
+  <div class="srow"><button id="sclear">clear</button><button id="ssave">save</button></div>
 </div>
 <div id="trash" title="Drag here to delete">
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -162,24 +213,143 @@
   // filled row by row (1 → 1, 2 → 2, 3 → 2+1, 4 → 2×2, 5 → 3+2, 9 → 3×3 …).
   function squareCols(n) { return Math.max(1, Math.ceil(Math.sqrt(n))); }
 
+  // ── dates ───────────────────────────────────────────────
+  const DAY = 864e5;
+  const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const daysIn = (y, m) => new Date(y, m + 1, 0).getDate();
+  const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const pad = n => String(n).padStart(2, '0');
+
+  // "mm/dd/yy", also m/d, m/d/yy, m/d/yyyy (no year → this year)
+  function parseDate(s) {
+    const m = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?$/.exec(s);
+    if (!m) return null;
+    const mo = +m[1] - 1, d = +m[2];
+    let y = m[3] ? +m[3] : new Date().getFullYear();
+    if (m[3] && m[3].length === 2) y += 2000;
+    if (mo < 0 || mo > 11 || d < 1 || d > daysIn(y, mo)) return null;
+    return { y, m: mo, d };
+  }
+  // h, hh, h:mm, hh:mm, each optionally followed by a or p (am/pm also ok).
+  // No suffix: 24-hour clock, so hours below 12 are am and 13–23 are pm.
+  // Returns minutes after midnight.
+  function parseTime(s) {
+    const m = /^(\d{1,2})(?::([0-5]\d))?(?:([ap])m?)?$/i.exec(s);
+    if (!m) return null;
+    let h = +m[1];
+    const min = m[2] ? +m[2] : 0, ap = m[3] && m[3].toLowerCase();
+    if (ap) {
+      if (h < 1 || h > 12) return null;
+      if (ap === 'a' && h === 12) h = 0;
+      if (ap === 'p' && h < 12) h += 12;
+    } else if (h > 23) return null;
+    return h * 60 + min;
+  }
+  // Pull @date / @time tokens out of free text. Other @words stay in the name.
+  function parseWhen(text, needAt = true) {
+    let date = null, time = null, any = false, bad = false;
+    const kept = [];
+    for (const tok of text.trim().split(/\s+/).filter(Boolean)) {
+      const at = tok.startsWith('@');
+      const body = at ? tok.slice(1) : tok;
+      if ((at || !needAt) && body) {
+        const d = parseDate(body);
+        if (d) { date = d; any = true; continue; }
+        const t = parseTime(body);
+        if (t != null) { time = t; any = true; continue; }
+        if (!needAt) bad = true;
+      }
+      kept.push(tok);
+    }
+    return { name: kept.join(' '), date, time, any, bad };
+  }
+  // Only a time → today. Only a date → 12am.
+  function dueFrom(date, time) {
+    if (!date && time == null) return null;
+    const now = new Date();
+    const d = date || { y: now.getFullYear(), m: now.getMonth(), d: now.getDate() };
+    const t = time ?? 0;
+    return new Date(d.y, d.m, d.d, Math.floor(t / 60), t % 60).getTime();
+  }
+  function setDue(t, due) {
+    if (due == null) { delete t.due; delete t.rep; delete t.anchor; return; }
+    t.due = due;
+    t.anchor = new Date(due).getDate();   // day-of-month that monthly repeats aim for
+  }
+  function fmtTime(mins) {
+    const h = Math.floor(mins / 60), m = mins % 60;
+    return (h % 12 || 12) + (m ? ':' + pad(m) : '') + (h < 12 ? 'a' : 'p');
+  }
+  function fmtDue(t) {
+    const d = new Date(t.due), now = new Date();
+    const days = Math.round((startOfDay(d) - startOfDay(now)) / DAY);
+    let s;
+    if (days === 0) s = 'today';
+    else if (days === 1) s = 'tmrw';
+    else if (days === -1) s = 'yday';
+    else if (days > 1 && days < 7) s = WD[d.getDay()];
+    else s = MON[d.getMonth()] + ' ' + d.getDate() + (d.getFullYear() !== now.getFullYear() ? " '" + String(d.getFullYear()).slice(2) : '');
+    const mins = d.getHours() * 60 + d.getMinutes();
+    if (mins) s += ' ' + fmtTime(mins);
+    if (t.rep) s += ' ↻';
+    return s;
+  }
+  // 4 overdue · 3 due today · 2 within 3 days · 1 within a week · 0 later/none
+  function urgency(t) {
+    if (!t.due) return 0;
+    const now = Date.now();
+    if (t.due < now) return 4;
+    if (t.due < startOfDay(new Date()) + DAY) return 3;
+    if (t.due < now + 3 * DAY) return 2;
+    if (t.due < now + 7 * DAY) return 1;
+    return 0;
+  }
+  function nextOccurrence(t) {
+    const d = new Date(t.due);
+    const step = {
+      daily: () => d.setDate(d.getDate() + 1),
+      weekdays: () => { do d.setDate(d.getDate() + 1); while (d.getDay() === 0 || d.getDay() === 6); },
+      weekly: () => d.setDate(d.getDate() + 7),
+      monthly: () => { const want = t.anchor || d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + 1); d.setDate(Math.min(want, daysIn(d.getFullYear(), d.getMonth()))); },
+      yearly: () => { const want = t.anchor || d.getDate(), m = d.getMonth(); d.setDate(1); d.setFullYear(d.getFullYear() + 1); d.setDate(Math.min(want, daysIn(d.getFullYear(), m))); },
+    }[t.rep];
+    if (!step) return null;
+    do step(); while (d.getTime() <= Date.now());   // skip occurrences already missed
+    return d.getTime();
+  }
+
   // ── render ──────────────────────────────────────────────
   function build(t, depth, matches) {
     const el = document.createElement('div');
-    el.className = 'task' + (depth % 2 ? ' odd' : '') + (t.children.length ? ' parent' : '') + (matches.has(t.id) ? ' match' : '');
     el.dataset.id = t.id;
     const head = document.createElement('div');
     head.className = 'head';
     const name = document.createElement('span');
     name.className = 'name';
     name.textContent = t.name;
+    head.append(name);
+    const own = urgency(t);
+    if (t.due) {
+      const due = document.createElement('span');
+      due.className = 'due l' + own;
+      due.textContent = fmtDue(t);
+      due.title = new Date(t.due).toLocaleString() + (t.rep ? ' · repeats ' + t.rep : '');
+      head.append(due);
+    }
     const num = document.createElement('span');
     num.className = 'num';
     num.textContent = t.n;
-    head.append(name, num);
+    head.append(num);
     const kids = document.createElement('div');
     kids.className = 'kids';
-    kids.append(...t.children.map(c => build(c, depth + 1, matches)));
+    const childEls = t.children.map(c => build(c, depth + 1, matches));
+    kids.append(...childEls);
     kids.style.setProperty('--cols', squareCols(t.children.length));
+    const u = Math.max(own, ...childEls.map(c => +c.dataset.u));
+    el.dataset.u = u;
+    el.className = 'task' + (depth % 2 ? ' odd' : '') + (t.children.length ? ' parent' : '') +
+      (matches.has(t.id) ? ' match' : '') + (u > 1 ? ' u' + u : '');
     el.append(head, kids);
     return el;
   }
@@ -230,11 +400,12 @@
     const finish = commit => {
       if (done) return false;
       done = true; editing = null;
-      const v = inp.value.trim();
+      const p = parseWhen(inp.value);
       const target = find(parentId);
-      if (commit && v && target) {
+      if (commit && p.name && target) {
         snapshot();
-        const t = { id: uid(), n: data.next++, name: v, children: [] };
+        const t = { id: uid(), n: data.next++, name: p.name, children: [] };
+        if (p.any) setDue(t, dueFrom(p.date, p.time));
         if (index == null) target.node.children.push(t);
         else target.node.children.splice(index, 0, t);
         cursor = t.id;
@@ -271,8 +442,14 @@
     const finish = commit => {
       if (done) return;
       done = true; editing = null;
-      const v = inp.value.trim();
-      if (commit && v && v !== t.name) { snapshot(); t.name = v; save(); }
+      // "@5p" alone reschedules and keeps the name; a blank name is never saved
+      const p = parseWhen(inp.value);
+      if (commit && (p.name || p.any) && (p.any || p.name !== t.name)) {
+        snapshot();
+        if (p.name) t.name = p.name;
+        if (p.any) setDue(t, dueFrom(p.date, p.time));
+        save();
+      }
       render();
     };
     inp.addEventListener('keydown', e => {
@@ -472,8 +649,140 @@
     say(`${query}  [${j + 1}/${m.length}]`);
   }
 
+  // ── scheduler (t) ──────────────────────────────────────
+  const schedEl = document.getElementById('sched');
+  const sq = document.getElementById('sq');
+  const sgrid = document.getElementById('sgrid');
+  const smonth = document.getElementById('smonth');
+  const srep = document.getElementById('srep');
+  let S = null;   // { id, date, time, vy, vm } while the popover is open
+
+  function openSched(id) {
+    if (id === 'root' || !find(id)) return;
+    const t = find(id).node, now = new Date();
+    S = { id, date: null, time: null };
+    if (t.due) {
+      const d = new Date(t.due);
+      S.date = { y: d.getFullYear(), m: d.getMonth(), d: d.getDate() };
+      S.time = d.getHours() * 60 + d.getMinutes() || null;
+    }
+    S.vy = S.date ? S.date.y : now.getFullYear();
+    S.vm = S.date ? S.date.m : now.getMonth();
+    srep.value = t.rep || '';
+    sq.value = fieldText();
+    sq.classList.remove('bad');
+    drawCal();
+    schedEl.hidden = false;
+    const r = elFor(id).getBoundingClientRect(), w = schedEl.offsetWidth, h = schedEl.offsetHeight;
+    let top = r.bottom + 6;
+    if (top + h > innerHeight - 8) top = Math.max(8, r.top - h - 6);
+    schedEl.style.left = Math.min(Math.max(8, r.left), innerWidth - w - 8) + 'px';
+    schedEl.style.top = top + 'px';
+    sq.focus(); sq.select();
+  }
+  function closeSched() { S = null; schedEl.hidden = true; document.activeElement && document.activeElement.blur(); }
+  function fieldText() {
+    const parts = [];
+    if (S.date) parts.push(`${pad(S.date.m + 1)}/${pad(S.date.d)}/${String(S.date.y).slice(2)}`);
+    if (S.time != null) parts.push(fmtTime(S.time));
+    return parts.join(' ');
+  }
+  function drawCal() {
+    smonth.textContent = new Date(S.vy, S.vm, 1).toLocaleString(undefined, { month: 'long', year: 'numeric' });
+    const cells = WD.map(w => `<span class="wd">${w.slice(0, 2)}</span>`);
+    const lead = new Date(S.vy, S.vm, 1).getDay(), now = new Date();
+    for (let i = 0; i < lead; i++) cells.push('<span></span>');
+    for (let d = 1; d <= daysIn(S.vy, S.vm); d++) {
+      const cls = [];
+      if (S.vy === now.getFullYear() && S.vm === now.getMonth() && d === now.getDate()) cls.push('today');
+      if (S.date && S.date.y === S.vy && S.date.m === S.vm && S.date.d === d) cls.push('on');
+      cells.push(`<button tabindex="-1" data-d="${d}" class="${cls.join(' ')}">${d}</button>`);
+    }
+    sgrid.innerHTML = cells.join('');
+  }
+  function shiftMonth(k) {
+    const d = new Date(S.vy, S.vm + k, 1);
+    S.vy = d.getFullYear(); S.vm = d.getMonth();
+    drawCal();
+    sq.focus();
+  }
+  // The text field takes the same tokens as task names, with or without "@".
+  sq.addEventListener('input', () => {
+    const p = parseWhen(sq.value, false);
+    sq.classList.toggle('bad', p.bad);
+    if (p.bad) return;
+    S.date = p.date; S.time = p.time;
+    if (S.date) { S.vy = S.date.y; S.vm = S.date.m; }
+    drawCal();
+  });
+  sgrid.addEventListener('click', e => {
+    const b = e.target.closest('button[data-d]');
+    if (!b) return;
+    S.date = { y: S.vy, m: S.vm, d: +b.dataset.d };
+    sq.value = fieldText(); sq.classList.remove('bad');
+    drawCal();
+    sq.focus();
+  });
+  document.getElementById('sprev').addEventListener('click', () => shiftMonth(-1));
+  document.getElementById('snext').addEventListener('click', () => shiftMonth(1));
+  function saveSched(clear) {
+    if (!S) return;
+    if (!clear && sq.classList.contains('bad')) { say('can\'t read that date/time'); return; }
+    const found = find(S.id);
+    if (found) {
+      snapshot();
+      const t = found.node;
+      setDue(t, clear ? null : dueFrom(S.date, S.time));
+      if (t.due && srep.value) t.rep = srep.value; else delete t.rep;
+      save();
+    }
+    cursor = S.id;
+    closeSched();
+    render();
+  }
+  document.getElementById('ssave').addEventListener('click', () => saveSched(false));
+  document.getElementById('sclear').addEventListener('click', () => saveSched(true));
+  schedEl.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Escape') { e.preventDefault(); closeSched(); }
+    else if (e.key === 'Enter' && e.target !== srep) { e.preventDefault(); saveSched(false); }
+    else if (e.key === 'PageUp') { e.preventDefault(); shiftMonth(-1); }
+    else if (e.key === 'PageDown') { e.preventDefault(); shiftMonth(1); }
+  });
+  // clicking anywhere outside the popover cancels it (and nothing else happens)
+  window.addEventListener('pointerdown', e => {
+    if (S && !schedEl.contains(e.target)) { e.stopPropagation(); closeSched(); }
+  }, true);
+
+  // ── complete (x) ───────────────────────────────────────
+  // Repeating tasks roll forward to their next occurrence; others are removed.
+  function complete(id) {
+    const found = find(id);
+    if (!found || id === 'root') return;
+    const t = found.node;
+    snapshot();
+    if (t.rep && t.due) {
+      t.due = nextOccurrence(t);
+      say(`${t.name} → ${fmtDue(t)}`);
+    } else {
+      const sib = found.parent.children, i = sib.indexOf(t);
+      sib.splice(i, 1);
+      cursor = (sib[i] || sib[i - 1] || found.parent).id;
+      say(`done: ${t.name}  (u to undo)`);
+    }
+    save(); render();
+  }
+
+  // urgency depends on the clock, so refresh once a minute
+  setInterval(() => { if (!editing && !S && !ptr) render(); }, 60000);
+
   // ── keyboard: dispatch ─────────────────────────────────
   document.addEventListener('keydown', e => {
+    if (S) {   // popover open but focus wandered off it
+      if (e.key === 'Escape') closeSched();
+      else if (e.key === 'Enter') { e.preventDefault(); saveSched(false); }
+      return;
+    }
     if (editing || document.activeElement === cmdI) return;
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -484,6 +793,8 @@
       case 'o': e.preventDefault(); openNew(cursor); break;
       case 'O': e.preventDefault(); openSibling(); break;
       case 'r': e.preventDefault(); startRename(cursor); break;
+      case 't': e.preventDefault(); openSched(cursor); break;
+      case 'x': complete(cursor); break;
       case ':': case '/': e.preventDefault(); openCmd(k); break;
       case 'n': jumpMatch(1); break;
       case 'N': jumpMatch(-1); break;
