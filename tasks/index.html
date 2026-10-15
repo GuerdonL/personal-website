@@ -36,7 +36,7 @@
     transition: border-color .12s;
   }
   .task.odd { background: var(--t1); }
-  .task.parent { flex: 1 1 220px; }
+  .task { flex: 0 1 auto; max-width: 100%; }
   .task:not(.parent) > .kids:empty { display: none; }
   .task:hover:not(:has(.task:hover)) { border-color: var(--line-strong); }
 
