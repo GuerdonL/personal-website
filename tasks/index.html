@@ -73,6 +73,31 @@
   #root.drop { outline-offset: -8px; }
   body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
+  #archive {
+    position: fixed; right: 22px; bottom: 74px; width: 44px; height: 44px; padding: 0;
+    display: grid; place-items: center; color: var(--faint); opacity: .6; cursor: pointer;
+    background: none; border: 0; border-radius: 50%;
+    transition: transform .15s, color .15s, opacity .15s;
+  }
+  #archive:hover { opacity: 1; color: var(--ink); }
+  #archive .count { position: absolute; top: 6px; right: 4px; font: 9px/1 'JetBrains Mono', ui-monospace, monospace; }
+  body.is-dragging #archive { opacity: 1; color: var(--ink); transform: scale(1.15); }
+  #archive.over { color: var(--sel); transform: scale(1.4) !important; }
+  #apanel {
+    position: fixed; right: 22px; bottom: 126px; z-index: 20; width: 280px; max-height: 55vh; overflow: auto;
+    padding: 8px; background: var(--t0); border: 1px solid var(--line-strong); border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.16); font-size: 13px;
+  }
+  #apanel[hidden] { display: none; }
+  #apanel .ttl { padding: 4px 6px 8px; color: var(--faint); font-size: 12px; }
+  #apanel .row { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 6px; }
+  #apanel .row:hover { background: var(--t1); }
+  #apanel .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+  #apanel .meta { font: 10px 'JetBrains Mono', ui-monospace, monospace; color: var(--faint); white-space: nowrap; }
+  #apanel button { font: inherit; font-size: 12px; color: var(--faint); background: none; border: 0; padding: 2px 4px; border-radius: 4px; cursor: pointer; }
+  #apanel button:hover { color: var(--ink); background: var(--line); }
+  #apanel .empty { padding: 6px; color: var(--faint); }
+
   #trash {
     position: fixed; right: 22px; bottom: 22px; width: 44px; height: 44px;
     display: grid; place-items: center; color: var(--faint); opacity: .6;
@@ -146,6 +171,13 @@
   </div>
   <div class="srow"><button id="sclear">clear</button><button id="ssave">save</button></div>
 </div>
+<button id="archive" title="Archive — drag a task here, or press m+a">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8M10 12h4"/>
+  </svg>
+  <span class="count"></span>
+</button>
+<div id="apanel" hidden></div>
 <div id="trash" title="Drag here to delete">
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
     <path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>
@@ -157,6 +189,8 @@
   const rootEl = document.getElementById('root');
   const hintEl = document.getElementById('hint');
   const trashEl = document.getElementById('trash');
+  const archiveEl = document.getElementById('archive');
+  const apanel = document.getElementById('apanel');
   const cmdEl = document.getElementById('cmd');
   const cmdP = document.getElementById('cmdp');
   const cmdI = document.getElementById('cmdi');
@@ -181,6 +215,7 @@
     all.forEach(t => { if (t.n) max = Math.max(max, t.n); });
     all.forEach(t => { if (!t.n) t.n = ++max; if (t.due && !t.set) t.set = Math.min(Date.now(), t.due); });
     d.next = Math.max(d.next || 1, max + 1);
+    if (!Array.isArray(d.archive)) d.archive = [];   // [{ task, from, index, at }] newest first
     return d;
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} }
@@ -390,6 +425,8 @@
     if (!find(cursor)) cursor = 'root';
     rootEl.classList.remove('sel');
     elFor(cursor).classList.add('sel');
+    archiveEl.querySelector('.count').textContent = data.archive.length || '';
+    drawArchive();
     updateHint();
   }
   function updateHint() { hintEl.hidden = data.children.length > 0 || !!editing; }
@@ -502,7 +539,7 @@
     ptr = { id: host.dataset.id, x: e.clientX, y: e.clientY, onName: !!e.target.closest('.name'), drag: false };
   });
 
-  function clearDrop() { rootEl.querySelectorAll('.drop').forEach(x => x.classList.remove('drop')); trashEl.classList.remove('over'); }
+  function clearDrop() { rootEl.classList.remove('drop'); rootEl.querySelectorAll('.drop').forEach(x => x.classList.remove('drop')); trashEl.classList.remove('over'); archiveEl.classList.remove('over'); }
 
   function beginDrag() {
     const el = elFor(ptr.id);
@@ -534,9 +571,11 @@
 
     const under = document.elementFromPoint(e.clientX, e.clientY);
     clearDrop();
-    ptr.target = null; ptr.overTrash = false;
+    ptr.target = null; ptr.overTrash = false; ptr.overArchive = false;
     if (under && under.closest('#trash')) {
       ptr.overTrash = true; trashEl.classList.add('over');
+    } else if (under && under.closest('#archive')) {
+      ptr.overArchive = true; archiveEl.classList.add('over');
     } else {
       const h = under && under.closest('[data-id]');
       if (h && h !== ptr.el && !ptr.el.contains(h)) { ptr.target = h.dataset.id; h.classList.add('drop'); }
@@ -557,7 +596,9 @@
       endDrag(p);
       const found = find(p.id);
       if (!found) return;
-      if (p.overTrash) {
+      if (p.overArchive) {
+        archive(p.id);
+      } else if (p.overTrash) {
         snapshot();
         if (find(cursor, found.node)) cursor = found.parent.id;   // selection was inside the deleted task
         found.parent.children.splice(found.parent.children.indexOf(found.node), 1);
@@ -655,7 +696,9 @@
     if (!v) return;
     if (prefix === ':' && /^\d+$/.test(v)) {
       const t = bfs().find(t => t.n === +v);
-      if (t) setCursor(t.id); else say(`no task ${v}`);
+      if (t) setCursor(t.id);
+      else if (data.archive.some(a => bfs({ children: [a.task] }).some(x => x.n === +v))) say(`task ${v} is archived`);
+      else say(`no task ${v}`);
       return;
     }
     query = v; highlight = true;
@@ -804,10 +847,70 @@
     save(); render();
   }
 
+  // ── archive (m+a, or drag onto the box icon) ────────────
+  function archive(id) {
+    const found = find(id);
+    if (!found || id === 'root') return;
+    const t = found.node, sib = found.parent.children, i = sib.indexOf(t);
+    snapshot();
+    sib.splice(i, 1);
+    data.archive.unshift({ task: t, from: found.parent.id, index: i, at: Date.now() });
+    if (find(cursor, t) || cursor === id) cursor = (sib[i] || sib[i - 1] || found.parent).id;
+    save(); render();
+    say(`archived: ${t.name}  (u to undo)`);
+  }
+  function restore(k) {
+    const a = data.archive[k];
+    if (!a) return;
+    snapshot();
+    data.archive.splice(k, 1);
+    const parent = find(a.from) ? find(a.from).node : data;   // old parent gone → top level
+    parent.children.splice(Math.min(a.index, parent.children.length), 0, a.task);
+    cursor = a.task.id;
+    save(); render(); drawArchive();
+    say(`restored: ${a.task.name}`);
+  }
+  function purge(k) {
+    const a = data.archive[k];
+    if (!a) return;
+    snapshot();
+    data.archive.splice(k, 1);
+    save(); render(); drawArchive();
+  }
+  const countAll = t => 1 + t.children.reduce((n, c) => n + countAll(c), 0);
+  function drawArchive() {
+    if (apanel.hidden) return;
+    const esc = x => x.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const rows = data.archive.map((a, k) => {
+      const d = new Date(a.at), sub = countAll(a.task) - 1;
+      return `<div class="row"><span class="nm" title="${esc(a.task.name)}">${esc(a.task.name)}</span>` +
+        `<span class="meta">${sub ? '+' + sub + ' · ' : ''}${MON[d.getMonth()]} ${d.getDate()}</span>` +
+        `<button data-restore="${k}" title="Put back where it was">restore</button>` +
+        `<button data-purge="${k}" title="Delete for good">×</button></div>`;
+    });
+    apanel.innerHTML = '<div class="ttl">archive</div>' + (rows.join('') || '<div class="empty">nothing archived yet</div>');
+  }
+  function toggleArchive(show = apanel.hidden) {
+    apanel.hidden = !show;
+    drawArchive();
+  }
+  archiveEl.addEventListener('click', () => toggleArchive());
+  apanel.addEventListener('click', e => {
+    const r = e.target.closest('[data-restore]'), x = e.target.closest('[data-purge]');
+    if (r) restore(+r.dataset.restore);
+    if (x) purge(+x.dataset.purge);
+  });
+  window.addEventListener('pointerdown', e => {
+    if (!apanel.hidden && !apanel.contains(e.target) && !archiveEl.contains(e.target)) toggleArchive(false);
+  }, true);
+
   // colours depend on the clock, so refresh every 30s
   setInterval(() => { if (!editing && !S && !ptr) render(); }, 30000);
 
   // ── keyboard: dispatch ─────────────────────────────────
+  const M_WINDOW = 350;    // ms allowed between m and a
+  let mAt = -Infinity;
+  window.addEventListener('keydown', e => { if (e.key === 'm' && !e.repeat && !editing && !S && document.activeElement !== cmdI) held.set('m', true); }, true);
   document.addEventListener('keydown', e => {
     if (S) {   // popover open but focus wandered off it
       if (e.key === 'Escape') closeSched();
@@ -820,6 +923,13 @@
     const k = e.key;
     if (k in PARTNER) { e.preventDefault(); hjkl(e); return; }
     if (e.repeat) return;
+    if (k === 'm') { mAt = performance.now(); return; }
+    if (k === 'a') {
+      if (held.has('m') || performance.now() - mAt < M_WINDOW) archive(cursor);
+      mAt = -Infinity;
+      return;
+    }
+    mAt = -Infinity;
     switch (k) {
       case 'o': e.preventDefault(); openNew(cursor); break;
       case 'O': e.preventDefault(); openSibling(); break;
@@ -830,7 +940,10 @@
       case 'n': jumpMatch(1); break;
       case 'N': jumpMatch(-1); break;
       case 'u': undo(); break;
-      case 'Escape': if (highlight) { highlight = false; render(); } break;
+      case 'Escape':
+        if (!apanel.hidden) toggleArchive(false);
+        else if (highlight) { highlight = false; render(); }
+        break;
     }
   });
 
