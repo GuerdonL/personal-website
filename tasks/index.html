@@ -374,16 +374,18 @@
   window.addEventListener('pointercancel', () => { if (ptr && ptr.drag) endDrag(ptr); ptr = null; });
 
   // ── keyboard: movement ─────────────────────────────────
-  // hjkl move within the current level, following the square grid.
+  // Movement within the current level:
+  //   l / k  next / previous task in order, wrapping around the level
+  //   h / j  left / down along the square grid
   function move(k) {
     if (cursor === 'root') return;
     const f = find(cursor), sib = f.parent.children, n = sib.length;
     const cols = squareCols(n), rows = Math.ceil(n / cols);
     const i = sib.indexOf(f.node), row = Math.floor(i / cols), col = i % cols;
     let j = i;
+    if (k === 'l') j = (i + 1) % n;
+    if (k === 'k') j = (i - 1 + n) % n;
     if (k === 'h' && col > 0) j = i - 1;
-    if (k === 'l' && col < cols - 1 && i + 1 < n) j = i + 1;
-    if (k === 'k' && row > 0) j = i - cols;
     if (k === 'j' && row < rows - 1) j = Math.min(i + cols, n - 1);
     setCursor(sib[j].id);
   }
