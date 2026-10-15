@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tasks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fafaf9; --t0: #ffffff; --t1: #f5f5f4;
+    --line: #e7e5e4; --line-strong: #a8a29e;
+    --ink: #292524; --faint: #a8a29e; --accent: #57534e; --danger: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1917; --t0: #292524; --t1: #221f1d;
+      --line: #3a3532; --line-strong: #78716c;
+      --ink: #e7e5e4; --faint: #78716c; --accent: #d6d3d1; --danger: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font: 14px/1.35 Inter, system-ui, sans-serif; }
+
+  #root { min-height: 100%; padding: 52px 24px 110px; cursor: cell; }
+  .kids { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+  #root > .kids { gap: 12px; }
+
+  .task {
+    display: flex; flex-direction: column; gap: 7px;
+    min-width: 56px; padding: 7px 11px 13px;
+    background: var(--t0); border: 1px solid var(--line); border-radius: 7px;
+    cursor: cell; user-select: none; -webkit-user-select: none; touch-action: none;
+    transition: border-color .12s;
+  }
+  .task.odd { background: var(--t1); }
+  .task.parent { flex: 1 1 220px; }
+  .task:not(.parent) > .kids:empty { display: none; }
+  .task:hover:not(:has(.task:hover)) { border-color: var(--line-strong); }
+
+  .name { font-weight: 500; white-space: pre-wrap; overflow-wrap: anywhere; cursor: default; }
+
+  input.edit {
+    font: inherit; font-weight: 500; color: inherit; background: transparent;
+    border: 0; border-bottom: 1px solid var(--line-strong); outline: none;
+    padding: 0; min-width: 5ch; max-width: 100%; field-sizing: content;
+  }
+  .kids > input.edit { padding: 7px 11px; border: 1px dashed var(--line-strong); border-radius: 7px; background: var(--t0); }
+
+  .dragging { opacity: .25; }
+  .ghost {
+    position: fixed; z-index: 10; margin: 0; pointer-events: none;
+    max-height: 220px; overflow: hidden; opacity: .92;
+    box-shadow: 0 8px 24px rgba(0,0,0,.14);
+  }
+  .drop { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #root.drop { outline-offset: -8px; }
+  body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
+
+  #trash {
+    position: fixed; right: 22px; bottom: 22px; width: 44px; height: 44px;
+    display: grid; place-items: center; color: var(--faint); opacity: .6;
+    transition: transform .15s, color .15s, opacity .15s;
+  }
+  body.is-dragging #trash { opacity: 1; color: var(--ink); transform: scale(1.15); }
+  #trash.over { color: var(--danger); transform: scale(1.4) !important; }
+
+  #hint { position: fixed; inset: 0; display: grid; place-items: center; color: var(--faint); pointer-events: none; }
+  #hint[hidden] { display: none; }
+  #home { position: fixed; left: 18px; top: 14px; font-size: 12px; color: var(--faint); text-decoration: none; }
+  #home:hover { color: var(--ink); }
+</style>
+</head>
+<body>
+<a id="home" href="/">guerdon</a>
+<div id="root" data-id="root"><div class="kids"></div></div>
+<div id="hint">click to add a task</div>
+<div id="trash" title="Drag here to delete">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>
+  </svg>
+</div>
+<script>
+(() => {
+  const KEY = 'nested-tasks-v1';
+  const rootEl = document.getElementById('root');
+  const hintEl = document.getElementById('hint');
+  const trashEl = document.getElementById('trash');
+
+  let data = load();
+  let history = [];
+  let editing = null;   // active <input>, if any
+  let ptr = null;       // pointer gesture state
+
+  // ── data ────────────────────────────────────────────────
+  function load() {
+    try {
+      const d = JSON.parse(localStorage.getItem(KEY));
+      if (d && Array.isArray(d.children)) return d;
+    } catch (e) {}
+    return { id: 'root', children: [] };
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} }
+  function snapshot() { history.push(JSON.stringify(data)); if (history.length > 200) history.shift(); }
+  const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+  function find(id, node = data, parent = null) {
+    if (node.id === id) return { node, parent };
+    for (const c of node.children) { const r = find(id, c, node); if (r) return r; }
+    return null;
+  }
+  const elFor = id => id === 'root' ? rootEl : rootEl.querySelector(`.task[data-id="${id}"]`);
+
+  // ── render ──────────────────────────────────────────────
+  function build(t, depth) {
+    const el = document.createElement('div');
+    el.className = 'task' + (depth % 2 ? ' odd' : '') + (t.children.length ? ' parent' : '');
+    el.dataset.id = t.id;
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = t.name;
+    const kids = document.createElement('div');
+    kids.className = 'kids';
+    kids.append(...t.children.map(c => build(c, depth + 1)));
+    el.append(name, kids);
+    return el;
+  }
+  function render() {
+    rootEl.querySelector(':scope > .kids').replaceChildren(...data.children.map(c => build(c, 0)));
+    updateHint();
+  }
+  function updateHint() { hintEl.hidden = data.children.length > 0 || !!editing; }
+
+  // ── editing ─────────────────────────────────────────────
+  function makeInput(value) {
+    const inp = document.createElement('input');
+    inp.className = 'edit';
+    inp.value = value;
+    inp.spellcheck = false;
+    const fit = () => { inp.size = Math.max(5, inp.value.length + 1); };
+    fit(); inp.addEventListener('input', fit);
+    return inp;
+  }
+
+  function openNew(parentId) {
+    const host = elFor(parentId);
+    if (!host) return;
+    const inp = makeInput('');
+    host.querySelector(':scope > .kids').append(inp);
+    editing = inp; updateHint();
+    inp.focus();
+    let done = false;
+    const finish = commit => {
+      if (done) return false;
+      done = true; editing = null;
+      const v = inp.value.trim();
+      const target = find(parentId);
+      if (commit && v && target) {
+        snapshot();
+        target.node.children.push({ id: uid(), name: v, children: [] });
+        save(); render();
+        return true;
+      }
+      inp.remove(); updateHint();
+      return false;
+    };
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); if (finish(true)) openNew(parentId); }
+      else if (e.key === 'Escape') finish(false);
+    });
+    inp.addEventListener('blur', () => finish(true));
+  }
+
+  function startRename(id) {
+    const el = elFor(id), found = find(id);
+    if (!el || !found) return;
+    const t = found.node;
+    const nameEl = el.querySelector(':scope > .name');
+    const inp = makeInput(t.name);
+    nameEl.replaceWith(inp);
+    editing = inp;
+    inp.focus(); inp.select();
+    let done = false;
+    const finish = commit => {
+      if (done) return;
+      done = true; editing = null;
+      const v = inp.value.trim();
+      if (commit && v && v !== t.name) { snapshot(); t.name = v; save(); }
+      render();
+    };
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') finish(false);
+    });
+    inp.addEventListener('blur', () => finish(true));
+  }
+
+  rootEl.addEventListener('dblclick', e => {
+    const n = e.target.closest('.name');
+    if (n && !editing) startRename(n.parentElement.dataset.id);
+  });
+
+  // ── click / drag ────────────────────────────────────────
+  rootEl.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || e.target.closest('input')) return;
+    if (editing) { editing.blur(); return; }   // a click away just finishes editing
+    const host = e.target.closest('[data-id]');
+    if (!host) return;
+    ptr = { id: host.dataset.id, x: e.clientX, y: e.clientY, onName: !!e.target.closest('.name'), drag: false };
+  });
+
+  function clearDrop() { rootEl.querySelectorAll('.drop').forEach(x => x.classList.remove('drop')); trashEl.classList.remove('over'); }
+
+  function beginDrag(e) {
+    const el = elFor(ptr.id);
+    if (!el) { ptr = null; return; }
+    const r = el.getBoundingClientRect();
+    const ghost = el.cloneNode(true);
+    ghost.classList.add('ghost');
+    const w = Math.min(r.width, 340);
+    ghost.style.width = w + 'px';
+    document.body.append(ghost);
+    el.classList.add('dragging');
+    document.body.classList.add('is-dragging');
+    Object.assign(ptr, {
+      drag: true, el, ghost,
+      off: { x: Math.min(ptr.x - r.left, w - 12), y: Math.min(ptr.y - r.top, 28) },
+    });
+  }
+
+  window.addEventListener('pointermove', e => {
+    if (!ptr) return;
+    if (!ptr.drag) {
+      if (ptr.id === 'root' || Math.hypot(e.clientX - ptr.x, e.clientY - ptr.y) < 5) return;
+      beginDrag(e);
+      if (!ptr) return;
+    }
+    ptr.ghost.style.left = (e.clientX - ptr.off.x) + 'px';
+    ptr.ghost.style.top = (e.clientY - ptr.off.y) + 'px';
+
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    clearDrop();
+    ptr.target = null; ptr.overTrash = false;
+    if (under && under.closest('#trash')) {
+      ptr.overTrash = true; trashEl.classList.add('over');
+    } else {
+      const h = under && under.closest('[data-id]');
+      if (h && h !== ptr.el && !ptr.el.contains(h)) { ptr.target = h.dataset.id; h.classList.add('drop'); }
+    }
+  });
+
+  function endDrag(p) {
+    clearDrop();
+    p.ghost && p.ghost.remove();
+    p.el && p.el.classList.remove('dragging');
+    document.body.classList.remove('is-dragging');
+  }
+
+  window.addEventListener('pointerup', () => {
+    if (!ptr) return;
+    const p = ptr; ptr = null;
+    if (p.drag) {
+      endDrag(p);
+      const found = find(p.id);
+      if (!found) return;
+      if (p.overTrash) {
+        snapshot();
+        found.parent.children.splice(found.parent.children.indexOf(found.node), 1);
+        save(); render();
+      } else if (p.target) {
+        const dest = find(p.target);
+        if (!dest) return;
+        snapshot();
+        found.parent.children.splice(found.parent.children.indexOf(found.node), 1);
+        dest.node.children.push(found.node);
+        save(); render();
+      }
+      return;
+    }
+    if (!p.onName) openNew(p.id);
+  });
+
+  window.addEventListener('pointercancel', () => { if (ptr && ptr.drag) endDrag(ptr); ptr = null; });
+
+  // ── undo + cross-tab sync ───────────────────────────────
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey && !editing) {
+      const s = history.pop();
+      if (s) { data = JSON.parse(s); save(); render(); }
+      e.preventDefault();
+    }
+  });
+  window.addEventListener('storage', e => { if (e.key === KEY && !editing) { data = load(); render(); } });
+
+  render();
+})();
+</script>
+</body>
+</html>
