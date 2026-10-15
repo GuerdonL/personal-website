@@ -12,14 +12,14 @@
     --bg: #fafaf9; --t0: #ffffff; --t1: #f5f5f4;
     --line: #e7e5e4; --line-strong: #a8a29e;
     --ink: #292524; --faint: #a8a29e; --accent: #57534e; --danger: #dc2626;
-    --sel: #2563eb; --match: #fef3c7; --amber: #b45309; --orange: #ea580c;
+    --sel: #2563eb; --match: #ca8a04; --amber: #b45309; --orange: #ea580c;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #1c1917; --t0: #292524; --t1: #221f1d;
       --line: #3a3532; --line-strong: #78716c;
       --ink: #e7e5e4; --faint: #78716c; --accent: #d6d3d1; --danger: #f87171;
-      --sel: #60a5fa; --match: #4a3b12; --amber: #fbbf24; --orange: #fb923c;
+      --sel: #60a5fa; --match: #facc15; --amber: #fbbf24; --orange: #fb923c;
     }
   }
   * { box-sizing: border-box; }
@@ -44,7 +44,7 @@
     transition: border-color .12s;
   }
   .task.odd { background: var(--t1); }
-  .task.match { background: var(--match); }
+  .task.match { box-shadow: inset 0 0 0 2px var(--match); }
   .task:not(.parent) > .kids:empty { display: none; }
   .task:hover:not(:has(.task:hover)) { border-color: var(--line-strong); }
 
@@ -89,16 +89,9 @@
   #cmd[hidden], #msg:empty { display: none; }
   #cmd { display: flex; color: var(--ink); }
 
-  /* due dates & urgency: l* colours a task's own due badge, u* is the most
-     urgent level anywhere inside the task (so parents show what they hide) */
-  .due { font: 11px/1 'JetBrains Mono', ui-monospace, monospace; color: var(--faint); white-space: nowrap; }
-  .due.l1 { color: var(--ink); }
-  .due.l2 { color: var(--amber); }
-  .due.l3 { color: var(--orange); }
-  .due.l4 { color: var(--danger); font-weight: 600; }
-  .task.u2 { border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); }
-  .task.u3 { border-color: color-mix(in srgb, var(--orange) 60%, var(--line)); }
-  .task.u4 { border-color: color-mix(in srgb, var(--danger) 70%, var(--line)); }
+  /* due dates: card colour is set inline from the fraction of time left */
+  .due { font: 11px/1 'JetBrains Mono', ui-monospace, monospace; color: color-mix(in srgb, var(--ink) 65%, transparent); white-space: nowrap; }
+  .due.over { color: var(--ink); font-weight: 600; }
 
   #sched {
     position: fixed; z-index: 20; width: 252px; padding: 12px;
@@ -186,7 +179,7 @@
     let max = 0;
     const all = bfs(d);
     all.forEach(t => { if (t.n) max = Math.max(max, t.n); });
-    all.forEach(t => { if (!t.n) t.n = ++max; });
+    all.forEach(t => { if (!t.n) t.n = ++max; if (t.due && !t.set) t.set = Math.min(Date.now(), t.due); });
     d.next = Math.max(d.next || 1, max + 1);
     return d;
   }
@@ -275,6 +268,7 @@
   function setDue(t, due) {
     if (due == null) { delete t.due; delete t.rep; delete t.anchor; return; }
     t.due = due;
+    t.set = Date.now();                   // the clock for "fraction of time left" starts now
     t.anchor = new Date(due).getDate();   // day-of-month that monthly repeats aim for
   }
   function fmtTime(mins) {
@@ -295,16 +289,44 @@
     if (t.rep) s += ' ↻';
     return s;
   }
-  // 4 overdue · 3 due today · 2 within 3 days · 1 within a week · 0 later/none
-  function urgency(t) {
-    if (!t.due) return 0;
-    const now = Date.now();
-    if (t.due < now) return 4;
-    if (t.due < startOfDay(new Date()) + DAY) return 3;
-    if (t.due < now + 3 * DAY) return 2;
-    if (t.due < now + 7 * DAY) return 1;
-    return 0;
+  // Fraction of time left: 1 when the due time was set, 0 at (or past) due.
+  function timeLeft(t) {
+    if (!t.due) return null;
+    const left = t.due - Date.now();
+    if (left <= 0) return 0;
+    const total = t.due - (t.set || t.due);
+    return total > 0 ? Math.min(1, left / total) : 1;
   }
+  // Bands: green 60–100% left, yellow 35–60%, orange 17–35%, red 0–17%.
+  // Hue is anchored at each band's middle and blends across the boundaries,
+  // so the card drifts green → yellow → orange → red rather than jumping.
+  const HUE_STOPS = [[0.80, 125], [0.475, 50], [0.26, 28], [0.085, 2]];
+  function hueFor(f) {
+    if (f >= HUE_STOPS[0][0]) return HUE_STOPS[0][1];
+    for (let i = 1; i < HUE_STOPS.length; i++) {
+      const [f1, h1] = HUE_STOPS[i - 1], [f2, h2] = HUE_STOPS[i];
+      if (f >= f2) return h2 + (h1 - h2) * (f - f2) / (f1 - f2);
+    }
+    return HUE_STOPS[HUE_STOPS.length - 1][1];
+  }
+  const darkMQ = matchMedia('(prefers-color-scheme: dark)');
+  // Soft pastel normally; in the last 10% the red saturates sharply.
+  function colorsFor(f) {
+    const dark = darkMQ.matches, h = hueFor(f);
+    // yellows/oranges look muddy at the same saturation as green/red, so lift them
+    const warm = Math.max(0, 1 - Math.abs(h - 42) / 28);
+    let s = (dark ? 30 : 52) + warm * (dark ? 14 : 30), l = (dark ? 21 : 91) - warm * (dark ? 0 : 2);
+    if (f < 0.1) {
+      const k = (1 - f / 0.1) ** 1.5;   // 0 → 1 over the final 10%, steepest at the end
+      s += (dark ? 50 : 43) * k;
+      l += (dark ? 9 : -13) * k;
+    }
+    return {
+      bg: `hsl(${h.toFixed(1)} ${s.toFixed(1)}% ${l.toFixed(1)}%)`,
+      line: `hsl(${h.toFixed(1)} ${Math.min(100, s + 10).toFixed(1)}% ${(dark ? l + 18 : l - 30).toFixed(1)}%)`,
+    };
+  }
+  darkMQ.addEventListener('change', () => render());
   function nextOccurrence(t) {
     const d = new Date(t.due);
     const step = {
@@ -329,10 +351,10 @@
     name.className = 'name';
     name.textContent = t.name;
     head.append(name);
-    const own = urgency(t);
+    const own = timeLeft(t);
     if (t.due) {
       const due = document.createElement('span');
-      due.className = 'due l' + own;
+      due.className = 'due' + (own === 0 ? ' over' : '');
       due.textContent = fmtDue(t);
       due.title = new Date(t.due).toLocaleString() + (t.rep ? ' · repeats ' + t.rep : '');
       head.append(due);
@@ -346,10 +368,17 @@
     const childEls = t.children.map(c => build(c, depth + 1, matches));
     kids.append(...childEls);
     kids.style.setProperty('--cols', squareCols(t.children.length));
-    const u = Math.max(own, ...childEls.map(c => +c.dataset.u));
-    el.dataset.u = u;
+    // Background: this task's own countdown. Border: the most urgent
+    // countdown anywhere inside it, so parents show what they contain.
+    const fs = [own, ...childEls.map(c => c.dataset.f === undefined ? null : +c.dataset.f)].filter(f => f != null);
+    const worst = fs.length ? Math.min(...fs) : null;
+    if (worst != null) {
+      el.dataset.f = worst;
+      el.style.borderColor = colorsFor(worst).line;
+    }
+    if (own != null) el.style.background = colorsFor(own).bg;
     el.className = 'task' + (depth % 2 ? ' odd' : '') + (t.children.length ? ' parent' : '') +
-      (matches.has(t.id) ? ' match' : '') + (u > 1 ? ' u' + u : '');
+      (matches.has(t.id) ? ' match' : '');
     el.append(head, kids);
     return el;
   }
@@ -732,7 +761,8 @@
     if (found) {
       snapshot();
       const t = found.node;
-      setDue(t, clear ? null : dueFrom(S.date, S.time));
+      const nd = clear ? null : dueFrom(S.date, S.time);
+      if (nd !== (t.due ?? null)) setDue(t, nd);   // unchanged time keeps its countdown
       if (t.due && srep.value) t.rep = srep.value; else delete t.rep;
       save();
     }
@@ -763,6 +793,7 @@
     snapshot();
     if (t.rep && t.due) {
       t.due = nextOccurrence(t);
+      t.set = Date.now();
       say(`${t.name} → ${fmtDue(t)}`);
     } else {
       const sib = found.parent.children, i = sib.indexOf(t);
@@ -773,8 +804,8 @@
     save(); render();
   }
 
-  // urgency depends on the clock, so refresh once a minute
-  setInterval(() => { if (!editing && !S && !ptr) render(); }, 60000);
+  // colours depend on the clock, so refresh every 30s
+  setInterval(() => { if (!editing && !S && !ptr) render(); }, 30000);
 
   // ── keyboard: dispatch ─────────────────────────────────
   document.addEventListener('keydown', e => {
