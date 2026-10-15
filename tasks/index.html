@@ -146,12 +146,23 @@
 
   #hint { position: fixed; inset: 0; display: grid; place-items: center; color: var(--faint); pointer-events: none; }
   #hint[hidden] { display: none; }
-  #home { position: fixed; left: 18px; top: 14px; font-size: 12px; color: var(--faint); text-decoration: none; }
-  #home:hover { color: var(--ink); }
+  #crumbs { position: fixed; left: 18px; top: 14px; z-index: 5; font-size: 12px; color: var(--faint); max-width: calc(100vw - 120px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #crumbs a { color: inherit; text-decoration: none; }
+  #crumbs a:hover { color: var(--ink); }
+  #crumbs .sep { margin: 0 6px; opacity: .6; }
+  #mode { position: fixed; right: 20px; top: 14px; font: 11px 'JetBrains Mono', ui-monospace, monospace; color: var(--sel); }
+  #mode:empty { display: none; }
+  #root > .head { font-size: 20px; margin: -6px 0 16px; max-width: 900px; }
+  #root > .head .name { font-weight: 600; }
+  #root > .head > .name + * { margin-left: 4px; }
+  #root > .head .due { font-size: 12px; }
+  a.num { text-decoration: none; }
+  a.num:hover { color: var(--sel); text-decoration: underline; }
 </style>
 </head>
 <body>
-<a id="home" href="/">guerdon</a>
+<nav id="crumbs"></nav>
+<div id="mode"></div>
 <div id="root" data-id="root"><div class="kids"></div></div>
 <div id="hint">click, or press o, to add a task</div>
 <div id="bar">
@@ -187,6 +198,8 @@
 (() => {
   const KEY = 'nested-tasks-v1';
   const rootEl = document.getElementById('root');
+  const crumbsEl = document.getElementById('crumbs');
+  const modeEl = document.getElementById('mode');
   const hintEl = document.getElementById('hint');
   const trashEl = document.getElementById('trash');
   const archiveEl = document.getElementById('archive');
@@ -201,6 +214,8 @@
   let editing = null;   // active <input>, if any
   let ptr = null;       // pointer gesture state
   let cursor = 'root';  // selected task id
+  let zoom = 'root';    // task shown fullscreen (its children fill the page)
+  let follow = false;   // F: keep zoom on the selected task's parent
   let query = null;     // last search string
   let highlight = false;
 
@@ -235,7 +250,10 @@
     while (q.length) { const t = q.shift(); out.push(t); q.push(...t.children); }
     return out;
   }
-  const elFor = id => id === 'root' ? rootEl : rootEl.querySelector(`.task[data-id="${id}"]`);
+  const elFor = id => id === zoom ? rootEl : rootEl.querySelector(`.task[data-id="${id}"]`);
+  const nodeOf = id => (find(id) || find('root')).node;
+  const parentId = id => id === 'root' ? 'root' : find(id).parent.id;
+  const inside = (z, id) => z === 'root' || !!find(id, nodeOf(z));
 
   // Nearest-square arrangement: n children → ceil(√n) columns,
   // filled row by row (1 → 1, 2 → 2, 3 → 2+1, 4 → 2×2, 5 → 3+2, 9 → 3×3 …).
@@ -377,27 +395,35 @@
   }
 
   // ── render ──────────────────────────────────────────────
-  function build(t, depth, matches) {
-    const el = document.createElement('div');
-    el.dataset.id = t.id;
+  function buildHead(t) {
     const head = document.createElement('div');
     head.className = 'head';
     const name = document.createElement('span');
     name.className = 'name';
     name.textContent = t.name;
     head.append(name);
-    const own = timeLeft(t);
     if (t.due) {
       const due = document.createElement('span');
-      due.className = 'due' + (own === 0 ? ' over' : '');
+      due.className = 'due' + (timeLeft(t) === 0 ? ' over' : '');
       due.textContent = fmtDue(t);
       due.title = new Date(t.due).toLocaleString() + (t.rep ? ' · repeats ' + t.rep : '');
       head.append(due);
     }
-    const num = document.createElement('span');
+    // the number doubles as a permalink: /tasks/#12 opens task 12 fullscreen
+    const num = document.createElement('a');
     num.className = 'num';
+    num.href = '#' + t.n;
+    num.draggable = false;
+    num.title = 'Open fullscreen (link to this task)';
     num.textContent = t.n;
     head.append(num);
+    return head;
+  }
+  function build(t, depth, matches) {
+    const el = document.createElement('div');
+    el.dataset.id = t.id;
+    const head = buildHead(t);
+    const own = timeLeft(t);
     const kids = document.createElement('div');
     kids.className = 'kids';
     const childEls = t.children.map(c => build(c, depth + 1, matches));
@@ -417,28 +443,92 @@
     el.append(head, kids);
     return el;
   }
+  // Which task should fill the page for the current cursor?
+  function wantZoom() {
+    if (!find(zoom)) zoom = 'root';
+    if (follow) return parentId(cursor);
+    return inside(zoom, cursor) ? zoom : 'root';   // jumped outside the view → back to the top
+  }
   function render() {
+    if (!find(cursor)) cursor = find(zoom) ? zoom : 'root';
+    zoom = wantZoom();
+    const zn = nodeOf(zoom);
     const matches = new Set(highlight && query ? searchMatches(query) : []);
+    rootEl.dataset.id = zoom;
+    const oldHead = rootEl.querySelector(':scope > .head');
+    oldHead && oldHead.remove();
+    if (zoom !== 'root') rootEl.prepend(buildHead(zn));
     const top = rootEl.querySelector(':scope > .kids');
-    top.replaceChildren(...data.children.map(c => build(c, 0, matches)));
-    top.style.setProperty('--cols', squareCols(data.children.length));
-    if (!find(cursor)) cursor = 'root';
+    top.replaceChildren(...zn.children.map(c => build(c, 0, matches)));
+    top.style.setProperty('--cols', squareCols(zn.children.length));
+    drawCrumbs();
+    updateHash();
     rootEl.classList.remove('sel');
     elFor(cursor).classList.add('sel');
     archiveEl.querySelector('.count').textContent = data.archive.length || '';
     drawArchive();
     updateHint();
   }
-  function updateHint() { hintEl.hidden = data.children.length > 0 || !!editing; }
+  function updateHint() { hintEl.hidden = nodeOf(zoom).children.length > 0 || !!editing; }
+
+  function drawCrumbs() {
+    const esc = x => x.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const parts = ['<a href="/">guerdon</a>', '<a href="#" title="Top level (~)">tasks</a>'];
+    const chain = [];
+    for (let id = zoom; id !== 'root'; id = parentId(id)) chain.unshift(nodeOf(id));
+    chain.slice(0, -1).forEach(t => parts.push(`<a href="#${t.n}">${esc(t.name)}</a>`));
+    crumbsEl.innerHTML = parts.join('<span class="sep">/</span>');
+  }
+  // Keep the address bar pointing at the fullscreen task, so it can be shared.
+  function updateHash() {
+    const want = zoom === 'root' ? '' : '#' + nodeOf(zoom).n;
+    if (location.hash === want) return;
+    try { window.history.replaceState(null, '', want || location.pathname + location.search); } catch (e) {}
+  }
+  // Opening /tasks/#12 (or clicking a number) shows task 12 fullscreen.
+  function openHash() {
+    const m = /^#(\d+)$/.exec(location.hash);
+    if (!m) { zoom = 'root'; return; }
+    const t = bfs().find(t => t.n === +m[1]);
+    if (!t) {
+      const archived = data.archive.some(a => bfs({ children: [a.task] }).some(x => x.n === +m[1]));
+      say(archived ? `task ${m[1]} is archived` : `no task ${m[1]}`);
+      zoom = 'root';
+      return;
+    }
+    if (follow) { follow = false; drawMode(); }
+    zoom = cursor = t.id;
+  }
+  window.addEventListener('hashchange', () => { openHash(); render(); });
+  function drawMode() { modeEl.textContent = follow ? 'follow' : ''; }
+
+  function zoomInto(id) {
+    if (id === zoom || !find(id)) return;
+    if (follow) { follow = false; drawMode(); }
+    zoom = cursor = id;
+    render();
+  }
+  function zoomOut() {
+    if (zoom === 'root') return;
+    cursor = zoom;              // the old fullscreen task stays selected, now as a box
+    zoom = parentId(zoom);
+    render();
+    elFor(cursor).scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
 
   function setCursor(id) {
     if (!find(id)) id = 'root';
+    // moving somewhere that needs a different fullscreen task → full redraw
+    const prev = cursor;
+    cursor = id;
+    if (wantZoom() !== zoom) { render(); const e = elFor(cursor); e && e !== rootEl && e.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return; }
+    cursor = prev;
     const old = elFor(cursor);
     old && old.classList.remove('sel');
     cursor = id;
     const el = elFor(id);
     el.classList.add('sel');
-    if (id !== 'root') el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (el !== rootEl) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   // ── editing ─────────────────────────────────────────────
@@ -489,7 +579,7 @@
   }
 
   function openSibling() {
-    if (cursor === 'root') return openNew('root');
+    if (cursor === zoom) return openNew(zoom);
     const f = find(cursor);
     openNew(f.parent.id, f.parent.children.indexOf(f.node) + 1);
   }
@@ -527,7 +617,7 @@
 
   rootEl.addEventListener('dblclick', e => {
     const n = e.target.closest('.name');
-    if (n && !editing) startRename(n.closest('.task').dataset.id);
+    if (n && !editing) startRename(n.closest('[data-id]').dataset.id);
   });
 
   // ── click / drag ────────────────────────────────────────
@@ -536,7 +626,7 @@
     if (editing) { editing.blur(); return; }   // a click away just finishes editing
     const host = e.target.closest('[data-id]');
     if (!host) return;
-    ptr = { id: host.dataset.id, x: e.clientX, y: e.clientY, onName: !!e.target.closest('.name'), drag: false };
+    ptr = { id: host.dataset.id, x: e.clientX, y: e.clientY, onName: !!e.target.closest('.name, a.num'), drag: false };
   });
 
   function clearDrop() { rootEl.classList.remove('drop'); rootEl.querySelectorAll('.drop').forEach(x => x.classList.remove('drop')); trashEl.classList.remove('over'); archiveEl.classList.remove('over'); }
@@ -562,7 +652,7 @@
   window.addEventListener('pointermove', e => {
     if (!ptr) return;
     if (!ptr.drag) {
-      if (ptr.id === 'root' || Math.hypot(e.clientX - ptr.x, e.clientY - ptr.y) < 5) return;
+      if (ptr.id === zoom || Math.hypot(e.clientX - ptr.x, e.clientY - ptr.y) < 5) return;
       beginDrag();
       if (!ptr) return;
     }
@@ -625,7 +715,7 @@
   //   l / k  next / previous task in order, wrapping around the level
   //   h / j  left / down along the square grid
   function move(k) {
-    if (cursor === 'root') return;
+    if (cursor === zoom) return;   // the fullscreen task itself has no visible siblings
     const f = find(cursor), sib = f.parent.children, n = sib.length;
     const cols = squareCols(n), rows = Math.ceil(n / cols);
     const i = sib.indexOf(f.node), row = Math.floor(i / cols), col = i % cols;
@@ -640,8 +730,14 @@
     const t = find(cursor).node;
     if (t.children.length) setCursor(t.children[0].id);
   }
+  // h+j: up one level. Once the selection reaches the fullscreen task, each
+  // further h+j zooms out exactly one level, keeping that task selected.
   function ascend() {
-    if (cursor !== 'root') setCursor(find(cursor).parent.id);
+    if (follow) { if (cursor !== 'root') setCursor(parentId(cursor)); return; }
+    if (cursor === zoom) return zoomOut();
+    const p = parentId(cursor);
+    if (p === zoom && zoom !== 'root') { cursor = p; zoomOut(); return; }
+    setCursor(p);
   }
 
   // k+l together = descend, j+h together = ascend. The first key of a chord
@@ -716,7 +812,7 @@
     else if (i < 0) j = dir > 0 ? 0 : m.length - 1;
     else j = (i + dir + m.length) % m.length;
     cursor = m[j];
-    render();
+    render();   // zooms out if the match is outside the fullscreen task
     elFor(cursor).scrollIntoView({ block: 'nearest', inline: 'nearest' });
     say(`${query}  [${j + 1}/${m.length}]`);
   }
@@ -841,6 +937,7 @@
     } else {
       const sib = found.parent.children, i = sib.indexOf(t);
       sib.splice(i, 1);
+      if (find(zoom, t)) zoom = found.parent.id;
       cursor = (sib[i] || sib[i - 1] || found.parent).id;
       say(`done: ${t.name}  (u to undo)`);
     }
@@ -855,6 +952,7 @@
     snapshot();
     sib.splice(i, 1);
     data.archive.unshift({ task: t, from: found.parent.id, index: i, at: Date.now() });
+    if (find(zoom, t)) zoom = found.parent.id;   // was looking at it fullscreen → step out to its parent
     if (find(cursor, t) || cursor === id) cursor = (sib[i] || sib[i - 1] || found.parent).id;
     save(); render();
     say(`archived: ${t.name}  (u to undo)`);
@@ -904,6 +1002,13 @@
     if (!apanel.hidden && !apanel.contains(e.target) && !archiveEl.contains(e.target)) toggleArchive(false);
   }, true);
 
+  function copyLink(id) {
+    if (id === 'root') return;
+    const url = location.origin + location.pathname + '#' + nodeOf(id).n;
+    (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
+      .then(() => say('copied ' + url), () => say(url));
+  }
+
   // colours depend on the clock, so refresh every 30s
   setInterval(() => { if (!editing && !S && !ptr) render(); }, 30000);
 
@@ -936,6 +1041,13 @@
       case 'r': e.preventDefault(); startRename(cursor); break;
       case 't': e.preventDefault(); openSched(cursor); break;
       case 'x': complete(cursor); break;
+      case 'f': if (cursor !== 'root') zoomInto(cursor); break;
+      case 'F':
+        follow = !follow; drawMode(); render();
+        say(follow ? 'follow on: view tracks the selected task' : 'follow off');
+        break;
+      case '~': zoom = cursor = 'root'; render(); break;
+      case 'y': copyLink(cursor); break;
       case ':': case '/': e.preventDefault(); openCmd(k); break;
       case 'n': jumpMatch(1); break;
       case 'N': jumpMatch(-1); break;
@@ -949,6 +1061,7 @@
 
   window.addEventListener('storage', e => { if (e.key === KEY && !editing) { data = load(); render(); } });
 
+  openHash();
   render();
 })();
 </script>
