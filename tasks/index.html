@@ -25,7 +25,13 @@
   body { background: var(--bg); color: var(--ink); font: 14px/1.35 Inter, system-ui, sans-serif; }
 
   #root { min-height: 100%; padding: 52px 24px 110px; cursor: cell; }
-  .kids { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+  /* Each container is a grid whose column count comes from squareCols(n).
+     Columns are max-content, so a box is exactly as big as its arranged
+     children — sizes resolve bottom-up, from leaves to the root. */
+  .kids {
+    display: grid; grid-template-columns: repeat(var(--cols, 1), max-content);
+    align-items: start; justify-content: start; gap: 8px;
+  }
   #root > .kids { gap: 12px; }
 
   .task {
@@ -36,7 +42,6 @@
     transition: border-color .12s;
   }
   .task.odd { background: var(--t1); }
-  .task { flex: 0 1 auto; max-width: 100%; }
   .task:not(.parent) > .kids:empty { display: none; }
   .task:hover:not(:has(.task:hover)) { border-color: var(--line-strong); }
 
@@ -123,11 +128,18 @@
     const kids = document.createElement('div');
     kids.className = 'kids';
     kids.append(...t.children.map(c => build(c, depth + 1)));
+    kids.style.setProperty('--cols', squareCols(t.children.length));
     el.append(name, kids);
     return el;
   }
+  // Nearest-square arrangement: n children → ceil(√n) columns,
+  // filled row by row (1 → 1, 2 → 2, 3 → 2+1, 4 → 2×2, 5 → 3+2, 9 → 3×3 …).
+  function squareCols(n) { return Math.max(1, Math.ceil(Math.sqrt(n))); }
+
   function render() {
-    rootEl.querySelector(':scope > .kids').replaceChildren(...data.children.map(c => build(c, 0)));
+    const top = rootEl.querySelector(':scope > .kids');
+    top.replaceChildren(...data.children.map(c => build(c, 0)));
+    top.style.setProperty('--cols', squareCols(data.children.length));
     updateHint();
   }
   function updateHint() { hintEl.hidden = data.children.length > 0 || !!editing; }
