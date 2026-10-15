@@ -59,6 +59,16 @@ def handler(route, request):
     if u.startswith('https://r.jina.ai/https://news.example.com/story'):
         if request.headers.get('x-return-format') == 'html': return route.fulfill(status=503, headers={'Access-Control-Allow-Origin': '*'}, body='busy')
         return body(route, F.JINA_MD, 'text/plain; charset=utf-8')
+    if u.startswith('https://shop.example.com/item') or u.startswith('https://wall.example.com/post'):
+        return route.fulfill(status=403, body='forbidden')
+    if u.startswith('https://r.jina.ai/https://shop.example.com') or u.startswith('https://r.jina.ai/https://wall.example.com'):
+        if request.headers.get('x-return-format') == 'html': return body(route, F.CF_CHALLENGE, 'text/html')
+        return body(route, F.CF_CHALLENGE_MD, 'text/plain')
+    if u.startswith('https://archive.org/wayback/available'):
+        if 'shop.example.com' in u: return body(route, {"archived_snapshots": {"closest": {"available": True, "url": "http://web.archive.org/web/20260101000000/https://shop.example.com/item", "timestamp": "20260101000000", "status": "200"}}})
+        return body(route, {"archived_snapshots": {}})
+    if u.startswith('https://web.archive.org/web/20260101000000id_/https://shop.example.com/item'):
+        return body(route, F.SHOP_HTML, 'text/html')
     if 'example.org/img/' in u or 'news.example.com/img' in u:
         return route.fulfill(status=200, content_type='image/png', body=bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da6364f8cf000000020001e221bc330000000049454e44ae426082'))
     print('   UNHANDLED', u); return route.fulfill(status=404, body='unhandled ' + u)
@@ -251,6 +261,30 @@ with sync_playwright() as pw:
     # pdf links are never intercepted
     prevented = pg.evaluate("""(() => { const a = document.createElement('a'); a.href='https://docs.example.com/report.pdf'; a.dataset.web=a.href; a.target='_blank'; document.querySelector('#reader').appendChild(a); const ev = new MouseEvent('click', {bubbles:true, cancelable:true}); a.dispatchEvent(ev); a.remove(); return ev.defaultPrevented; })()""")
     check(prevented is False, 'PDF links are left to the browser')
+
+    # --- bot checks: archived copy, then hand-off from the person's own browser
+    pg.evaluate("Reader.openWeb('https://shop.example.com/item')")
+    pg.wait_for_function("document.querySelector('#reader h1.title')?.textContent === 'The Testopolis lantern, reviewed'", timeout=15000)
+    check('via the Wayback Machine' in pg.inner_text('#reader .pagemeta'), 'Cloudflare challenge recognized on both Jina paths -> archived copy used')
+    check('archived copy from 2026-01-01' in pg.inner_text('#reader .archived'), 'archived-copy banner with date')
+    check('Checking your browser' not in pg.inner_text('#reader'), 'challenge page never rendered as content')
+    pg.evaluate("Reader.openWeb('https://wall.example.com/post')")
+    pg.wait_for_selector('#reader .blocked', timeout=15000)
+    bt = pg.inner_text('#reader .blocked')
+    check('wants a human at the keyboard' in bt and 'bot check' in bt, 'blocked page explains the bot check instead of pretending')
+    bm = pg.get_attribute('#reader .blocked a.btn', 'href')
+    check(bm.startswith('javascript:') and 'palimpsest-page' in bm and 'postMessage' in bm, 'bookmarklet offered on the blocked page')
+    check(pg.get_attribute('#bookmarklet', 'href').startswith('javascript:'), 'bookmarklet also in Settings')
+    pg.fill('#reader .blocked textarea', F.EXT_HTML); pg.click('#pasteGo')
+    pg.wait_for_function("document.querySelector('#reader h1.title')?.textContent === 'Testopolis harbour history'", timeout=10000)
+    check('via pasted source' in pg.inner_text('#reader .pagemeta'), 'pasted page source renders in reader mode')
+    # bookmarklet hand-off: a window posts the page HTML; the reader renders it and acknowledges
+    got = pg.evaluate("""(html) => new Promise(res => { window.addEventListener('message', e => { if (e.data && e.data.type === 'palimpsest-got') res(true); }); window.postMessage({type:'palimpsest-page', url:'https://shop.example.com/other', html}, '*'); setTimeout(() => res(false), 3000); })""", F.SHOP_HTML)
+    check(got is True, 'reader acknowledges a page posted by the bookmarklet')
+    pg.wait_for_function("document.querySelector('#reader h1.title')?.textContent === 'The Testopolis lantern, reviewed'", timeout=5000)
+    check('via your browser' in pg.inner_text('#reader .pagemeta'), 'page received from the bookmarklet renders')
+    check(pg.evaluate("Web.isChallenge('<html><head><title>Normal page</title></head><body><p>hello</p></body></html>')") is False, 'ordinary pages are not mistaken for challenges')
+    check(not any('wall.example.com' in u and 'archive.org/web' in u for u in LOG), 'no archive fetch attempted when no snapshot exists')
 
     # --- phone layout
     pg.set_viewport_size({'width': 390, 'height': 800}); pg.wait_for_timeout(200)

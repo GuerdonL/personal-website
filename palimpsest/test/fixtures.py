@@ -178,3 +178,16 @@ The council voted **unanimously** to repair the eastern arm of the breakwater af
 
 See also the [history of the town](https://en.wikipedia.org/wiki/Testopolis).
 """
+
+CF_CHALLENGE = """<!DOCTYPE html><html><head><title>Just a moment...</title><script src="/cdn-cgi/challenge-platform/h/b/orchestrate/jsch/v1"></script></head>
+<body><div id="cf-browser-verification"><h1>Checking your browser before accessing shop.example.com.</h1><p>Please enable JavaScript and cookies to continue.</p></div></body></html>"""
+CF_CHALLENGE_MD = """Title: Just a moment...
+
+URL Source: https://shop.example.com/item
+
+Markdown Content:
+Checking your browser before accessing shop.example.com.
+"""
+SHOP_HTML = """<!DOCTYPE html><html><head><title>The Testopolis lantern, reviewed</title></head><body><nav><a href="/">Shop</a></nav><article><h1>The Testopolis lantern, reviewed</h1>
+<p>We carried the lantern through three winter storms on the breakwater and it never once went out, which is more than can be said for the previous model that we tested in 1905.</p>
+<p>The brass fittings are heavier than they look and the glass is thick enough to survive being dropped on the granite quay. Trade in these lanterns grew through the nineteenth century for good reason.</p></article></body></html>"""

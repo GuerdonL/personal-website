@@ -106,6 +106,13 @@ main.side-closed{grid-template-columns:1fr 0}
 #reader .webbody ul,#reader .webbody ol{padding-left:1.6em}
 #reader .webbody li{margin:.2em 0}
 .modes button:disabled{opacity:.45;cursor:default}
+#reader .archived{font-family:var(--ui);font-size:12px;background:color-mix(in srgb,var(--warn) 10%,transparent);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);border-radius:6px;padding:8px 12px;margin:0 0 1.4em}
+#reader .blocked{font-family:var(--ui);font-size:14px;max-width:40rem;color:var(--r-fg)}
+#reader .blocked h2{border:0!important;font-family:var(--serif)!important;margin-top:.4em}
+#reader .blocked ol{padding-left:1.3em}
+#reader .blocked li{margin:.4em 0}
+#reader .blocked textarea{width:100%;min-height:120px;font-family:var(--mono);font-size:11px;border:1px solid var(--line-strong);border-radius:6px;padding:8px;background:var(--panel);color:var(--fg);resize:vertical}
+#reader .blocked .btn{margin-top:6px}
 .empty{padding:40px 0;color:var(--muted);font-family:var(--ui);font-size:15px;max-width:40rem}
 .empty h2{border:0!important;font-family:var(--serif)!important}
 .empty ul{padding-left:1.2em}
@@ -287,6 +294,9 @@ main.side-closed aside.side{display:none}
       <div class="field"><label for="sOpenExt">Open links to other sites<small>Reader mode strips the page down to its article and uses your type and color settings</small></label>
         <select id="sOpenExt"><option value="reader">In Palimpsest (reader mode)</option><option value="tab">In a new browser tab</option></select></div>
       <div class="field" style="grid-template-columns:1fr"><label for="sProxy">Your own fetch proxy (optional)<small>Many sites refuse cross-site reads; the reader then falls back to the free r.jina.ai service. For privacy or reliability, deploy <code>proxy/worker.js</code> from the repo to Cloudflare and paste its URL with <code>{url}</code> where the page address goes.</small></label><input id="sProxy" type="text" placeholder="https://your-worker.workers.dev/?url={url}" style="max-width:none"></div>
+      <div class="field" style="grid-template-columns:1fr"><label for="sJina">r.jina.ai API key (optional)<small>Raises the free service's rate limit. Stored only in this browser.</small></label><input id="sJina" type="password" placeholder="jina_…" style="max-width:none" autocomplete="off"></div>
+      <div class="field" style="grid-template-columns:1fr"><label>Read a page you already have open<small>Sites behind a bot check (Cloudflare, reCAPTCHA) can't be fetched for you. Drag this to your bookmarks bar; on any page, click it to send that page here using your own browser session.</small></label>
+        <div class="row"><a class="btn" id="bookmarklet" href="#" draggable="true" title="Drag me to the bookmarks bar">Read in Palimpsest</a><span class="note" id="bmNote" style="margin:0"></span></div></div>
       <h3>Authorship data</h3>
       <div class="field"><label for="sAttr">Attribution source<small>Full history uses the WikiWho service; local mode diffs the recent revisions in your browser</small></label>
         <select id="sAttr"><option value="auto">Full history, local fallback</option><option value="local">Local diffs only</option></select></div>
@@ -355,7 +365,7 @@ function setStatus(text){
 
 /* ---------- settings ---------- */
 const DEFAULTS = { font:'serif', customFont:'', size:18, lh:1.62, width:46, bg:null, fg:null, link:null, visited:null,
-  images:true, video:false, audio:false, attr:'auto', depth:30, email:'', autoFind:true, openExt:'reader', proxy:'' };
+  images:true, video:false, audio:false, attr:'auto', depth:30, email:'', autoFind:true, openExt:'reader', proxy:'', jinaKey:'' };
 const Settings = {
   v: { ...DEFAULTS },
   load(){ try { const s = JSON.parse(localStorage.getItem('palimpsest.settings') || '{}'); this.v = { ...DEFAULTS, ...s }; } catch (e) {} },
@@ -396,7 +406,7 @@ const Settings = {
     $('#sImages').checked = v.images; $('#sVideo').checked = v.video; $('#sAudio').checked = v.audio;
     $('#sAttr').value = v.attr; $('#sDepth').value = v.depth; $('#sDepthV').textContent = v.depth;
     $('#sEmail').value = v.email; $('#sAutoFind').checked = v.autoFind;
-    $('#sOpenExt').value = v.openExt; $('#sProxy').value = v.proxy;
+    $('#sOpenExt').value = v.openExt; $('#sProxy').value = v.proxy; $('#sJina').value = v.jinaKey;
   },
   bind(){
     const on = (id, ev, fn) => $(id).addEventListener(ev, fn);
@@ -416,6 +426,7 @@ const Settings = {
     on('#sAutoFind','change', e => { this.v.autoFind = e.target.checked; this.save(); });
     on('#sOpenExt','change', e => { this.v.openExt = e.target.value; this.save(); });
     on('#sProxy','input', e => { this.v.proxy = e.target.value.trim(); this.save(); });
+    on('#sJina','input', e => { this.v.jinaKey = e.target.value.trim(); this.save(); });
     on('#sResetAll','click', () => { this.v = { ...DEFAULTS }; this.save(); this.apply(); Authorship.invalidate(); });
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => this.apply());
   }
@@ -633,15 +644,41 @@ const Reader = {
       const got = await Web.fetchPage(url);
       const art = got.markdown ? Web.fromMarkdown(got.markdown, url) : Web.extract(got.html, url);
       if (!art || !art.content.textContent.trim()) throw new Error('Nothing readable was found on that page.');
-      this.renderWeb(art, url, host, got.via);
+      this.renderWeb(art, url, host, got.via, got);
       if (push) history.pushState({ web: url }, '', '#w:' + encodeURIComponent(url));
       document.title = art.title + ' · Palimpsest';
       $('#readerWrap').scrollTop = 0;
     } catch (e) {
-      $('#reader').innerHTML = `<div class="empty"><h2>Couldn’t read that page.</h2><p>${esc(e.message)}</p><p><a href="${esc(url)}" target="_blank" rel="noopener">Open it in a new tab</a> instead, or set up your own fetch proxy in Settings.</p></div>`;
+      this.kind = 'web'; this.url = url; this.title = host;
+      if (push) history.pushState({ web: url }, '', '#w:' + encodeURIComponent(url));
+      this.renderBlocked(url, host, e);
     } finally { setStatus(''); this.loading = false; }
   },
-  renderWeb(art, url, host, via){
+  // Render a page handed over from the person's own browser (bookmarklet or pasted HTML).
+  openWebHtml(url, html, via){
+    Authorship.off(); Authorship.wanted = false; $('#modeAuthors').setAttribute('aria-pressed', 'false'); $('#modeAuthors').disabled = true; Sources.reset();
+    let host = url; try { host = new URL(url).host.replace(/^www\./, ''); } catch (e) {}
+    const art = Web.extract(html, url);
+    if (!art || !art.content.textContent.trim()) { this.renderBlocked(url, host, new Error('Nothing readable was found in that HTML.')); return false; }
+    this.renderWeb(art, url, host, via, {});
+    if (this.url !== url) history.pushState({ web: url }, '', '#w:' + encodeURIComponent(url));
+    document.title = art.title + ' · Palimpsest'; $('#readerWrap').scrollTop = 0; return true;
+  },
+  renderBlocked(url, host, e){
+    const reader = $('#reader');
+    const bm = Web.bookmarklet();
+    reader.innerHTML = `<div class="blocked"><h1 class="title">${esc(host)}</h1>
+      <h2>${e.challenged ? 'This site wants a human at the keyboard.' : 'Couldn’t read that page.'}</h2>
+      <p>${esc(e.message)} ${e.challenged ? 'That check can only be passed in a real browser session, so the reader won’t try to get around it. You can still read the page here through your own browser:' : 'Ways to read it anyway:'}</p>
+      <ol>
+        <li><a href="${esc(url)}" target="_blank" rel="noopener">Open the page in a new tab</a>${e.challenged ? ' and pass the check' : ''}, then click the <b>Read in Palimpsest</b> bookmarklet on it. Don’t have it yet? Drag this to your bookmarks bar: <a class="btn" href="${esc(bm)}" draggable="true" onclick="return false">Read in Palimpsest</a></li>
+        <li>Or, in that tab, press <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>U</kbd> to view the source, select all, copy, and paste it here:<br><textarea id="pasteHtml" placeholder="<!doctype html>…" spellcheck="false"></textarea><br><button class="btn primary" id="pasteGo" type="button">Render pasted page</button></li>
+        <li>Or set up your own fetch proxy in Settings, which also fails on bot checks but helps with sites that merely refuse cross-site reads.</li>
+      </ol>
+      ${e.detail ? `<p class="note">Tried: ${esc(e.detail)}</p>` : ''}</div>`;
+    $('#pasteGo').addEventListener('click', () => { const html = $('#pasteHtml').value; if (html.trim()) this.openWebHtml(url, html, 'pasted source'); });
+  },
+  renderWeb(art, url, host, via, got = {}){
     this.kind = 'web'; this.url = url; this.title = art.title; this.revid = null;
     const reader = $('#reader'); reader.innerHTML = '';
     const h1 = document.createElement('h1'); h1.className = 'title'; h1.textContent = art.title; reader.appendChild(h1);
@@ -649,6 +686,7 @@ const Reader = {
     meta.innerHTML = `<span>From ${esc(art.siteName || host)}</span><a href="${esc(url)}" target="_blank" rel="noopener">Open original</a><span title="How the page was fetched">via ${esc(via)}</span>`;
     reader.appendChild(meta);
     if (art.byline) { const b = document.createElement('div'); b.className = 'web-byline'; b.textContent = art.byline; reader.appendChild(b); }
+    if (got.archived) { const n = document.createElement('div'); n.className = 'archived'; n.innerHTML = `The live page put up a bot check, so this is an archived copy from ${esc(got.archived)} (<a href="${esc(got.archiveUrl)}" target="_blank" rel="noopener">view on the Wayback Machine</a>). It may be out of date.`; reader.appendChild(n); }
     if (art.excerpt && art.excerpt.length < 400 && !art.content.textContent.startsWith(art.excerpt.slice(0, 40))) { const x = document.createElement('p'); x.className = 'web-excerpt'; x.textContent = art.excerpt; reader.appendChild(x); }
     const body = document.createElement('div'); body.className = 'webbody body';
     while (art.content.firstChild) body.appendChild(art.content.firstChild);
@@ -1086,26 +1124,50 @@ const Sources = {
 
 /* ---------- web pages in reader mode ---------- */
 const Web = {
-  // Try the person's own proxy, then the site directly, then r.jina.ai (HTML, then its Markdown rendering).
+  // Signs of a bot check standing in for the page: Cloudflare, reCAPTCHA, hCaptcha, Akamai, Imperva, PerimeterX, DataDome.
+  isChallenge(text, r){
+    if (r && /challenge/i.test(r.headers.get('cf-mitigated') || '')) return true;
+    const head = text.slice(0, 20000);
+    return /<title>\s*(Just a moment|Attention Required|Access Denied|Verify you are human|Please verify|Security Check|One more step|Bot Verification)/i.test(head)
+      || /cf-browser-verification|cf_chl_|challenge-platform|turnstile\/v0|g-recaptcha|recaptcha\/api\.js|hcaptcha\.com\/1\/api|_Incapsula_Resource|px-captcha|captcha-delivery\.com|datadome|Checking your browser|enable JavaScript and cookies to continue|DDoS protection by/i.test(head)
+      || (/^Title:\s*(Just a moment|Attention Required|Access Denied|Verify you are human)/i.test(head));
+  },
+  // Try the person's own proxy, then the site directly, then r.jina.ai (HTML, then its Markdown rendering), then an archived copy.
   async fetchPage(url){
+    const jinaHeaders = (extra) => Object.assign({}, extra, Settings.v.jinaKey ? { Authorization: 'Bearer ' + Settings.v.jinaKey } : {});
     const tries = [];
     if (Settings.v.proxy && Settings.v.proxy.includes('{url}')) tries.push(['your proxy', () => fetch(Settings.v.proxy.replace('{url}', encodeURIComponent(url)))]);
     tries.push(['the site', () => fetch(url, { mode: 'cors', redirect: 'follow' })]);
-    tries.push(['r.jina.ai', () => fetch('https://r.jina.ai/' + url, { headers: { 'X-Return-Format': 'html' } })]);
-    tries.push(['r.jina.ai (text)', () => fetch('https://r.jina.ai/' + url)]);
-    const errors = [];
+    tries.push(['r.jina.ai', () => fetch('https://r.jina.ai/' + url, { headers: jinaHeaders({ 'X-Return-Format': 'html' }) })]);
+    tries.push(['r.jina.ai (text)', () => fetch('https://r.jina.ai/' + url, { headers: jinaHeaders({}) })]);
+    const errors = []; let challenged = false;
+    const attempt = async (via, fn, textMode) => {
+      const r = await fn(); if (!r.ok) throw new Error('HTTP ' + r.status);
+      const ct = (r.headers.get('content-type') || '').toLowerCase();
+      if (/pdf|octet-stream|image\/|audio\/|video\//.test(ct)) throw Object.assign(new Error('That link is a file, not a page.'), { fatal: true });
+      const text = await r.text();
+      if (!text.trim()) throw new Error('empty response');
+      if (this.isChallenge(text, r)) { challenged = true; throw new Error('bot check'); }
+      if (textMode || (/text\/plain|markdown/.test(ct) && !/<html|<body|<article/i.test(text))) return { markdown: text, via };
+      return { html: text, via };
+    };
     for (const [via, fn] of tries) {
-      try {
-        const r = await fn(); if (!r.ok) throw new Error('HTTP ' + r.status);
-        const ct = (r.headers.get('content-type') || '').toLowerCase();
-        if (/pdf|octet-stream|image\/|audio\/|video\//.test(ct)) throw Object.assign(new Error('That link is a file, not a page.'), { fatal: true });
-        const text = await r.text();
-        if (via === 'r.jina.ai (text)' || (/text\/plain|markdown/.test(ct) && !/<html|<body|<article/i.test(text))) return { markdown: text, via };
-        if (!text.trim()) throw new Error('empty response');
-        return { html: text, via };
-      } catch (e) { if (e.fatal) throw e; errors.push(via + ': ' + e.message); }
+      try { return await attempt(via, fn, via === 'r.jina.ai (text)'); }
+      catch (e) { if (e.fatal) throw e; errors.push(via + ': ' + e.message); }
     }
-    throw new Error('The page could not be fetched (' + errors.join('; ') + ').');
+    // Archived copy from the Wayback Machine
+    try {
+      const a = await getJSON('https://archive.org/wayback/available?url=' + encodeURIComponent(url));
+      const snap = a.archived_snapshots?.closest;
+      if (snap?.available && snap.url) {
+        const snapUrl = snap.url.replace(/^http:/, 'https:').replace(/(\/web\/\d+)\//, '$1id_/');
+        const date = (snap.timestamp || '').replace(/^(\d{4})(\d{2})(\d{2}).*$/, '$1-$2-$3');
+        for (const [via, fn] of [['the Wayback Machine', () => fetch(snapUrl)], ['r.jina.ai + Wayback', () => fetch('https://r.jina.ai/' + snapUrl, { headers: jinaHeaders({ 'X-Return-Format': 'html' }) })]]) {
+          try { const got = await attempt(via, fn, false); got.archived = date; got.archiveUrl = snap.url; return got; } catch (e) { errors.push(via + ': ' + e.message); }
+        }
+      } else errors.push('Wayback Machine: no snapshot');
+    } catch (e) { errors.push('Wayback Machine: ' + e.message); }
+    throw Object.assign(new Error(challenged ? 'The site put up a bot check (CAPTCHA or browser verification) instead of the page.' : 'The page could not be fetched.'), { challenged, detail: errors.join('; ') });
   },
   extract(html, url){
     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -1177,6 +1239,21 @@ const Web = {
       if (el.tagName === 'SOURCE' && el.parentElement?.tagName === 'PICTURE') el.remove();
     }
     root.querySelectorAll('p, div, span').forEach(el => { if (!el.textContent.trim() && !el.querySelector('img, video, audio')) el.remove(); });
+  },
+  // A bookmarklet that sends the current page's HTML to this reader from the person's own browser session.
+  bookmarklet(){
+    const me = location.href.split('#')[0];
+    const code = `(function(){var u=location.href,w=window.open(${JSON.stringify(me)}+'#w:'+encodeURIComponent(u)+'&from=bm','_blank');if(!w){alert('Allow pop-ups for this site, then try again.');return;}var n=0,t=setInterval(function(){try{w.postMessage({type:'palimpsest-page',url:u,html:document.documentElement.outerHTML},'*');}catch(e){}if(++n>40)clearInterval(t);},400);window.addEventListener('message',function(e){if(e.data&&e.data.type==='palimpsest-got')clearInterval(t);});})();`;
+    return 'javascript:' + encodeURIComponent(code);
+  },
+  listen(){
+    window.addEventListener('message', e => {
+      const d = e.data; if (!d || d.type !== 'palimpsest-page' || typeof d.html !== 'string' || typeof d.url !== 'string' || !/^https?:/.test(d.url)) return;
+      if (this.received === d.url) { try { e.source.postMessage({ type: 'palimpsest-got' }, '*'); } catch (x) {} return; }
+      this.received = d.url;
+      try { e.source.postMessage({ type: 'palimpsest-got' }, '*'); } catch (x) {}
+      Reader.openWebHtml(d.url, d.html, 'your browser');
+    });
   },
   // r.jina.ai's default output: a small header block followed by Markdown.
   fromMarkdown(text, url){
@@ -1254,10 +1331,22 @@ const UI = {
     });
     const fromHash = (push) => {
       const h = location.hash.slice(1);
-      if (h.startsWith('w:')) { const u = decodeURIComponent(h.slice(2)); if (u !== Reader.url) Reader.openWeb(u, push); return; }
+      if (h.startsWith('w:')) {
+        const fromBm = /&from=bm$/.test(h); const u = decodeURIComponent(h.slice(2).replace(/&from=bm$/, ''));
+        if (fromBm) { // the opener will post the page; only fetch if nothing arrives
+          history.replaceState({ web: u }, '', '#w:' + encodeURIComponent(u));
+          setStatus('Waiting for the page from your browser…');
+          setTimeout(() => { if (Web.received !== u && !Reader.loading && Reader.url !== u) Reader.openWeb(u, false); }, 6000);
+          return;
+        }
+        if (u !== Reader.url) Reader.openWeb(u, push); return;
+      }
       const t = decodeURIComponent(h).replace(/_/g, ' '); if (t && (t !== Reader.title || Reader.kind !== 'wiki')) Reader.open(t, push);
     };
     window.addEventListener('popstate', () => fromHash(false));
+    Web.listen();
+    const bm = $('#bookmarklet'); bm.href = Web.bookmarklet(); bm.addEventListener('click', e => { e.preventDefault(); $('#bmNote').textContent = 'Drag it to your bookmarks bar rather than clicking it here.'; });
+    if (location.protocol === 'file:') $('#bmNote').textContent = 'Works once the reader is served from a web address.';
     fromHash(false);
   }
 };

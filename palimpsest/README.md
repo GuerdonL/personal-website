@@ -8,6 +8,8 @@ A customizable Wikipedia reader in a single HTML file. Served at `/palimpsest/` 
 
 - **Linked websites in reader mode**: links to other sites open inside Palimpsest, reduced to their article with Mozilla Readability and restyled with the same type and color settings. Fetch order: your own proxy (optional), the site directly, then the keyless r.jina.ai reader service (HTML, then its Markdown rendering). Wikipedia links found inside those pages open as articles; PDFs and media files are left to the browser. Set "Open links to other sites" to "new tab" to turn this off.
 
+- **Bot checks**: when a site answers with a CAPTCHA or a Cloudflare/Akamai/Imperva browser verification instead of the page, the reader recognizes it (on every fetch path) rather than rendering it, tries an archived copy from the Wayback Machine (marked with its date), and otherwise offers two ways to read the page through your own browser session: a **Read in Palimpsest** bookmarklet that posts the page you have open to the reader, or pasting the page source. The reader never tries to solve or bypass a challenge.
+
 `proxy/worker.js` is a Cloudflare Worker you can deploy in a minute for a private, more reliable fetch path; paste its URL with `{url}` into Settings.
 
 All data comes from public, keyless APIs called directly from the browser; there is no backend and nothing secret in the page.
