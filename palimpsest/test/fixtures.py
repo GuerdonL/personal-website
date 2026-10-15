@@ -89,7 +89,7 @@ PARSOID_HTML = """<!DOCTYPE html><html><head><title>Testopolis</title><link rel=
 <p><video poster="//upload.wikimedia.org/poster.jpg" controls="" preload="none" width="220" height="140"><source src="//upload.wikimedia.org/storm.webm" type="video/webm"/></video></p>
 </section>
 <section data-mw-section-id="1"><h2 id="Geography">Geography</h2>
-<p>The town sits on a granite headland. The harbour is protected by a long breakwater that was completed in 1905.</p>
+<p>The town sits on a granite headland. The harbour is protected by a long breakwater that was completed in 1905.<a rel="mw:ExtLink" class="external" href="https://news.example.com/story">(report)</a></p>
 </section>
 <section data-mw-section-id="2"><h2 id="History">History</h2>
 <p>Early settlers built brick warehouses along the quay. Trade in salted fish grew through the nineteenth century.<sup class="mw-ref reference" id="cite_ref-book1_2-0"><a href="./Testopolis#cite_note-book1-2"><span class="mw-reflink-text">[2]</span></a></sup> Modern studies of the breakwater use attention based models.<sup class="mw-ref reference" id="cite_ref-paper1_3-0"><a href="./Testopolis#cite_note-paper1-3"><span class="mw-reflink-text">[3]</span></a></sup></p>
@@ -135,3 +135,46 @@ ARXIV_XML = """<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.
 UNPAYWALL = {"doi": "10.48550/arxiv.1706.03762", "is_oa": True, "best_oa_location": {"host_type": "repository", "version": "submittedVersion", "url": "https://arxiv.org/abs/1706.03762", "url_for_pdf": "https://arxiv.org/pdf/1706.03762"}, "oa_locations": []}
 S2 = {"title": "Attention is All you Need", "openAccessPdf": {"url": "https://arxiv.org/pdf/1706.03762.pdf"}, "externalIds": {"ArXiv": "1706.03762"}}
 EPMC = {"resultList": {"result": []}}
+
+# An external site: boilerplate around an article, with a Wikipedia link and a relative image/link inside.
+EXT_HTML = """<!DOCTYPE html><html><head><title>Testopolis harbour history | Example Heritage</title>
+<meta property="og:site_name" content="Example Heritage"><meta name="author" content="J. Quayle"><meta name="description" content="How a granite headland became a harbour town.">
+<style>body{font-family:Comic Sans MS}</style><script>window.ads=1</script></head>
+<body><header><nav><a href="/">Home</a> <a href="/about">About</a> <a href="/shop">Shop</a> <a href="/newsletter">Newsletter</a></nav></header>
+<aside class="sidebar"><h3>Trending</h3><ul><li><a href="/a">Ten lighthouses to visit</a></li><li><a href="/b">Best fish markets</a></li></ul></aside>
+<main><article>
+<h1>Testopolis harbour history</h1>
+<p class="lede">The harbour at Testopolis is one of the oldest continuously used anchorages on the northern coast, and its story begins with a granite headland and a handful of sailors looking for shelter.</p>
+<p>In the first decades after 1820 the settlement grew around a timber quay. The <a href="/breakwater">breakwater</a> that protects the harbour today was not finished until 1905, after two earlier attempts were destroyed by winter storms. Contemporary accounts describe the salted-fish trade as the town's economic engine throughout the nineteenth century.</p>
+<figure><img src="/img/quay.jpg" alt="The old quay" width="800" height="500"><figcaption>The quay around 1890</figcaption></figure>
+<h2>Sources</h2>
+<p>Much of this account draws on the municipal archive and on the <a href="https://en.wikipedia.org/wiki/Pangolin">pangolin</a> collection catalogue, which is unrelated but delightful. Further reading is available at <a href="https://docs.example.com/report.pdf">the full report (PDF)</a>.</p>
+<p onclick="alert(1)" style="color:red">Click here to subscribe to our newsletter and never miss an update from Example Heritage!</p>
+</article></main>
+<footer><p>© Example Heritage. <a href="/privacy">Privacy</a> <a href="/terms">Terms</a></p></footer>
+<script src="/tracker.js"></script></body></html>"""
+
+JINA_MD = """Title: A local report on the breakwater
+
+URL Source: https://news.example.com/story
+
+Published Time: 2026-09-30T08:00:00Z
+
+Markdown Content:
+A local report on the breakwater
+================================
+
+The council voted **unanimously** to repair the eastern arm of the breakwater after engineers found _three_ cracked blocks.
+
+![Breakwater survey](https://news.example.com/img/survey.jpg)
+
+## What happens next
+
+- Surveys continue through October
+- Repairs begin in spring
+- Funding comes from the [harbour levy](https://news.example.com/levy)
+
+> "The structure is safe, but it will not stay that way without work," the chief engineer said.
+
+See also the [history of the town](https://en.wikipedia.org/wiki/Testopolis).
+"""

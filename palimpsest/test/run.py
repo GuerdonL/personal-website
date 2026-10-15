@@ -47,6 +47,20 @@ def handler(route, request):
     if 'upload.wikimedia.org' in u:
         return route.fulfill(status=200, content_type='image/png', body=bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da6364f8cf000000020001e221bc330000000049454e44ae426082'))
     if 'fonts.g' in u: return route.fulfill(status=200, content_type='text/css', body='')
+    if 'readability' in u: return route.fulfill(status=200, content_type='application/javascript', body=open('/home/claude/vendor/node_modules/@mozilla/readability/Readability.js').read())
+    if 'dompurify' in u: return route.fulfill(status=200, content_type='application/javascript', body=open('/home/claude/vendor/node_modules/dompurify/dist/purify.min.js').read())
+    if u.startswith('https://example.org/harbour/history'):
+        # stand-in for a site that refuses cross-origin reads (Playwright's fulfill cannot simulate a missing CORS header)
+        return route.fulfill(status=403, body='forbidden')
+    if u.startswith('https://r.jina.ai/https://example.org/harbour/history'):
+        return body(route, F.EXT_HTML, 'text/html')
+    if u.startswith('https://news.example.com/story'):
+        return route.fulfill(status=403, body='forbidden')
+    if u.startswith('https://r.jina.ai/https://news.example.com/story'):
+        if request.headers.get('x-return-format') == 'html': return route.fulfill(status=503, headers={'Access-Control-Allow-Origin': '*'}, body='busy')
+        return body(route, F.JINA_MD, 'text/plain; charset=utf-8')
+    if 'example.org/img/' in u or 'news.example.com/img' in u:
+        return route.fulfill(status=200, content_type='image/png', body=bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da6364f8cf000000020001e221bc330000000049454e44ae426082'))
     print('   UNHANDLED', u); return route.fulfill(status=404, body='unhandled ' + u)
 
 fails = []
@@ -195,6 +209,49 @@ with sync_playwright() as pw:
     pg.go_back(); pg.wait_for_function("document.querySelector('#reader h1.title')?.textContent === 'Testopolis'")
     check(True, 'back button returns to previous article')
 
+    # --- external sites in reader mode
+    pg.click('#cite_note-web1-1 .ref-actions a[data-web]')
+    pg.wait_for_function("document.querySelector('#reader h1.title')?.textContent === 'Testopolis harbour history'", timeout=10000)
+    txt = pg.inner_text('#reader')
+    check('granite headland' in txt and 'two earlier attempts' in txt, 'article body extracted')
+    check('Trending' not in txt and 'Newsletter' not in txt and 'Privacy' not in txt, 'nav, sidebar and footer boilerplate removed')
+    check(pg.evaluate("document.querySelectorAll('#reader [onclick], #reader script, #reader style, #reader [style]').length") == 0, 'inline handlers, scripts and styles stripped')
+    check('via r.jina.ai' in pg.inner_text('#reader .pagemeta'), 'direct read blocked by CORS -> fell back to r.jina.ai')
+    check(pg.inner_text('#reader .web-byline') == 'J. Quayle', 'byline shown')
+    pg.screenshot(path=os.path.join(OUT, f'web-{MODE}.png'))
+    check(pg.get_attribute('#reader .webbody a[data-title="Pangolin"]', 'href') == '#Pangolin', 'Wikipedia links inside external pages open in-app')
+    bw = pg.get_attribute('#reader .webbody a[data-web]', 'href')
+    check(bw == 'https://example.org/breakwater', f'relative links resolved against the page ({bw})')
+    check(pg.get_attribute('#reader .webbody img.wimg', 'src') == 'https://example.org/img/quay.jpg', 'relative image resolved and routed through the media pipeline')
+    fam2 = pg.evaluate("getComputedStyle(document.querySelector('#reader .webbody p')).fontFamily")
+    fam1 = pg.evaluate("getComputedStyle(document.querySelector('#reader h1.title')).fontFamily")
+    check('Source Serif' in fam2 and fam1 == fam2, f'external page uses the reader font ({fam2})')
+    check(pg.evaluate("document.querySelector('#modeAuthors').disabled") is True, 'authorship disabled on web pages')
+    check(pg.evaluate('location.hash').startswith('#w:https%3A%2F%2Fexample.org'), 'web page recorded in history')
+    pg.click('#tabSettings'); pg.uncheck('#sImages'); pg.wait_for_timeout(80)
+    check(pg.locator('#reader .webbody .media-off').count() == 1, 'media toggle applies to external images too')
+    pg.check('#sImages')
+    pg.go_back(); pg.wait_for_function("document.querySelector('#reader h1.title')?.textContent === 'Testopolis'")
+    check(pg.evaluate("document.querySelector('#modeAuthors').disabled") is False, 'back to the article re-enables authorship')
+    # markdown fallback (Jina HTML mode fails, text mode works)
+    pg.click('#reader a[data-web="https://news.example.com/story"]')
+    pg.wait_for_function("document.querySelector('#reader h1.title')?.textContent === 'A local report on the breakwater'", timeout=10000)
+    html2 = pg.inner_html('#reader .webbody')
+    check('<b>unanimously</b>' in html2 and '<i>three</i>' in html2, 'markdown inline formatting rendered')
+    check('<ul>' in html2 and html2.count('<li>') == 3 and '<blockquote>' in html2 and '<h3>What happens next</h3>' in html2, 'markdown lists, quotes and headings rendered')
+    check(pg.get_attribute('#reader .webbody img.wimg', 'src') == 'https://news.example.com/img/survey.jpg', 'markdown image routed through media pipeline')
+    check(pg.get_attribute('#reader .webbody a[data-title="Testopolis"]', 'href') == '#Testopolis', 'wiki link in markdown page opens in-app')
+    check('via r.jina.ai (text)' in pg.inner_text('#reader .pagemeta'), 'reported the text fallback')
+    # setting: open in new tab leaves the link alone
+    pg.go_back(); pg.wait_for_function("document.querySelector('#reader h1.title')?.textContent === 'Testopolis'")
+    pg.select_option('#sOpenExt', 'tab')
+    prevented = pg.evaluate("""(() => { const a = document.querySelector('#reader a[data-web="https://news.example.com/story"]'); const ev = new MouseEvent('click', {bubbles:true, cancelable:true}); a.dispatchEvent(ev); return ev.defaultPrevented; })()""")
+    check(prevented is False, 'with "new tab" setting the click is not intercepted')
+    pg.select_option('#sOpenExt', 'reader')
+    # pdf links are never intercepted
+    prevented = pg.evaluate("""(() => { const a = document.createElement('a'); a.href='https://docs.example.com/report.pdf'; a.dataset.web=a.href; a.target='_blank'; document.querySelector('#reader').appendChild(a); const ev = new MouseEvent('click', {bubbles:true, cancelable:true}); a.dispatchEvent(ev); a.remove(); return ev.defaultPrevented; })()""")
+    check(prevented is False, 'PDF links are left to the browser')
+
     # --- phone layout
     pg.set_viewport_size({'width': 390, 'height': 800}); pg.wait_for_timeout(200)
     sw = pg.evaluate('document.documentElement.scrollWidth'); cw = pg.evaluate('document.documentElement.clientWidth')
@@ -203,7 +260,7 @@ with sync_playwright() as pw:
     pg.screenshot(path=os.path.join(OUT, f'phone-{MODE}.png'))
 
     print('\nPage errors:', errors or 'none')
-    check(not [e for e in errors if '404' not in e and '503' not in e], 'no page errors (expected 404 on title probe excluded)')
+    check(not [e for e in errors if '404' not in e and '503' not in e and '403' not in e and 'CORS' not in e and 'Failed to fetch' not in e], 'no page errors (expected 404 on title probe excluded)')
     b.close()
 
 print('\n%d failures' % len(fails))

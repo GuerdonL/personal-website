@@ -90,6 +90,22 @@ main.side-closed{grid-template-columns:1fr 0}
 #reader .media-off:hover{color:var(--r-fg)}
 #reader math{font-size:1.05em}
 #reader .mw-parser-output>*:first-child{margin-top:0}
+#reader .web-byline{font-family:var(--ui);font-size:.8em;color:var(--muted);margin:-.8em 0 1.4em}
+#reader .web-excerpt{font-size:1.08em;line-height:1.5;color:color-mix(in srgb,var(--r-fg) 75%,transparent);border-left:3px solid color-mix(in srgb,var(--r-fg) 20%,transparent);padding-left:.9em;margin:0 0 1.4em}
+#reader .webbody>*:first-child{margin-top:0}
+#reader .webbody figure,#reader .webbody picture{margin:1.2em 0;max-width:100%}
+#reader .webbody figure img{display:block;margin:0 auto}
+#reader .webbody figcaption{font-family:var(--sans);font-size:.78em;color:var(--muted);text-align:center;padding-top:.4em}
+#reader .webbody blockquote{margin:1.2em 0;padding:.2em 1em;border-left:3px solid color-mix(in srgb,var(--r-fg) 25%,transparent);color:color-mix(in srgb,var(--r-fg) 80%,transparent)}
+#reader .webbody pre{font-family:var(--mono);font-size:.78em;line-height:1.5;background:color-mix(in srgb,var(--r-fg) 6%,transparent);padding:.8em 1em;border-radius:4px;overflow-x:auto;max-width:100%}
+#reader .webbody code{font-family:var(--mono);font-size:.88em;background:color-mix(in srgb,var(--r-fg) 7%,transparent);padding:.05em .3em;border-radius:3px}
+#reader .webbody pre code{background:none;padding:0;font-size:1em}
+#reader .webbody table{border-collapse:collapse;font-family:var(--sans);font-size:.8em;line-height:1.35;margin:0 0 1em;max-width:100%;display:block;overflow-x:auto}
+#reader .webbody th,#reader .webbody td{border:1px solid color-mix(in srgb,var(--r-fg) 22%,transparent);padding:.3em .5em;vertical-align:top}
+#reader .webbody hr{border:0;border-top:1px solid color-mix(in srgb,var(--r-fg) 18%,transparent);margin:1.6em 0}
+#reader .webbody ul,#reader .webbody ol{padding-left:1.6em}
+#reader .webbody li{margin:.2em 0}
+.modes button:disabled{opacity:.45;cursor:default}
 .empty{padding:40px 0;color:var(--muted);font-family:var(--ui);font-size:15px;max-width:40rem}
 .empty h2{border:0!important;font-family:var(--serif)!important}
 .empty ul{padding-left:1.2em}
@@ -267,6 +283,10 @@ main.side-closed aside.side{display:none}
       <div class="field"><label for="sImages">Load images<small>Off: each image becomes a tap-to-load placeholder</small></label><input id="sImages" type="checkbox" class="toggle"></div>
       <div class="field"><label for="sVideo">Load video</label><input id="sVideo" type="checkbox" class="toggle"></div>
       <div class="field"><label for="sAudio">Load audio</label><input id="sAudio" type="checkbox" class="toggle"></div>
+      <h3>Linked websites</h3>
+      <div class="field"><label for="sOpenExt">Open links to other sites<small>Reader mode strips the page down to its article and uses your type and color settings</small></label>
+        <select id="sOpenExt"><option value="reader">In Palimpsest (reader mode)</option><option value="tab">In a new browser tab</option></select></div>
+      <div class="field" style="grid-template-columns:1fr"><label for="sProxy">Your own fetch proxy (optional)<small>Many sites refuse cross-site reads; the reader then falls back to the free r.jina.ai service. For privacy or reliability, deploy <code>proxy/worker.js</code> from the repo to Cloudflare and paste its URL with <code>{url}</code> where the page address goes.</small></label><input id="sProxy" type="text" placeholder="https://your-worker.workers.dev/?url={url}" style="max-width:none"></div>
       <h3>Authorship data</h3>
       <div class="field"><label for="sAttr">Attribution source<small>Full history uses the WikiWho service; local mode diffs the recent revisions in your browser</small></label>
         <select id="sAttr"><option value="auto">Full history, local fallback</option><option value="local">Local diffs only</option></select></div>
@@ -302,6 +322,8 @@ main.side-closed aside.side{display:none}
 </main>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@mozilla/readability@0.5.0/Readability.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>
 <script>
 'use strict';
 /* ---------- utilities ---------- */
@@ -333,7 +355,7 @@ function setStatus(text){
 
 /* ---------- settings ---------- */
 const DEFAULTS = { font:'serif', customFont:'', size:18, lh:1.62, width:46, bg:null, fg:null, link:null, visited:null,
-  images:true, video:false, audio:false, attr:'auto', depth:30, email:'', autoFind:true };
+  images:true, video:false, audio:false, attr:'auto', depth:30, email:'', autoFind:true, openExt:'reader', proxy:'' };
 const Settings = {
   v: { ...DEFAULTS },
   load(){ try { const s = JSON.parse(localStorage.getItem('palimpsest.settings') || '{}'); this.v = { ...DEFAULTS, ...s }; } catch (e) {} },
@@ -374,6 +396,7 @@ const Settings = {
     $('#sImages').checked = v.images; $('#sVideo').checked = v.video; $('#sAudio').checked = v.audio;
     $('#sAttr').value = v.attr; $('#sDepth').value = v.depth; $('#sDepthV').textContent = v.depth;
     $('#sEmail').value = v.email; $('#sAutoFind').checked = v.autoFind;
+    $('#sOpenExt').value = v.openExt; $('#sProxy').value = v.proxy;
   },
   bind(){
     const on = (id, ev, fn) => $(id).addEventListener(ev, fn);
@@ -391,6 +414,8 @@ const Settings = {
     on('#sDepth','input', e => { this.v.depth = +e.target.value; this.save(); this.syncUI(); Authorship.invalidate(); });
     on('#sEmail','input', e => { this.v.email = e.target.value.trim(); this.save(); });
     on('#sAutoFind','change', e => { this.v.autoFind = e.target.checked; this.save(); });
+    on('#sOpenExt','change', e => { this.v.openExt = e.target.value; this.save(); });
+    on('#sProxy','input', e => { this.v.proxy = e.target.value.trim(); this.save(); });
     on('#sResetAll','click', () => { this.v = { ...DEFAULTS }; this.save(); this.apply(); Authorship.invalidate(); });
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => this.apply());
   }
@@ -535,6 +560,7 @@ const Reader = {
     if (this.loading) return; this.loading = true;
     Authorship.off(); Sources.reset();
     setStatus('Loading ' + title + '…');
+    this.kind = 'wiki';
     try {
       let page;
       try { page = await Wiki.html(title); }
@@ -550,7 +576,8 @@ const Reader = {
     } finally { setStatus(''); this.loading = false; }
   },
   render(page){
-    this.title = page.title; this.revid = page.revid; this.flavor = page.flavor;
+    this.title = page.title; this.revid = page.revid; this.flavor = page.flavor; this.kind = 'wiki'; this.url = null;
+    $('#modeAuthors').disabled = false;
     const doc = new DOMParser().parseFromString(page.html, 'text/html');
     const body = page.flavor === 'parsoid' ? doc.body : (doc.querySelector('.mw-parser-output') || doc.body);
     // strip script, hide nav, unwrap nothing else
@@ -579,7 +606,7 @@ const Reader = {
         if (/^(File|Category|Special|Help|Wikipedia|Template|Portal|Talk):/i.test(t)) { a.href = WIKI + '/wiki/' + raw[0]; a.target = '_blank'; a.rel = 'noopener'; }
         else { a.dataset.title = t; a.href = '#' + encodeURIComponent(t.replace(/ /g,'_')); if (raw[1]) a.dataset.frag = raw[1]; }
       } else if (/^#/.test(href)) { /* in-page anchor */ }
-      else if (/^(https?:)?\/\//.test(href)) { if (href.startsWith('//')) a.href = 'https:' + href; a.target = '_blank'; a.rel = 'noopener'; }
+      else if (/^(https?:)?\/\//.test(href)) { if (href.startsWith('//')) a.href = 'https:' + href; a.target = '_blank'; a.rel = 'noopener'; a.dataset.web = a.href; }
     });
     // legacy parser: wrap h2 sections so section outlines work in both flavors
     if (page.flavor === 'legacy') wrapSections(body);
@@ -593,6 +620,39 @@ const Reader = {
     while (body.firstChild) wrap.appendChild(body.firstChild);
     reader.appendChild(wrap);
     // Parsoid nests <style> for templatestyles; they are scoped to .mw-parser-output and safe to keep.
+    this.applyMedia();
+  },
+  // Open a non-Wikipedia page in reader mode, restyled to match the article view.
+  async openWeb(url, push = true){
+    if (this.loading) return; this.loading = true;
+    Authorship.off(); Authorship.wanted = false; $('#modeAuthors').setAttribute('aria-pressed', 'false'); $('#modeAuthors').disabled = true;
+    Sources.reset();
+    let host = url; try { host = new URL(url).host.replace(/^www\./, ''); } catch (e) {}
+    setStatus('Fetching ' + host + '…');
+    try {
+      const got = await Web.fetchPage(url);
+      const art = got.markdown ? Web.fromMarkdown(got.markdown, url) : Web.extract(got.html, url);
+      if (!art || !art.content.textContent.trim()) throw new Error('Nothing readable was found on that page.');
+      this.renderWeb(art, url, host, got.via);
+      if (push) history.pushState({ web: url }, '', '#w:' + encodeURIComponent(url));
+      document.title = art.title + ' · Palimpsest';
+      $('#readerWrap').scrollTop = 0;
+    } catch (e) {
+      $('#reader').innerHTML = `<div class="empty"><h2>Couldn’t read that page.</h2><p>${esc(e.message)}</p><p><a href="${esc(url)}" target="_blank" rel="noopener">Open it in a new tab</a> instead, or set up your own fetch proxy in Settings.</p></div>`;
+    } finally { setStatus(''); this.loading = false; }
+  },
+  renderWeb(art, url, host, via){
+    this.kind = 'web'; this.url = url; this.title = art.title; this.revid = null;
+    const reader = $('#reader'); reader.innerHTML = '';
+    const h1 = document.createElement('h1'); h1.className = 'title'; h1.textContent = art.title; reader.appendChild(h1);
+    const meta = document.createElement('div'); meta.className = 'pagemeta';
+    meta.innerHTML = `<span>From ${esc(art.siteName || host)}</span><a href="${esc(url)}" target="_blank" rel="noopener">Open original</a><span title="How the page was fetched">via ${esc(via)}</span>`;
+    reader.appendChild(meta);
+    if (art.byline) { const b = document.createElement('div'); b.className = 'web-byline'; b.textContent = art.byline; reader.appendChild(b); }
+    if (art.excerpt && art.excerpt.length < 400 && !art.content.textContent.startsWith(art.excerpt.slice(0, 40))) { const x = document.createElement('p'); x.className = 'web-excerpt'; x.textContent = art.excerpt; reader.appendChild(x); }
+    const body = document.createElement('div'); body.className = 'webbody body';
+    while (art.content.firstChild) body.appendChild(art.content.firstChild);
+    reader.appendChild(body);
     this.applyMedia();
   },
   applyMedia(){
@@ -921,9 +981,9 @@ const Sources = {
       ${r.title ? `<div class="ref-title">${esc(r.title)}</div>` : ''}
       <div class="ref-body">${r.html}</div>
       <div class="ref-finds" hidden></div>
-      <div class="ref-actions">${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">Open source</a>` : ''}${r.doi ? `<a href="https://doi.org/${esc(r.doi)}" target="_blank" rel="noopener">DOI</a>` : ''}${r.kind === 'book' || r.kind === 'paper' ? `<button type="button" class="find">Find free copy</button>` : ''}<button type="button" class="more">Full citation</button></div>`;
+      <div class="ref-actions">${r.url ? `<a href="${esc(r.url)}" data-web="${esc(r.url)}" target="_blank" rel="noopener">Open source</a>` : ''}${r.doi ? `<a href="https://doi.org/${esc(r.doi)}" target="_blank" rel="noopener">DOI</a>` : ''}${r.kind === 'book' || r.kind === 'paper' ? `<button type="button" class="find">Find free copy</button>` : ''}<button type="button" class="more">Full citation</button></div>`;
     // fix links inside the citation body copied from the article
-    $$('a', c.querySelector('.ref-body')).forEach(a => { const h = a.getAttribute('href') || ''; if (/^(https?:)?\/\//.test(h)) { if (h.startsWith('//')) a.href = 'https:' + h; a.target = '_blank'; a.rel = 'noopener'; } else if (/^\.\//.test(h) || /^\/wiki\//.test(h)) { const t = decodeURIComponent(h.replace(/^\.\//,'').replace(/^\/wiki\//,'').split('#')[0]).replace(/_/g,' '); a.dataset.title = t; a.href = '#' + encodeURIComponent(t.replace(/ /g,'_')); } });
+    $$('a', c.querySelector('.ref-body')).forEach(a => { const h = a.getAttribute('href') || ''; if (/^(https?:)?\/\//.test(h)) { if (h.startsWith('//')) a.href = 'https:' + h; a.target = '_blank'; a.rel = 'noopener'; a.dataset.web = a.href; } else if (/^\.\//.test(h) || /^\/wiki\//.test(h)) { const t = decodeURIComponent(h.replace(/^\.\//,'').replace(/^\/wiki\//,'').split('#')[0]).replace(/_/g,' '); a.dataset.title = t; a.href = '#' + encodeURIComponent(t.replace(/ /g,'_')); } });
     c.querySelector('.more').addEventListener('click', e => { c.classList.toggle('expanded'); e.target.textContent = c.classList.contains('expanded') ? 'Collapse' : 'Full citation'; });
     c.querySelector('.find')?.addEventListener('click', () => this.enqueue(r, true));
     return c;
@@ -1024,6 +1084,139 @@ const Sources = {
   }
 };
 
+/* ---------- web pages in reader mode ---------- */
+const Web = {
+  // Try the person's own proxy, then the site directly, then r.jina.ai (HTML, then its Markdown rendering).
+  async fetchPage(url){
+    const tries = [];
+    if (Settings.v.proxy && Settings.v.proxy.includes('{url}')) tries.push(['your proxy', () => fetch(Settings.v.proxy.replace('{url}', encodeURIComponent(url)))]);
+    tries.push(['the site', () => fetch(url, { mode: 'cors', redirect: 'follow' })]);
+    tries.push(['r.jina.ai', () => fetch('https://r.jina.ai/' + url, { headers: { 'X-Return-Format': 'html' } })]);
+    tries.push(['r.jina.ai (text)', () => fetch('https://r.jina.ai/' + url)]);
+    const errors = [];
+    for (const [via, fn] of tries) {
+      try {
+        const r = await fn(); if (!r.ok) throw new Error('HTTP ' + r.status);
+        const ct = (r.headers.get('content-type') || '').toLowerCase();
+        if (/pdf|octet-stream|image\/|audio\/|video\//.test(ct)) throw Object.assign(new Error('That link is a file, not a page.'), { fatal: true });
+        const text = await r.text();
+        if (via === 'r.jina.ai (text)' || (/text\/plain|markdown/.test(ct) && !/<html|<body|<article/i.test(text))) return { markdown: text, via };
+        if (!text.trim()) throw new Error('empty response');
+        return { html: text, via };
+      } catch (e) { if (e.fatal) throw e; errors.push(via + ': ' + e.message); }
+    }
+    throw new Error('The page could not be fetched (' + errors.join('; ') + ').');
+  },
+  extract(html, url){
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const base = doc.createElement('base'); base.href = url; doc.head.prepend(base);
+    let title = (doc.querySelector('meta[property="og:title"]')?.content || doc.title || url).trim();
+    let byline = doc.querySelector('meta[name="author"]')?.content || null, excerpt = doc.querySelector('meta[property="og:description"], meta[name="description"]')?.content || null;
+    let siteName = doc.querySelector('meta[property="og:site_name"]')?.content || null;
+    let content = null;
+    if (typeof Readability === 'function') {
+      try {
+        const art = new Readability(doc.cloneNode(true), { keepClasses: false }).parse();
+        if (art && art.content) {
+          const holder = document.createElement('div'); holder.innerHTML = art.content; content = holder;
+          title = art.title || title; byline = art.byline || byline; excerpt = art.excerpt || excerpt; siteName = art.siteName || siteName;
+        }
+      } catch (e) { console.warn('Readability failed, using fallback extractor', e); }
+    }
+    if (!content) content = this.fallbackExtract(doc);
+    // Prefer the page's own headline over "Headline | Site" window titles.
+    const h1 = doc.querySelector('h1')?.textContent.replace(/\s+/g, ' ').trim();
+    const og = doc.querySelector('meta[property="og:title"]')?.content?.trim();
+    if (h1 && h1.length > 8 && title.startsWith(h1)) title = h1;
+    else if (og && title.startsWith(og)) title = og;
+    else if (siteName) title = title.replace(new RegExp('\\s*[|\\-–—:»]\\s*' + siteName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$'), '');
+    this.sanitize(content, url);
+    return { title, byline, excerpt, siteName, content };
+  },
+  // Without Readability: the <article>/<main> or the block with the most paragraph text and the lowest link density.
+  fallbackExtract(doc){
+    doc.querySelectorAll('script,style,noscript,nav,header,footer,aside,form,iframe,[role=navigation],[role=banner],[role=contentinfo]').forEach(n => n.remove());
+    let best = doc.querySelector('article, main, [role=main]');
+    if (!best) {
+      let bestScore = 0;
+      for (const el of doc.body.querySelectorAll('div, section, td')) {
+        const ps = el.querySelectorAll(':scope > p'); if (!ps.length) continue;
+        const text = Array.from(ps).map(p => p.textContent).join(' ');
+        const linkText = Array.from(el.querySelectorAll('a')).reduce((n, a) => n + a.textContent.length, 0);
+        const score = text.length * (1 - Math.min(1, linkText / Math.max(1, el.textContent.length)));
+        if (score > bestScore) { bestScore = score; best = el; }
+      }
+    }
+    const holder = document.createElement('div'); holder.innerHTML = (best || doc.body).innerHTML; return holder;
+  },
+  sanitize(root, url){
+    if (typeof DOMPurify !== 'undefined') DOMPurify.sanitize(root, { IN_PLACE: true, FORBID_TAGS: ['style', 'svg', 'math', 'form', 'input', 'button', 'select', 'textarea'], FORBID_ATTR: ['style', 'class', 'id'] });
+    root.querySelectorAll('script,style,link,meta,iframe,object,embed,form,input,button,select,textarea,noscript,canvas,svg').forEach(n => n.remove());
+    const abs = h => { try { return new URL(h, url).href; } catch (e) { return null; } };
+    for (const el of root.querySelectorAll('*')) {
+      for (const at of Array.from(el.attributes)) { const n = at.name.toLowerCase(); if (n.startsWith('on') || n === 'style' || n === 'class' || n === 'id' || n === 'tabindex') el.removeAttribute(at.name); }
+      if (el.tagName === 'A') {
+        const h = abs(el.getAttribute('href') || '');
+        if (!h || !/^https?:/.test(h)) { el.removeAttribute('href'); continue; }
+        const m = h.match(/^https:\/\/en(?:\.m)?\.wikipedia\.org\/wiki\/([^#?]+)/);
+        if (m) { const t = decodeURIComponent(m[1]).replace(/_/g, ' '); el.dataset.title = t; el.href = '#' + encodeURIComponent(t.replace(/ /g, '_')); }
+        else { el.href = h; el.target = '_blank'; el.rel = 'noopener nofollow'; el.dataset.web = h; }
+      }
+      if (el.tagName === 'IMG') {
+        const src = abs(el.getAttribute('data-src') || el.getAttribute('src') || ''); const set = el.getAttribute('srcset');
+        el.removeAttribute('src'); el.removeAttribute('srcset'); el.removeAttribute('width'); el.removeAttribute('height'); el.removeAttribute('sizes');
+        if (src && /^https?:/.test(src)) { el.dataset.src = src; if (set) el.dataset.srcset = set.split(',').map(p => { const [u, d] = p.trim().split(/\s+/); const a = abs(u); return a ? a + (d ? ' ' + d : '') : ''; }).filter(Boolean).join(', '); el.classList.add('wimg'); el.loading = 'lazy'; }
+        else el.remove();
+      }
+      if (el.tagName === 'VIDEO' || el.tagName === 'AUDIO') {
+        el.removeAttribute('autoplay'); el.controls = true; el.preload = 'none';
+        if (el.getAttribute('src')) { el.dataset.src = abs(el.getAttribute('src')); el.removeAttribute('src'); }
+        if (el.getAttribute('poster')) { el.dataset.poster = abs(el.getAttribute('poster')); el.removeAttribute('poster'); }
+        el.querySelectorAll('source').forEach(so => { if (so.getAttribute('src')) { so.dataset.src = abs(so.getAttribute('src')); so.removeAttribute('src'); } });
+      }
+      if (el.tagName === 'SOURCE' && el.parentElement?.tagName === 'PICTURE') el.remove();
+    }
+    root.querySelectorAll('p, div, span').forEach(el => { if (!el.textContent.trim() && !el.querySelector('img, video, audio')) el.remove(); });
+  },
+  // r.jina.ai's default output: a small header block followed by Markdown.
+  fromMarkdown(text, url){
+    const head = text.match(/^Title:\s*(.*)\n(?:[\s\S]*?)URL Source:.*\n(?:Published Time:\s*(.*)\n)?(?:[\s\S]*?)Markdown Content:\n/);
+    let title = head ? head[1].trim() : null, md = head ? text.slice(head[0].length) : text;
+    if (!title) { const h = md.match(/^#\s+(.*)$/m); title = h ? h[1] : url; }
+    const content = document.createElement('div'); content.innerHTML = this.mdToHtml(md);
+    this.sanitize(content, url);
+    return { title, byline: head && head[2] ? 'Published ' + head[2].trim().slice(0, 10) : null, excerpt: null, siteName: null, content };
+  },
+  mdToHtml(md){
+    const inline = s => esc(s)
+      .replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g, '<img alt="$1" src="$2">')
+      .replace(/\[([^\]]+)\]\(([^)\s]+)[^)]*\)/g, '<a href="$2">$1</a>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|\W)_([^_]+)_(?=\W|$)/g, '$1<i>$2</i>').replace(/\*([^*]+)\*/g, '<i>$1</i>');
+    const lines = md.replace(/\r/g, '').split('\n'); const out = []; let para = [], list = null, code = null, quote = [];
+    const flushP = () => { if (para.length) { out.push('<p>' + inline(para.join(' ')) + '</p>'); para = []; } };
+    const flushL = () => { if (list) { out.push(`<${list.t}>` + list.items.map(i => '<li>' + inline(i) + '</li>').join('') + `</${list.t}>`); list = null; } };
+    const flushQ = () => { if (quote.length) { out.push('<blockquote><p>' + inline(quote.join(' ')) + '</p></blockquote>'); quote = []; } };
+    for (const raw of lines) {
+      const line = raw.replace(/\s+$/, '');
+      if (code !== null) { if (/^```/.test(line)) { out.push('<pre><code>' + esc(code.join('\n')) + '</code></pre>'); code = null; } else code.push(raw); continue; }
+      if (/^```/.test(line)) { flushP(); flushL(); flushQ(); code = []; continue; }
+      let m;
+      if (!line.trim()) { flushP(); flushL(); flushQ(); continue; }
+      if ((m = line.match(/^(#{1,6})\s+(.*)/))) { flushP(); flushL(); flushQ(); const lv = Math.min(4, m[1].length + 1); out.push(`<h${lv}>${inline(m[2])}</h${lv}>`); continue; }
+      if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) { flushP(); flushL(); flushQ(); out.push('<hr>'); continue; }
+      if ((m = line.match(/^\s*[-*+]\s+(.*)/))) { flushP(); flushQ(); if (!list || list.t !== 'ul') { flushL(); list = { t: 'ul', items: [] }; } list.items.push(m[1]); continue; }
+      if ((m = line.match(/^\s*\d+[.)]\s+(.*)/))) { flushP(); flushQ(); if (!list || list.t !== 'ol') { flushL(); list = { t: 'ol', items: [] }; } list.items.push(m[1]); continue; }
+      if ((m = line.match(/^>\s?(.*)/))) { flushP(); flushL(); quote.push(m[1]); continue; }
+      if (/^!\[[^\]]*\]\([^)]+\)\s*$/.test(line.trim())) { flushP(); flushL(); flushQ(); out.push('<figure>' + inline(line.trim()) + '</figure>'); continue; }
+      if (list && /^\s{2,}/.test(raw)) { list.items[list.items.length - 1] += ' ' + line.trim(); continue; }
+      flushL(); flushQ(); para.push(line.trim());
+    }
+    flushP(); flushL(); flushQ(); if (code) out.push('<pre><code>' + esc(code.join('\n')) + '</code></pre>');
+    return out.join('\n');
+  }
+};
+
 /* ---------- UI wiring ---------- */
 const UI = {
   openSide(tab){
@@ -1055,12 +1248,17 @@ const UI = {
       const a = e.target.closest('a'); if (!a) return;
       if (a.dataset.go) { e.preventDefault(); Reader.open(a.dataset.go); return; }
       if (a.dataset.title) { e.preventDefault(); Reader.open(a.dataset.title); return; }
+      if (a.dataset.web && Settings.v.openExt === 'reader' && !(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && !/\.(pdf|zip|gz|mp3|mp4|png|jpe?g|gif|svg|webp)(\?|$)/i.test(a.dataset.web)) { e.preventDefault(); Reader.openWeb(a.dataset.web); return; }
       const h = a.getAttribute('href') || '';
       if (h.startsWith('#')) { const id = decodeURIComponent(h.slice(1)); const el = document.getElementById(id) || document.getElementById(id.replace(/^cite_note-/, 'cite_note-')); if (el) { e.preventDefault(); el.scrollIntoView({ block: 'center' }); el.classList.add('expanded'); } }
     });
-    window.addEventListener('popstate', e => { const t = e.state?.title || decodeURIComponent(location.hash.slice(1)).replace(/_/g, ' '); if (t && t !== Reader.title) Reader.open(t, false); });
-    const initial = decodeURIComponent(location.hash.slice(1)).replace(/_/g, ' ');
-    if (initial) Reader.open(initial, false);
+    const fromHash = (push) => {
+      const h = location.hash.slice(1);
+      if (h.startsWith('w:')) { const u = decodeURIComponent(h.slice(2)); if (u !== Reader.url) Reader.openWeb(u, push); return; }
+      const t = decodeURIComponent(h).replace(/_/g, ' '); if (t && (t !== Reader.title || Reader.kind !== 'wiki')) Reader.open(t, push);
+    };
+    window.addEventListener('popstate', () => fromHash(false));
+    fromHash(false);
   }
 };
 UI.init();
