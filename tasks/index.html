@@ -27,47 +27,43 @@
   body { background: var(--bg); color: var(--ink); font: 14px/1.35 Inter, system-ui, sans-serif; }
 
   #root { min-height: 100%; padding: 52px 24px 110px; cursor: cell; }
-  /* Each container is a grid whose column count comes from squareCols(n).
-     Columns are max-content, so a box is exactly as big as its arranged
-     children — sizes resolve bottom-up, from leaves to the root. */
-  .kids {
-    display: grid; grid-template-columns: repeat(var(--cols, 1), max-content);
-    align-items: start; justify-content: start; gap: 8px;
-  }
-  #root > .kids { gap: 12px; }
-
+  /* Every card's size and position is computed in JS (see "layout"):
+     CSS only paints. Numbers here must match the constants there. */
+  .kids { position: relative; }
   .task {
-    display: flex; flex-direction: column; gap: 7px;
-    min-width: 56px; padding: 7px 11px 13px;
+    position: absolute; display: flex; flex-direction: column;
+    padding: 7px 10px 9px;
     background: var(--t0); border: 1px solid var(--line); border-radius: 7px;
     cursor: cell; user-select: none; -webkit-user-select: none; touch-action: none;
     transition: border-color .12s;
   }
+  .task > .kids { margin-top: 7px; flex: none; }
+  .task:not(.parent) > .kids { display: none; }
+  .task.temp { border-style: dashed; border-color: var(--line-strong); }
   .task.odd { background: var(--t1); }
   .task.match { box-shadow: inset 0 0 0 2px var(--match); }
-  .task:not(.parent) > .kids:empty { display: none; }
   .task:hover:not(:has(.task:hover)) { border-color: var(--line-strong); }
 
-  .head { display: flex; align-items: baseline; gap: 8px; }
-  .name { font-weight: 500; white-space: pre-wrap; overflow-wrap: anywhere; cursor: default; }
-  .head > .name + * { margin-left: auto; }
-  .num { font: 10px/1 'JetBrains Mono', ui-monospace, monospace; color: var(--faint); }
+  .head { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; align-items: start; }
+  .name { font-size: 14px; line-height: 19px; font-weight: 500; white-space: normal; overflow-wrap: anywhere; cursor: default; }
+  .num { font: 10px/19px 'JetBrains Mono', ui-monospace, monospace; color: var(--faint); }
+  .head > .name { grid-column: 1; grid-row: 1; }
+  .head > .num { grid-column: 2; grid-row: 1; }
+  .head > .due { grid-column: 1 / -1; grid-row: 2; margin-top: 3px; }
+  .name[contenteditable] {
+    cursor: text; outline: none; user-select: text; -webkit-user-select: text;
+    box-shadow: 0 1px 0 var(--line-strong);
+  }
+  .name[contenteditable]:empty::before { content: 'new task'; color: var(--faint); }
 
   .sel { outline: 2px solid var(--sel); outline-offset: 1px; }
   #root.sel { outline: 1px solid var(--sel); outline-offset: -6px; }
 
-  input.edit {
-    font: inherit; font-weight: 500; color: inherit; background: transparent;
-    border: 0; border-bottom: 1px solid var(--line-strong); outline: none;
-    padding: 0; min-width: 5ch; max-width: 100%; field-sizing: content;
-  }
-  .kids > input.edit { padding: 7px 11px; border: 1px dashed var(--line-strong); border-radius: 7px; background: var(--t0); }
 
   .dragging { opacity: .25; }
   .ghost {
-    position: fixed; z-index: 10; margin: 0; pointer-events: none;
-    max-height: 220px; overflow: hidden; opacity: .92;
-    box-shadow: 0 8px 24px rgba(0,0,0,.14);
+    position: fixed; z-index: 10; margin: 0; pointer-events: none; opacity: .92;
+    transform-origin: 0 0; box-shadow: 0 8px 24px rgba(0,0,0,.14);
   }
   .drop { outline: 2px dashed var(--accent); outline-offset: 1px; }
   #root.drop { outline-offset: -8px; }
@@ -115,7 +111,7 @@
   #cmd { display: flex; color: var(--ink); }
 
   /* due dates: card colour is set inline from the fraction of time left */
-  .due { font: 11px/1 'JetBrains Mono', ui-monospace, monospace; color: color-mix(in srgb, var(--ink) 65%, transparent); white-space: nowrap; }
+  .due { font: 11px/13px 'JetBrains Mono', ui-monospace, monospace; color: color-mix(in srgb, var(--ink) 65%, transparent); white-space: nowrap; }
   .due.over { color: var(--ink); font-weight: 600; }
 
   #sched {
@@ -152,10 +148,10 @@
   #crumbs .sep { margin: 0 6px; opacity: .6; }
   #mode { position: fixed; right: 20px; top: 14px; font: 11px 'JetBrains Mono', ui-monospace, monospace; color: var(--sel); }
   #mode:empty { display: none; }
-  #root > .head { font-size: 20px; margin: -6px 0 16px; max-width: 900px; }
-  #root > .head .name { font-weight: 600; }
-  #root > .head > .name + * { margin-left: 4px; }
-  #root > .head .due { font-size: 12px; }
+  #root > .head { margin: -6px 0 14px; }
+  #root > .head .name { font-size: 20px; line-height: 26px; font-weight: 600; }
+  #root > .head .num { line-height: 26px; }
+  #root > .head .due { font-size: 12px; line-height: 14px; }
   a.num { text-decoration: none; }
   a.num:hover { color: var(--sel); text-decoration: underline; }
 </style>
@@ -211,7 +207,9 @@
 
   let data = load();
   let history = [];
-  let editing = null;   // active <input>, if any
+  let editing = null;   // the task name being typed into (contenteditable), if any
+  let editId = null;    // …which task it belongs to
+  let editText = '';    // …and its live text, which the layout measures
   let ptr = null;       // pointer gesture state
   let cursor = 'root';  // selected task id
   let zoom = 'root';    // task shown fullscreen (its children fill the page)
@@ -255,9 +253,372 @@
   const parentId = id => id === 'root' ? 'root' : find(id).parent.id;
   const inside = (z, id) => z === 'root' || !!find(id, nodeOf(z));
 
-  // Nearest-square arrangement: n children → ceil(√n) columns,
-  // filled row by row (1 → 1, 2 → 2, 3 → 2+1, 4 → 2×2, 5 → 3+2, 9 → 3×3 …).
-  function squareCols(n) { return Math.max(1, Math.ceil(Math.sqrt(n))); }
+  // ── layout ──────────────────────────────────────────────
+  // Every card's size and position is computed here, bottom-up:
+  //  1. A leaf measures its name and wraps it to the shape closest to
+  //     LEAF_ASPECT, so long names fold into a few short lines.
+  //  2. A parent packs its children, in order, into rows. Every row spans
+  //     the parent's full width, and the width is shared out by each
+  //     child's area so heights in a row come out even — the rows tile.
+  //     Row breaks are chosen (by DP) to bend each child's shape least.
+  //  3. Each parent tries a range of widths and keeps the one whose box is
+  //     densest and closest to square. The page does the same for whatever
+  //     task is fullscreen, so zooming re-optimises around that task.
+  const PX = 11, PT = 8, PB = 10;          // card padding, border included
+  const GAP = 6, PAGE_GAP = 10, HEAD_GAP = 7, NUM_GAP = 6, TITLE_GAP = 8;
+  const LINE = 19, TITLE_LINE = 26, DUE_H = 16, TITLE_DUE_H = 17;
+  const LEAF_ASPECT = 1.5;                 // width : height a leaf card aims for
+  const MIN_NAME = 36;                     // narrowest a name column may get
+  const WORD_CAP = 120;                    // words longer than this may break
+  const SLACK = 3;                         // wrap a hair early so text never overflows
+  const MAX_ROW = 12;                      // most cards considered for one row
+  const SIZES = [0.5, 0.62, 0.75, 0.88, 1, 1.15, 1.32, 1.55, 1.85, 2.3];
+  const FONT = {
+    name: '500 14px Inter, system-ui, sans-serif',
+    title: '600 20px Inter, system-ui, sans-serif',
+    num: "10px 'JetBrains Mono', ui-monospace, monospace",
+    due: "11px 'JetBrains Mono', ui-monospace, monospace",
+    dueOver: "600 11px 'JetBrains Mono', ui-monospace, monospace",
+    tdue: "12px 'JetBrains Mono', ui-monospace, monospace",
+    tdueOver: "600 12px 'JetBrains Mono', ui-monospace, monospace",
+  };
+  const mctx = document.createElement('canvas').getContext('2d');
+  const twCache = new Map();
+  function tw(font, str) {
+    const k = font + '\n' + str;
+    let w = twCache.get(k);
+    if (w === undefined) { mctx.font = font; w = mctx.measureText(str).width; twCache.set(k, w); }
+    return w;
+  }
+  // How many lines `text` needs at width w: break at spaces, and break a
+  // word anywhere only when it can't fit a line by itself (as the CSS does).
+  function lineCount(font, text, w) {
+    w -= SLACK;
+    const words = text.split(/\s+/).filter(Boolean);
+    let lines = 1, cur = '';
+    for (let word of words) {
+      const tryLine = cur ? cur + ' ' + word : word;
+      if (tw(font, tryLine) <= w) { cur = tryLine; continue; }
+      if (cur) lines++;
+      while (word.length > 1 && tw(font, word) > w) {
+        let k = 1;
+        while (k < word.length - 1 && tw(font, word.slice(0, k + 1)) <= w) k++;
+        word = word.slice(k); lines++;
+      }
+      cur = word;
+    }
+    return lines;
+  }
+  const textOf = t => (t.id === editId ? editText : t.name) || (t.temp ? 'new task' : '');
+  const numW = t => (t.n ? tw(FONT.num, String(t.n)) : 0) + NUM_GAP;
+  const dueW = (t, title) => t.due ? tw(title ? (timeLeft(t) === 0 ? FONT.tdueOver : FONT.tdue) : (timeLeft(t) === 0 ? FONT.dueOver : FONT.due), fmtDue(t)) : 0;
+  // height of a task's header (name + due line) at content width w
+  function headH(t, w, title = false) {
+    const nameW = Math.max(MIN_NAME, w - numW(t));
+    return lineCount(title ? FONT.title : FONT.name, textOf(t), nameW) * (title ? TITLE_LINE : LINE) +
+      (t.due ? (title ? TITLE_DUE_H : DUE_H) : 0);
+  }
+  function headMinW(t) {
+    const longest = Math.max(0, ...textOf(t).split(/\s+/).map(x => tw(FONT.name, x)));
+    return Math.ceil(Math.max(Math.max(MIN_NAME, Math.min(longest + SLACK, WORD_CAP)) + numW(t), dueW(t)));
+  }
+
+  // Layout results are cached by a hash of each subtree's content, so they
+  // survive redraws: typing re-measures only the edited task and its
+  // ancestors. (M_sig is per pass; the C_ caches persist.)
+  let M_sig = new Map();
+  const C = { min: new Map(), pref: new Map(), card: new Map(), pack: new Map(), minH: new Map() };
+  function clearCaches() { for (const m of Object.values(C)) m.clear(); }
+  function hstr(str, h) {
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function sig(t) {
+    let v = M_sig.get(t.id);
+    if (v === undefined) {
+      const own = textOf(t) + '\u0001' + (t.n || '') + '\u0001' + (t.due ? fmtDue(t) + (timeLeft(t) === 0 ? '!' : '') : '') + (t.temp ? '\u0002' : '');
+      let a = hstr(own, 2166136261), b = hstr(own, 5381);
+      for (const c of t.children) { const cs = sig(c); a = hstr(cs, a ^ 0x9e37); b = hstr(cs, b + 7); }
+      v = a.toString(36) + '.' + b.toString(36) + '.' + t.children.length;
+      M_sig.set(t.id, v);
+    }
+    return v;
+  }
+  const listSig = kids => { let a = 2166136261, b = 5381; for (const c of kids) { const cs = sig(c); a = hstr(cs, a); b = hstr(cs, b ^ 31); } return a.toString(36) + '.' + b.toString(36) + '.' + kids.length; };
+  // narrowest a card can be
+  function minW(t) {
+    const k = sig(t);
+    let v = C.min.get(k);
+    if (v === undefined) {
+      v = headMinW(t);
+      for (const c of t.children) v = Math.max(v, minW(c));
+      v += 2 * PX;
+      C.min.set(k, v);
+    }
+    return v;
+  }
+  // exact card height at (integer) outer width W — lays out the whole subtree
+  function cardH(t, W) {
+    const k = sig(t) + '|' + W;
+    let v = C.card.get(k);
+    if (v === undefined) {
+      const cw = W - 2 * PX;
+      v = PT + headH(t, cw) + PB;
+      if (t.children.length) v += HEAD_GAP + pack(t.children, cw, GAP, true).h;
+      C.card.set(k, v);
+    }
+    return v;
+  }
+  // quick height estimate used while choosing shapes: exact for a leaf;
+  // for a parent, its preferred area spread over the new width
+  function estH(t, W) {
+    if (!t.children.length) return cardH(t, W);
+    return Math.max(minH(t), Math.round(pref(t).a / W));
+  }
+  // card height at outer width W from a rough (non-recursive) packing
+  function roughH(t, W) {
+    const cw = W - 2 * PX;
+    return PT + headH(t, cw) + PB + HEAD_GAP + pack(t.children, cw, GAP, false).h;
+  }
+  // how a task's box would like to be shaped on its own: { w, h }
+  function pref(t) {
+    const key = sig(t);
+    let v = C.pref.get(key);
+    if (v) return v;
+    const lo = minW(t);
+    if (!t.children.length) {
+      // leaf: try widths from tightest to one line; keep the one nearest LEAF_ASPECT
+      const hi = Math.max(lo, oneLineW(t));
+      let best = null;
+      for (let W = lo; ; W = Math.min(hi, W + 6)) {
+        const H = cardH(t, W);
+        const d = Math.abs(Math.log(W / H / LEAF_ASPECT));
+        if (!best || d < best.d - 1e-6) best = { w: W, h: H, d };
+        if (W >= hi) break;
+      }
+      v = { w: best.w, h: best.h };
+    } else {
+      v = bestWidth(lo - 2 * PX, t.children, GAP,
+        cw => ({ w: cw + 2 * PX, h: roughH(t, cw + 2 * PX), cost: pack(t.children, cw, GAP, false).cost }),
+        cw => ({ w: cw + 2 * PX, h: cardH(t, cw + 2 * PX), cost: pack(t.children, cw, GAP, true).cost }));
+    }
+    v.a = v.w * v.h;
+    C.pref.set(key, v);
+    return v;
+  }
+  // Smaller is better: area, inflated for being far from square, plus how
+  // much the children had to be squeezed or stretched to fit.
+  const ASPECT_W = 1, DIST_W = 1;
+  const score = (W, H, cost) => W * H * (1 + ASPECT_W * Math.log(W / H) ** 2) + DIST_W * cost;
+  // Try content widths around √(children's area); keep the best-scoring box.
+  // Every width is scored from quick estimates, then the top few are laid
+  // out exactly and the winner is picked from those.
+  // rough(cw) / exact(cw) → { w, h, cost } for content width cw.
+  const RECHECK = 3;
+  function bestWidth(lo, kids, gap, rough, exact, cap = Infinity) {
+    let area = 0;
+    for (const c of kids) { const p = pref(c); area += (Math.sqrt(p.a) + gap) ** 2; }
+    const base = Math.sqrt(area);
+    const loCw = Math.min(cap, Math.max(lo, ...kids.map(minW)));
+    const seen = new Set(), cands = [];
+    for (const f of SIZES) {
+      const cw = Math.round(Math.min(cap, Math.max(loCw, base * f)));
+      if (seen.has(cw)) continue;
+      seen.add(cw);
+      const r = rough(cw);
+      cands.push({ cw, sc: score(r.w, r.h, r.cost) });
+    }
+    cands.sort((a, b) => a.sc - b.sc);
+    let best = null;
+    for (const c of cands.slice(0, RECHECK)) {
+      const r = exact(c.cw), sc = score(r.w, r.h, r.cost);
+      if (!best || sc < best.sc) best = { w: r.w, h: r.h, cw: c.cw, sc };
+    }
+    return best;
+  }
+  // a leaf's width when its name sits on one line
+  const oneLineW = t => Math.ceil(Math.max(tw(FONT.name, textOf(t)) + SLACK + numW(t), dueW(t), MIN_NAME + numW(t)) + 2 * PX);
+  // the shortest a card can get, however wide it is made
+  function minH(t) {
+    const k = sig(t);
+    let v = C.minH.get(k);
+    if (v === undefined) {
+      if (!t.children.length) v = cardH(t, Math.max(minW(t), oneLineW(t)));
+      else v = PT + LINE + (t.due ? DUE_H : 0) + HEAD_GAP + Math.max(...t.children.map(minH)) + PB;
+      C.minH.set(k, v);
+    }
+    return v;
+  }
+  // Split one row among its columns: find the shortest height h at which
+  // every column (area A, min width MW, min height MH) fits side by side.
+  // Any width left over is shared out by area. Integer widths, exact sum.
+  function shareRow(A, MW, MH, avail) {
+    const k = A.length, sumMW = MW.reduce((a, b) => a + b, 0);
+    const need = h => { let s = 0; for (let m = 0; m < k; m++) s += Math.max(MW[m], A[m] / h); return s; };
+    let h = Math.max(1, ...MH);
+    if (sumMW >= avail) {
+      h = Math.max(h, ...A.map((a, m) => a / MW[m]));
+    } else if (need(h) > avail) {
+      let lo = h, hi = h * 2;
+      while (need(hi) > avail) hi *= 2;
+      for (let it = 0; it < 32; it++) { const mid = (lo + hi) / 2; need(mid) > avail ? (lo = mid) : (hi = mid); }
+      h = hi;
+    }
+    const ws = A.map((a, m) => Math.max(MW[m], a / h));
+    const extra = Math.max(0, avail - ws.reduce((a, b) => a + b, 0)), At = A.reduce((a, b) => a + b, 0) || 1;
+    for (let m = 0; m < k; m++) ws[m] += extra * A[m] / At;
+    let acc = 0, prev = 0;
+    const out = ws.map(w => { acc += w; const r = Math.round(acc); const o = r - prev; prev = r; return o; });
+    return { ws: out, h };
+  }
+  const MAX_STACK = 4;   // most cards stacked in one column of a row
+  // Pack `kids` (in order) into rows of width cw. A row is a run of columns
+  // side by side; a column is a run of cards stacked top to bottom (so a few
+  // small cards can sit beside one big one instead of being stretched).
+  // Returns { h, cost, rows: [{ y, h, items: [{ m, x, y, w, h }] }] } (m = index in kids).
+  // Rows and widths come from estimates either way; `exact` decides whether
+  // the final heights are measured for real (only for what gets drawn).
+  function pack(kids, cw, gap, exact) {
+    const mk = listSig(kids) + '|' + cw + '|' + gap + (exact ? '|x' : '');
+    let v = C.pack.get(mk);
+    if (v) return v;
+    const n = kids.length, P = kids.map(pref), MIN = kids.map(minW), MH = kids.map(minH);
+    const dist = (m, w) => P[m].a * Math.log(w / P[m].w) ** 2;   // cost of giving card m width w
+    // a column of cards s..e-1 treated as one block
+    function col(s, e) {
+      let A = 0, mw = 0, mh = gap * (e - s - 1), pw = 0;
+      for (let m = s; m < e; m++) { A += P[m].a; mw = Math.max(mw, MIN[m]); mh += MH[m]; pw += P[m].w; }
+      A += gap * (e - s - 1) * pw / (e - s);
+      return { s, e, A, mw, mh };
+    }
+    // best way to split cards i..j-1 into columns, as one row
+    function planRow(i, j) {
+      let A = 0, mh = 0;
+      for (let m = i; m < j; m++) { A += P[m].a; mh = Math.max(mh, MH[m]); }
+      let h0 = Math.max(mh, A / cw), plan = null;
+      for (let iter = 0; iter < 2; iter++) {
+        const k = j - i, c = new Array(k + 1).fill(Infinity), fr = new Array(k + 1);
+        c[0] = 0;
+        for (let e = 1; e <= k; e++) for (let s = e - 1; s >= Math.max(0, e - MAX_STACK); s--) {
+          const b = col(i + s, i + e), wc = Math.max(b.mw, b.A / h0), ch = Math.max(b.mh, b.A / wc);
+          let cc = c[s] + Math.max(0, ch - h0) * cw + gap * h0;   // a too-tall column stretches the row
+          for (let m = i + s; m < i + e; m++) cc += dist(m, wc);
+          if (cc < c[e]) { c[e] = cc; fr[e] = s; }
+        }
+        const cols = [];
+        for (let e = k; e > 0; e = fr[e]) cols.unshift(col(i + fr[e], i + e));
+        const avail = cw - gap * (cols.length - 1);
+        if (cols.length > 1 && cols.reduce((a, b) => a + b.mw, 0) > avail) return null;
+        const r = shareRow(cols.map(b => b.A), cols.map(b => b.mw), cols.map(b => b.mh), avail);
+        let cost = r.h * avail - cols.reduce((a, b) => a + b.A, 0);   // empty space in the row
+        cols.forEach((b, ci) => { for (let m = b.s; m < b.e; m++) cost += dist(m, r.ws[ci]); });
+        plan = { cols, cost };
+        h0 = r.h;
+      }
+      return plan;
+    }
+    // rows: DP over where each row ends
+    const cost = new Array(n + 1).fill(Infinity), from = new Array(n + 1), plans = new Array(n + 1);
+    cost[0] = 0;
+    for (let j = 1; j <= n; j++) for (let i = j - 1; i >= Math.max(0, j - MAX_ROW); i--) {
+      const pl = planRow(i, j);
+      if (!pl) continue;
+      const c = cost[i] + pl.cost + gap * cw;   // each extra row costs a gap's worth
+      if (c < cost[j]) { cost[j] = c; from[j] = i; plans[j] = pl; }
+    }
+    const order = [];
+    for (let j = n; j > 0; j = from[j]) order.unshift(plans[j]);
+    // build each row: widths from estimates (rebalanced once), then heights
+    const rows = [];
+    let y = 0, total = 0;
+    for (const pl of order) {
+      const cols = pl.cols, avail = Math.max(cw - gap * (cols.length - 1), cols.reduce((a, b) => a + b.mw, 0));
+      const heights = (ws, hf) => cols.map((b, ci) => { const hs = []; for (let m = b.s; m < b.e; m++) hs.push(hf(kids[m], ws[ci])); return hs; });
+      const colH = hs => hs.reduce((a, b) => a + b, 0) + gap * (hs.length - 1);
+      let ws = shareRow(cols.map(b => b.A), cols.map(b => b.mw), cols.map(b => b.mh), avail).ws;
+      let H = heights(ws, estH);
+      const ws2 = shareRow(cols.map((b, ci) => ws[ci] * colH(H[ci])), cols.map(b => b.mw), cols.map(b => b.mh), avail).ws;
+      const H2 = heights(ws2, estH);
+      if (Math.max(...H2.map(colH)) < Math.max(...H.map(colH))) { ws = ws2; H = H2; }
+      if (exact) H = heights(ws, cardH);
+      const rowH = Math.max(...H.map(colH));
+      const items = [];
+      let x = 0;
+      cols.forEach((b, ci) => {
+        let cy = 0;
+        for (let m = b.s; m < b.e; m++) {
+          const last = m === b.e - 1, ih = last ? rowH - cy : H[ci][m - b.s];   // last card fills the column
+          items.push({ m, x, y: cy, w: ws[ci], h: ih });
+          total += dist(m, ws[ci]);
+          cy += ih + gap;
+        }
+        x += ws[ci] + gap;
+      });
+      rows.push({ y, h: rowH, items });
+      y += rowH + gap;
+    }
+    v = { h: Math.max(0, y - gap), cost: total, rows };
+    C.pack.set(mk, v);
+    return v;
+  }
+  // where each visible card ended up, relative to its parent: for h / j
+  const geo = new Map();
+  function place(t, el, W, H) {
+    el.style.width = W + 'px';
+    el.style.height = H + 'px';
+    if (!t.children.length) return;
+    const kidsEl = el.querySelector(':scope > .kids');
+    placeKids(t.children, kidsEl, pack(t.children, W - 2 * PX, GAP, true), W - 2 * PX);
+  }
+  function placeKids(kids, kidsEl, p, cw) {
+    kidsEl.style.width = cw + 'px';
+    kidsEl.style.height = p.h + 'px';
+    const els = new Map([...kidsEl.children].map(e => [e.dataset.id, e]));
+    for (const row of p.rows) for (const it of row.items) {
+      const t = kids[it.m], e = els.get(t.id);
+      if (!e) continue;
+      e.style.left = it.x + 'px';
+      e.style.top = row.y + it.y + 'px';
+      geo.set(t.id, { x: it.x, y: row.y + it.y, w: it.w, h: it.h });
+      place(t, e, it.w, it.h);
+    }
+  }
+  // Lay out the whole page around the fullscreen task (or the top level).
+  function layout() {
+    M_sig = new Map();
+    if (C.card.size + C.pack.size > 200000) clearCaches();
+    geo.clear();
+    const zn = nodeOf(zoom), title = zoom !== 'root';
+    const kidsEl = rootEl.querySelector(':scope > .kids');
+    const maxW = Math.max(160, document.documentElement.clientWidth - 48);
+    const headEl = rootEl.querySelector(':scope > .head');
+    if (!zn.children.length) {
+      kidsEl.style.width = kidsEl.style.height = '0px';
+      if (headEl) headEl.style.width = Math.min(maxW, 480) + 'px';
+      return;
+    }
+    const lo = title ? Math.min(maxW, headMinW(zn)) : 0;
+    const titleH = cw => title ? headH(zn, cw, true) + TITLE_GAP : 0;
+    const page = exact => cw => {
+      const pk = pack(zn.children, cw, PAGE_GAP, exact);
+      return { w: cw, h: titleH(cw) + pk.h, cost: pk.cost };
+    };
+    const best = bestWidth(lo, zn.children, PAGE_GAP, page(false), page(true), maxW);
+    if (headEl) headEl.style.width = best.cw + 'px';
+    placeKids(zn.children, kidsEl, pack(zn.children, best.cw, PAGE_GAP, true), best.cw);
+  }
+  let relayoutQueued = false;
+  function relayoutSoon() {
+    if (relayoutQueued) return;
+    relayoutQueued = true;
+    requestAnimationFrame(() => { relayoutQueued = false; layout(); });
+  }
+  window.addEventListener('resize', relayoutSoon);
+  // canvas measurements are only right once the web fonts have arrived
+  if (document.fonts) {
+    document.fonts.ready.then(() => { twCache.clear(); clearCaches(); layout(); });
+    document.fonts.addEventListener('loadingdone', () => { twCache.clear(); clearCaches(); relayoutSoon(); });
+  }
 
   // ── dates ───────────────────────────────────────────────
   const DAY = 864e5;
@@ -402,13 +763,14 @@
     name.className = 'name';
     name.textContent = t.name;
     head.append(name);
-    if (t.due) {
+    if (t.due && !t.temp) {
       const due = document.createElement('span');
       due.className = 'due' + (timeLeft(t) === 0 ? ' over' : '');
       due.textContent = fmtDue(t);
       due.title = new Date(t.due).toLocaleString() + (t.rep ? ' · repeats ' + t.rep : '');
       head.append(due);
     }
+    if (!t.n) return head;
     // the number doubles as a permalink: /tasks/#12 opens task 12 fullscreen
     const num = document.createElement('a');
     num.className = 'num';
@@ -428,7 +790,6 @@
     kids.className = 'kids';
     const childEls = t.children.map(c => build(c, depth + 1, matches));
     kids.append(...childEls);
-    kids.style.setProperty('--cols', squareCols(t.children.length));
     // Background: this task's own countdown. Border: the most urgent
     // countdown anywhere inside it, so parents show what they contain.
     const fs = [own, ...childEls.map(c => c.dataset.f === undefined ? null : +c.dataset.f)].filter(f => f != null);
@@ -439,7 +800,7 @@
     }
     if (own != null) el.style.background = colorsFor(own).bg;
     el.className = 'task' + (depth % 2 ? ' odd' : '') + (t.children.length ? ' parent' : '') +
-      (matches.has(t.id) ? ' match' : '');
+      (matches.has(t.id) ? ' match' : '') + (t.temp ? ' temp' : '');
     el.append(head, kids);
     return el;
   }
@@ -460,7 +821,7 @@
     if (zoom !== 'root') rootEl.prepend(buildHead(zn));
     const top = rootEl.querySelector(':scope > .kids');
     top.replaceChildren(...zn.children.map(c => build(c, 0, matches)));
-    top.style.setProperty('--cols', squareCols(zn.children.length));
+    layout();
     drawCrumbs();
     updateHash();
     rootEl.classList.remove('sel');
@@ -532,50 +893,74 @@
   }
 
   // ── editing ─────────────────────────────────────────────
-  function makeInput(value) {
-    const inp = document.createElement('input');
-    inp.className = 'edit';
-    inp.value = value;
-    inp.spellcheck = false;
-    const fit = () => { inp.size = Math.max(5, inp.value.length + 1); };
-    fit(); inp.addEventListener('input', fit);
-    return inp;
+  // Make a task's name editable where it sits. The text wraps like any
+  // name and the layout re-flows around it on every keystroke.
+  // onDone(commit, text, again) — again: Enter (keep adding), not blur/Escape.
+  function beginEdit(id, initial, onDone) {
+    const host = elFor(id);
+    const nameEl = host && host.querySelector(':scope > .head > .name');
+    if (!nameEl) return;
+    nameEl.contentEditable = 'plaintext-only';
+    if (nameEl.contentEditable !== 'plaintext-only') nameEl.contentEditable = 'true';
+    nameEl.spellcheck = false;
+    nameEl.textContent = initial;
+    editing = nameEl; editId = id; editText = initial;
+    updateHint();
+    nameEl.focus();
+    const range = document.createRange();
+    range.selectNodeContents(nameEl);
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    let done = false;
+    const finish = (commit, again = false) => {
+      if (done) return;
+      done = true;
+      const text = editText;
+      editing = null; editId = null; editText = '';
+      onDone(commit, text, again);
+    };
+    nameEl.addEventListener('input', () => {
+      editText = nameEl.textContent.replace(/\s+/g, ' ');
+      if (!nameEl.textContent) nameEl.textContent = '';   // drop a stray <br> so the placeholder shows
+      layout();
+    });
+    nameEl.addEventListener('paste', e => {
+      e.preventDefault();
+      document.execCommand('insertText', false, (e.clipboardData.getData('text/plain') || '').replace(/\s+/g, ' '));
+    });
+    nameEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true, true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    nameEl.addEventListener('blur', () => finish(true));
   }
 
   // New task inside parentId; index = position among its children (default: end).
+  // A blank placeholder card is laid out in place while you type.
   function openNew(parentId, index = null) {
-    const host = elFor(parentId);
-    if (!host) return;
-    const kids = host.querySelector(':scope > .kids');
-    const inp = makeInput('');
-    kids.insertBefore(inp, index == null ? null : kids.children[index] || null);
-    editing = inp; updateHint();
-    inp.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    inp.focus();
-    let done = false;
-    const finish = commit => {
-      if (done) return false;
-      done = true; editing = null;
-      const p = parseWhen(inp.value);
-      const target = find(parentId);
-      if (commit && p.name && target) {
+    const target = find(parentId);
+    if (!target) return;
+    const kids = target.node.children;
+    const temp = { id: '__new', name: '', children: [], temp: true };
+    kids.splice(index == null ? kids.length : Math.min(index, kids.length), 0, temp);
+    render();
+    const el = elFor(temp.id);
+    el && el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    beginEdit(temp.id, '', (commit, text, again) => {
+      const at = kids.indexOf(temp);
+      if (at >= 0) kids.splice(at, 1);
+      const p = parseWhen(text);
+      if (commit && p.name && find(parentId) && at >= 0) {
         snapshot();
         const t = { id: uid(), n: data.next++, name: p.name, children: [] };
         if (p.any) setDue(t, dueFrom(p.date, p.time));
-        if (index == null) target.node.children.push(t);
-        else target.node.children.splice(index, 0, t);
+        kids.splice(at, 0, t);
         cursor = t.id;
         save(); render();
-        return true;
+        if (again) openNew(parentId, index == null ? null : at + 1);
+        return;
       }
-      inp.remove(); updateHint();
-      return false;
-    };
-    inp.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); if (finish(true)) openNew(parentId, index == null ? null : index + 1); }
-      else if (e.key === 'Escape') finish(false);
+      render();
     });
-    inp.addEventListener('blur', () => finish(true));
   }
 
   function openSibling() {
@@ -585,21 +970,13 @@
   }
 
   function startRename(id) {
-    const el = elFor(id), found = find(id);
-    if (!el || !found || id === 'root') return;
-    cursor = id;
+    const found = find(id);
+    if (!found || id === 'root' || !elFor(id)) return;
+    setCursor(id);
     const t = found.node;
-    const nameEl = el.querySelector(':scope > .head > .name');
-    const inp = makeInput(t.name);
-    nameEl.replaceWith(inp);
-    editing = inp;
-    inp.focus(); inp.select();
-    let done = false;
-    const finish = commit => {
-      if (done) return;
-      done = true; editing = null;
+    beginEdit(id, t.name, (commit, text) => {
       // "@5p" alone reschedules and keeps the name; a blank name is never saved
-      const p = parseWhen(inp.value);
+      const p = parseWhen(text);
       if (commit && (p.name || p.any) && (p.any || p.name !== t.name)) {
         snapshot();
         if (p.name) t.name = p.name;
@@ -607,12 +984,7 @@
         save();
       }
       render();
-    };
-    inp.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-      else if (e.key === 'Escape') finish(false);
     });
-    inp.addEventListener('blur', () => finish(true));
   }
 
   rootEl.addEventListener('dblclick', e => {
@@ -622,7 +994,7 @@
 
   // ── click / drag ────────────────────────────────────────
   rootEl.addEventListener('pointerdown', e => {
-    if (e.button !== 0 || e.target.closest('input')) return;
+    if (e.button !== 0 || e.target.closest('input, [contenteditable]')) return;
     if (editing) { editing.blur(); return; }   // a click away just finishes editing
     const host = e.target.closest('[data-id]');
     if (!host) return;
@@ -638,14 +1010,16 @@
     const ghost = el.cloneNode(true);
     ghost.classList.add('ghost');
     ghost.classList.remove('sel');
-    const w = Math.min(r.width, 340);
-    ghost.style.width = w + 'px';
+    const scale = Math.min(1, 340 / r.width, 240 / r.height);
+    ghost.style.width = r.width + 'px';
+    ghost.style.height = r.height + 'px';
+    ghost.style.transform = `scale(${scale})`;
     document.body.append(ghost);
     el.classList.add('dragging');
     document.body.classList.add('is-dragging');
     Object.assign(ptr, {
       drag: true, el, ghost,
-      off: { x: Math.min(ptr.x - r.left, w - 12), y: Math.min(ptr.y - r.top, 28) },
+      off: { x: (ptr.x - r.left) * scale, y: (ptr.y - r.top) * scale },
     });
   }
 
@@ -713,18 +1087,32 @@
   // ── keyboard: movement ─────────────────────────────────
   // Movement within the current level:
   //   l / k  next / previous task in order, wrapping around the level
-  //   h / j  left / down along the square grid
+  //   h / j  the nearest card to the left / below, by where it sits on screen
   function move(k) {
     if (cursor === zoom) return;   // the fullscreen task itself has no visible siblings
     const f = find(cursor), sib = f.parent.children, n = sib.length;
-    const cols = squareCols(n), rows = Math.ceil(n / cols);
-    const i = sib.indexOf(f.node), row = Math.floor(i / cols), col = i % cols;
-    let j = i;
-    if (k === 'l') j = (i + 1) % n;
-    if (k === 'k') j = (i - 1 + n) % n;
-    if (k === 'h' && col > 0) j = i - 1;
-    if (k === 'j' && row < rows - 1) j = Math.min(i + cols, n - 1);
-    setCursor(sib[j].id);
+    const i = sib.indexOf(f.node);
+    if (k === 'l') return setCursor(sib[(i + 1) % n].id);
+    if (k === 'k') return setCursor(sib[(i - 1 + n) % n].id);
+    const a = geo.get(cursor);
+    if (!a) return;
+    const apart = (p, pl, q, ql) => Math.max(0, q - (p + pl), p - (q + ql));
+    let pick = null, best = Infinity;
+    for (const s of sib) {
+      const b = geo.get(s.id);
+      if (s === f.node || !b) continue;
+      let along, across;
+      if (k === 'h') {
+        if (b.x + b.w > a.x + 1) continue;
+        along = a.x - (b.x + b.w); across = apart(a.y, a.h, b.y, b.h);
+      } else {
+        if (b.y < a.y + a.h - 1) continue;
+        along = b.y - (a.y + a.h); across = apart(a.x, a.w, b.x, b.w);
+      }
+      const d = along + 3 * across;
+      if (d < best) { best = d; pick = s.id; }
+    }
+    if (pick) setCursor(pick);
   }
   function descend() {
     const t = find(cursor).node;
