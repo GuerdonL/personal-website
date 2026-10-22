@@ -55,6 +55,8 @@
   #bar .ib:hover { background: var(--t1); }
   #bar .ib.on { background: var(--ink); color: var(--t0); }
   #bar .ib:disabled { opacity: .35; cursor: default; }
+  #fingerBtn { position: relative; }
+  #fingerBtn[data-mode=penonly]::after { content: ''; position: absolute; right: 5px; top: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
   #bar .ib svg { width: 20px; height: 20px; }
   #title {
     flex: 1 1 140px; min-width: 80px; height: 36px; border: 0; background: transparent;
@@ -310,7 +312,8 @@ const blankNote = () => ({ id: uid(), title: '', created: Date.now(), updated: D
 
 /* ---------- state ---------- */
 let note = null;
-let zoom = 1, tool = 'pen', color = 'ink', width = 1, fingerDraws = false, penSeen = false;
+let zoom = 1, tool = 'pen', color = 'ink', width = 1, penSeen = false;
+let touchMode = localStorage.getItem('notes:touch') || 'pan'; // 'pan' | 'draw' | 'penonly'
 let undo = [], redo = [];
 const scroller = $('#scroller'), wrap = $('#wrap'), layer = $('#layer'), cv = $('#cv'), ov = $('#ov'), ctx = cv.getContext('2d');
 const urls = new Map(); // audio id -> object URL
@@ -404,28 +407,44 @@ function doRedo() {
 }
 
 /* ---------- pointer handling on canvas ---------- */
-const touches = new Map(); // pointerId -> {x,y}
+/* Touch policy ("touchMode"):
+   'pan'     — pen draws, one finger pans, two fingers pan+zoom (default)
+   'draw'    — finger draws too; two fingers pan+zoom
+   'penonly' — single touches are ignored entirely; two fingers pan+zoom
+   Palm rejection: the pen always wins. A touch never cancels a pen stroke, a pen-down
+   cancels any touch pan/pinch, touches never act until they travel a threshold, big
+   contacts (palm-sized width/height) are ignored, and touches that land while the pen
+   is down, hovering, or just lifted are treated as palm. */
+const touches = new Map(); // pointerId -> {x0,y0,x,y,t0,palm}
 let act = null; // {kind:'draw'|'pan'|'marq'|'erase'|'pinch', ...}
+let penDown = false, lastPenUp = 0, lastPenHover = 0;
+const penRecent = () => penDown || now() - lastPenUp < 400 || now() - lastPenHover < 300;
+const isPalmSize = e => (e.width || 0) > 32 || (e.height || 0) > 32;
+const liveTouches = () => [...touches.entries()].filter(([, t]) => !t.palm);
+
 cv.addEventListener('pointerdown', e => {
-  if (e.pointerType === 'pen') penSeen = true;
+  if (e.pointerType === 'pen') { penSeen = true; penDown = true; if (act && act.kind !== 'draw') cancelAct(); }
   if (e.pointerType === 'touch') {
-    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (touches.size === 2) { // start pinch, abandon anything else
-      cancelAct();
-      const [a, b] = [...touches.values()];
-      act = { kind: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), z0: zoom, a: [...touches.keys()] };
+    const palm = isPalmSize(e) || penRecent();
+    touches.set(e.pointerId, { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t0: now(), palm });
+    if (palm) return;
+    if (act && act.kind === 'draw' && act.ptype === 'pen') return;
+    const lt = liveTouches();
+    if (lt.length === 2 && (!act || act.kind === 'pan')) { // two live fingers: pan+zoom (deferred until they move)
+      if (act) { if (act.kind === 'draw') drawAll(); act = null; }
+      const [[ia, a], [ib, b]] = lt;
+      act = { kind: 'pinch', armed: false, d0: Math.hypot(a.x - b.x, a.y - b.y), z0: zoom, a: [ia, ib], mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, sl: scroller.scrollLeft, st: scroller.scrollTop };
       return;
     }
-    if (touches.size > 2 || act) return;
-    const wantsDraw = fingerDraws && tool !== 'hand';
-    if (!wantsDraw) { startPan(e); return; }
+    if (lt.length !== 1 || act) return;
+    if (touchMode === 'draw' && tool !== 'hand') { /* fall through to draw */ }
+    else return; // single finger: pan is armed in pointermove once it travels far enough
   }
-  if (act && act.kind === 'draw' && act.ptype === 'pen' && e.pointerType === 'touch') return; // palm rejection
   if (act) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   if (tool === 'hand') { startPan(e); return; }
   const p = toLayer(e.clientX, e.clientY);
-  cv.setPointerCapture(e.pointerId);
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
   if (tool === 'pen' || tool === 'hl') {
     const s = { id: uid(), tool, color, width, points: [{ x: p.x, y: p.y, p: pr(e) }] };
     act = { kind: 'draw', id: e.pointerId, ptype: e.pointerType, s, n: 1 };
@@ -440,25 +459,37 @@ cv.addEventListener('pointerdown', e => {
 });
 function pr(e) { return e.pointerType === 'pen' ? clamp(e.pressure, 0.05, 1) : 0.5; }
 function startPan(e) {
-  cv.setPointerCapture(e.pointerId);
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
   act = { kind: 'pan', id: e.pointerId, x: e.clientX, y: e.clientY, sl: scroller.scrollLeft, st: scroller.scrollTop };
   cv.style.cursor = 'grabbing';
 }
 cv.addEventListener('pointermove', e => {
-  if (e.pointerType === 'touch' && touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (e.pointerType === 'pen' && !penDown && e.buttons === 0) lastPenHover = now(); // Pencil hover (M2 iPads)
+  if (e.pointerType === 'touch') {
+    const t = touches.get(e.pointerId); if (!t) return;
+    t.x = e.clientX; t.y = e.clientY;
+    if (t.palm) return;
+    if (!act && touchMode !== 'penonly' && !(touchMode === 'draw' && tool !== 'hand')) {
+      // arm a one-finger pan only after real travel, and only if no pen showed up meanwhile
+      if (liveTouches().length === 1 && Math.hypot(t.x - t.x0, t.y - t.y0) > (penSeen ? 14 : 6) && !penRecent()) startPan(e);
+    }
+  }
   if (!act) return;
   if (act.kind === 'pinch') {
     if (!touches.has(act.a[0]) || !touches.has(act.a[1])) return;
     const a = touches.get(act.a[0]), b = touches.get(act.a[1]);
-    const d = Math.hypot(a.x - b.x, a.y - b.y);
-    setZoom(act.z0 * d / act.d0, (a.x + b.x) / 2, (a.y + b.y) / 2);
+    const d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    if (!act.armed) { if (Math.abs(d - act.d0) < 12 && Math.hypot(mx - act.mx, my - act.my) < 10) return; act.armed = true; act.d0 = d; act.mx = mx; act.my = my; act.sl = scroller.scrollLeft; act.st = scroller.scrollTop; }
+    scroller.scrollLeft = act.sl - (mx - act.mx); scroller.scrollTop = act.st - (my - act.my);
+    const z = act.z0 * d / act.d0;
+    if (Math.abs(z - zoom) > 0.002) setZoom(z, mx, my);
     return;
   }
   if (act.id !== e.pointerId) return;
   if (act.kind === 'pan') {
     scroller.scrollLeft = act.sl - (e.clientX - act.x); scroller.scrollTop = act.st - (e.clientY - act.y); return;
   }
-  const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+  let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : []; if (!evs.length) evs = [e];
   if (act.kind === 'draw') {
     const s = act.s;
     for (const ev of evs) { const p = toLayer(ev.clientX, ev.clientY); s.points.push({ x: +p.x.toFixed(1), y: +p.y.toFixed(1), p: +pr(ev).toFixed(2) }); }
@@ -475,16 +506,19 @@ cv.addEventListener('pointermove', e => {
   }
 });
 const endPointer = e => {
+  if (e.pointerType === 'pen') { penDown = false; lastPenUp = now(); }
   if (e.pointerType === 'touch') touches.delete(e.pointerId);
   if (!act) return;
-  if (act.kind === 'pinch') { if (touches.size < 2) { act = null; commitZoom(); } return; }
+  if (act.kind === 'pinch') { if (!touches.has(act.a[0]) || !touches.has(act.a[1])) { act = null; commitZoom(); } return; }
   if (act.id !== e.pointerId) return;
   if (act.kind === 'draw') {
     const s = act.s;
-    note.strokes.push(s); pushUndo({ type: 'add', stroke: s });
-    if (s.tool === 'hl') drawAll(); // keep highlighter beneath ink
-    const maxY = Math.max(...s.points.map(p => p.y));
-    growPage(maxY + 300); save();
+    if (s.points.length > 1 || act.ptype !== 'touch') {
+      note.strokes.push(s); pushUndo({ type: 'add', stroke: s });
+      if (s.tool === 'hl') drawAll(); // keep highlighter beneath ink
+      const maxY = Math.max(...s.points.map(p => p.y));
+      growPage(maxY + 300); save();
+    } else drawAll();
   } else if (act.kind === 'marq') {
     const m = $('#marq'); m.style.display = 'none';
     const w = act.x1 == null ? 0 : Math.abs(act.x1 - act.x0), h = act.y1 == null ? 0 : Math.abs(act.y1 - act.y0);
@@ -499,7 +533,8 @@ const endPointer = e => {
 };
 cv.addEventListener('pointerup', endPointer);
 cv.addEventListener('pointercancel', endPointer);
-function cancelAct() { if (act && act.kind === 'draw') { drawAll(); } act = null; $('#marq').style.display = 'none'; }
+cv.addEventListener('pointerleave', e => { if (e.pointerType === 'pen' && penDown && act && act.kind === 'draw' && act.id === e.pointerId) endPointer(e); });
+function cancelAct() { if (act && act.kind === 'draw') { drawAll(); } act = null; $('#marq').style.display = 'none'; cv.style.cursor = ''; }
 cv.addEventListener('contextmenu', e => e.preventDefault());
 
 // ctrl/cmd + wheel zoom on desktop
@@ -523,7 +558,13 @@ function buildPop() {
   const w = $('#widths'); w.innerHTML = '';
   WIDTHS.forEach((px, i) => { const b = document.createElement('button'); b.className = 'wd' + (i === width ? ' on' : ''); b.innerHTML = `<i style="width:${4 + i * 4}px;height:${4 + i * 4}px"></i>`; b.onclick = () => { width = i; buildPop(); }; w.appendChild(b); });
 }
-$('#fingerBtn').addEventListener('click', () => { fingerDraws = !fingerDraws; $('#fingerBtn').classList.toggle('on', fingerDraws); toast(fingerDraws ? 'Finger draws — two fingers to pan/zoom' : 'Finger pans, pen draws'); });
+const TOUCH_MODES = { pan: 'Finger pans · pen draws', draw: 'Finger draws · two fingers to pan/zoom', penonly: 'Pencil only · single touches ignored, two fingers pan/zoom' };
+function applyTouchMode(show) {
+  const b = $('#fingerBtn'); b.classList.toggle('on', touchMode !== 'pan'); b.dataset.mode = touchMode; b.title = TOUCH_MODES[touchMode];
+  localStorage.setItem('notes:touch', touchMode); if (show) toast(TOUCH_MODES[touchMode]);
+}
+$('#fingerBtn').addEventListener('click', () => { touchMode = { pan: 'draw', draw: 'penonly', penonly: 'pan' }[touchMode]; applyTouchMode(true); });
+applyTouchMode(false);
 $('#undoBtn').addEventListener('click', doUndo);
 $('#redoBtn').addEventListener('click', doRedo);
 $('#zoomIn').addEventListener('click', () => { setZoom(zoom * 1.2); commitZoom(); });
