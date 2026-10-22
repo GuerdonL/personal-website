@@ -1435,6 +1435,25 @@ $('#importFile').addEventListener('change', async () => {
   $('#importFile').value = '';
 });
 
+/* ---------- update check: a home-screen web app keeps its loaded page until relaunched ----------
+   Each time the app comes to the foreground, compare the site's copy of this page with the one running. */
+const APP_BUILD = document.lastModified;
+let updateShown = false;
+async function checkForUpdate() {
+  if (updateShown || !navigator.onLine) return;
+  try {
+    const r = await fetch(location.href, { method: 'HEAD', cache: 'no-store' });
+    const lm = r.headers.get('last-modified'); if (!lm) return;
+    const remote = Date.parse(lm), local = Date.parse(APP_BUILD);
+    if (!isNaN(remote) && !isNaN(local) && remote > local + 60000) {
+      updateShown = true;
+      toast('A newer version of Notes is available', 'Reload', async () => { if (note) await saveNow(); location.reload(); });
+    }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
+setTimeout(checkForUpdate, 4000);
+
 /* ---------- boot ---------- */
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { buildPop(); drawAll(); });
 window.addEventListener('resize', () => { if (note) commitZoom(); });
