@@ -235,6 +235,53 @@
   .ac .live { display: flex; flex-direction: column; gap: 6px; }
   .ac .stop { height: 32px; padding: 0 14px; border-radius: 8px; background: #991b1b; color: #fff; font-weight: 500; align-self: flex-start; }
 
+  /* close-button popout: archive / trash */
+  .grip { position: relative; }
+  .pop {
+    position: absolute; right: 26px; top: 50%; transform: translateY(-50%); display: flex; gap: 4px; z-index: 5;
+    background: var(--t0); border: 1px solid var(--line); border-radius: 7px; padding: 3px; box-shadow: var(--shadow);
+    animation: popin .16s ease-out; transform-origin: right center;
+  }
+  @keyframes popin { from { opacity: 0; transform: translateY(-50%) translateX(10px) scaleX(.6); } to { opacity: 1; transform: translateY(-50%); } }
+  .pop button { height: 24px; padding: 0 9px; border-radius: 5px; font: 500 12px Inter, system-ui, sans-serif; display: inline-flex; align-items: center; gap: 5px; }
+  .pop button svg { width: 13px; height: 13px; }
+  .pop .arch { color: var(--accent); background: var(--t1); }
+  .pop .trash { color: #fff; background: var(--danger); }
+  .it { position: relative; }
+  .it .pop { right: 40px; }
+
+  /* embedded media cards */
+  .em { position: absolute; background: var(--t0); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.05); overflow: hidden; }
+  .em.sel { border-color: var(--sel); box-shadow: 0 0 0 2px rgba(37,99,235,.2); }
+  .em .grip .edit { height: 18px; padding: 0 8px; border-radius: 4px; background: var(--ink); color: var(--t0); font: 500 11px Inter, system-ui, sans-serif; }
+  .em .grip .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+  .em .pv { position: relative; min-height: 48px; overflow: hidden; max-height: 640px; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--paper); }
+  .em .pv .stack { position: relative; transform-origin: 0 0; width: 1000px; }
+  .em .pv.file { padding: 14px 12px; display: flex; align-items: center; gap: 10px; color: var(--accent); font-size: 13px; }
+  .em .pv.file svg { width: 22px; height: 22px; flex: none; }
+  .em .pv .missing { padding: 14px 12px; color: var(--faint); font-size: 12px; font-style: italic; }
+  .em .pv .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); font-size: 12px; }
+
+  /* media note background (image / pdf pages / file chip) */
+  #media { position: absolute; left: 0; top: 0; width: 1000px; pointer-events: none; }
+  #media img, #media canvas { display: block; width: 1000px; }
+  #media canvas + canvas { border-top: 1px solid var(--line); }
+  #media .chip { pointer-events: auto; margin: 20px; display: inline-flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; background: var(--t1); border: 1px solid var(--line); color: var(--accent); font-size: 13px; text-decoration: none; }
+  #media .chip svg { width: 20px; height: 20px; }
+  #backBtn { display: none; }
+  body.child #backBtn { display: grid; }
+  body.child #menuBtn { display: none; }
+  .it .k { display: inline-block; font: 10px/14px 'JetBrains Mono', ui-monospace, monospace; color: var(--faint); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-right: 6px; vertical-align: 1px; }
+  .it .pv { width: 40px; height: 40px; border-radius: 6px; background: var(--t1); overflow: hidden; flex: none; display: grid; place-items: center; color: var(--faint); }
+  .it .pv img, .it .pv canvas { width: 100%; height: 100%; object-fit: cover; }
+  .it .pv svg { width: 18px; height: 18px; }
+  #drawer .sec { padding: 10px 10px 4px; font: 11px 'JetBrains Mono', ui-monospace, monospace; color: var(--faint); text-transform: uppercase; letter-spacing: .04em; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  #drawer .sec::before { content: '▸'; transition: transform .12s; }
+  #drawer .sec.open::before { transform: rotate(90deg); }
+  .it .rs { color: var(--accent); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; margin-right: 4px; }
+  #toast.act { pointer-events: auto; }
+  #toast button { color: var(--match); font-weight: 500; margin-left: 12px; text-decoration: underline; text-underline-offset: 2px; }
+
   /* toast */
   #toast {
     position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(20px);
@@ -254,6 +301,7 @@
 <body>
 
 <header id="bar">
+  <button class="ib" id="backBtn" title="Back to the note this is embedded in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
   <button class="ib" id="menuBtn" title="Notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <input id="title" placeholder="Untitled note" spellcheck="false">
   <div class="grp" id="tools">
@@ -275,6 +323,8 @@
     <button class="ib" id="zoomIn" title="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6M11 8v6"/></svg></button>
   </div>
   <div class="sep"></div>
+  <button class="ib" id="attachBtn" title="Insert image, PDF or file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button>
+  <input type="file" id="attachFile" hidden>
   <button class="ib" id="syncBtn" title="Sync" data-state="off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 .4-9A7 7 0 0 0 4.3 12.5 4 4 0 0 0 6 19h11.5z"/></svg></button>
   <button class="ib" id="recBtn" title="Record audio (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg></button>
   <div id="recpill"><span class="dot"></span><span id="recTime">0:00</span><button id="recStop">Stop</button></div>
@@ -290,12 +340,13 @@
   <header><b>Notes</b><button class="new" id="newBtn">+ New</button></header>
   <div id="list"></div>
   <section id="syncPanel"></section>
-  <footer><button id="exportBtn">Export this note (JSON)</button><button id="importBtn">Import</button><input type="file" id="importFile" accept="application/json" hidden></footer>
+  <footer><button id="exportBtn">Export this note (JSON)</button><button id="importBtn">Import file…</button><input type="file" id="importFile" hidden></footer>
 </aside>
 
 <main id="scroller">
   <div id="wrap">
     <div id="layer">
+      <div id="media"></div>
       <canvas id="cv"></canvas>
       <div id="ov"></div>
       <div id="marq"></div>
@@ -323,7 +374,7 @@ const fmtD = ts => new Date(ts).toLocaleString(undefined, { month: 'short', day:
 const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const inkColor = () => getComputedStyle(document.documentElement).getPropertyValue('--pen-ink').trim();
 
-let toastT; const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2600); };
+let toastT; const toast = (m, action, fn) => { const t = $('#toast'); t.textContent = m; t.classList.toggle('act', !!action); if (action) { const b = document.createElement('button'); b.textContent = action; b.onclick = () => { t.classList.remove('on'); fn(); }; t.appendChild(b); } t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), action ? 6000 : 2600); };
 
 /* ---------- storage ---------- */
 const DB = (() => {
@@ -341,7 +392,8 @@ const DB = (() => {
     del: id => tx('readwrite', s => s.delete(id)),
   };
 })();
-const blankNote = () => ({ id: uid(), title: '', created: Date.now(), updated: Date.now(), pageH: 1600, strokes: [], boxes: [], audios: [] });
+const blankNote = () => ({ id: uid(), title: '', created: Date.now(), updated: Date.now(), pageH: 1600, strokes: [], boxes: [], audios: [], embeds: [], archive: [], archived: false, kind: 'note', media: null });
+const upgradeNote = n => { n.embeds ||= []; n.archive ||= []; n.archived ||= false; n.kind ||= 'note'; n.media ||= null; return n; };
 
 /* ---------- state ---------- */
 let note = null;
@@ -349,7 +401,8 @@ let zoom = 1, tool = 'pen', color = 'ink', width = 1, penSeen = false;
 let touchMode = localStorage.getItem('notes:touch') || 'pan'; // 'pan' | 'draw' | 'penonly'
 let undo = [], redo = [];
 const scroller = $('#scroller'), wrap = $('#wrap'), layer = $('#layer'), cv = $('#cv'), ov = $('#ov'), ctx = cv.getContext('2d');
-const urls = new Map(); // audio id -> object URL
+const urls = new Map(); // audio/media id -> object URL
+let navStack = []; // parent note ids when editing an embedded media note
 
 let saveT;
 const save = () => { if (!note) return; note.updated = Date.now(); clearTimeout(saveT); saveT = setTimeout(() => DB.put(note).then(() => schedulePush()).catch(e => toast('Save failed: ' + e.message)), 400); };
@@ -624,7 +677,7 @@ document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (k === 'p') setTool('pen'); else if (k === 'h') setTool('hl'); else if (k === 'e') setTool('eraser'); else if (k === 't') setTool('text'); else if (k === 'v') setTool('hand');
   else if (k === 'r') { recording ? stopRec() : startRec(); }
-  else if (k === 'escape') { deselectAll(); document.body.classList.remove('drawer'); }
+  else if (k === 'escape') { deselectAll(); closePop(); document.body.classList.remove('drawer'); }
 });
 
 /* ---------- overlay items (text boxes, audio cards) ---------- */
@@ -650,6 +703,44 @@ function resizify(el, handle, item, onResize, minW = 120) {
   });
 }
 const X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const ARCH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4"/></svg>';
+const TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>';
+/* Tapping a close button slides out [archive] [trash] beside it instead of asking via a dialog. */
+let openPop = null;
+function closePop() { if (openPop) { openPop.remove(); openPop = null; } }
+function popout(xBtn, { archive, trash, archiveLabel = 'Archive', trashLabel = 'Trash' }) {
+  xBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (openPop && openPop.parentNode === xBtn.parentNode) { closePop(); return; }
+    closePop();
+    const pop = document.createElement('div'); pop.className = 'pop';
+    pop.innerHTML = `${archive ? `<button class="arch">${ARCH}${archiveLabel}</button>` : ''}<button class="trash">${TRASH}${trashLabel}</button>`;
+    pop.addEventListener('pointerdown', ev => ev.stopPropagation());
+    pop.addEventListener('click', ev => ev.stopPropagation());
+    if (archive) pop.querySelector('.arch').addEventListener('click', () => { closePop(); archive(); });
+    pop.querySelector('.trash').addEventListener('click', () => { closePop(); trash(); });
+    xBtn.parentNode.appendChild(pop); openPop = pop;
+  });
+}
+document.addEventListener('pointerdown', e => { if (openPop && !e.target.closest('.pop')) closePop(); }, true);
+/* archive/trash for an element of the open note; `list` is the note array it lives in */
+function itemActions(el, item, kind, listName) {
+  const remove = () => { note[listName] = note[listName].filter(x => x !== item); el.remove(); save(); };
+  const restore = () => { note[listName].push(item); renderItem(kind, item); save(); };
+  return {
+    archive: () => { remove(); note.archive.push({ kind, item, at: Date.now() }); save(); toast('Archived — find it under ☰ › Archived', 'Undo', () => { note.archive = note.archive.filter(x => x.item !== item); restore(); }); },
+    trash: () => { remove(); toast('Deleted', 'Undo', restore); },
+  };
+}
+/* a free place near the top of the viewport for a new card of width w: below anything already there */
+function freeSpot(w, h = 120) {
+  const r = scroller.getBoundingClientRect(), p = toLayer(r.left + r.width / 2, r.top + 50);
+  const x = clamp(Math.round(p.x - w / 2), 0, PAGE_W - w); let y = Math.max(0, Math.round(p.y));
+  const rects = [...ov.children].map(el => ({ x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight }));
+  for (let i = 0; i < 50; i++) { const hit = rects.find(q => x < q.x + q.w && x + w > q.x && y < q.y + q.h && y + h > q.y); if (!hit) break; y = hit.y + hit.h + 16; }
+  return { x, y };
+}
+function renderItem(kind, item) { return kind === 'box' ? renderBox(item) : kind === 'audio' ? renderAudio(item) : renderEmbed(item); }
 const autoH = ta => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
 
 function renderBox(b) {
@@ -659,7 +750,7 @@ function renderBox(b) {
   const ta = el.querySelector('textarea'); ta.value = b.text;
   ta.addEventListener('input', () => { b.text = ta.value; autoH(ta); growPage(b.y + el.offsetHeight + 200); save(); });
   ta.addEventListener('focus', () => { deselectAll(); el.classList.add('sel'); });
-  el.querySelector('.x').addEventListener('click', () => { if (b.text.trim() && !confirm('Delete this text box?')) return; note.boxes = note.boxes.filter(x => x !== b); el.remove(); save(); });
+  popout(el.querySelector('.x'), itemActions(el, b, 'box', 'boxes'));
   dragify(el, el.querySelector('.grip'), b);
   resizify(el, el.querySelector('.rz'), b, () => autoH(ta));
   ov.appendChild(el); autoH(ta);
@@ -682,11 +773,9 @@ function renderAudio(a) {
   if (!a.w) a.w = 360;
   el.style.width = a.w + 'px';
   el.innerHTML = `<div class="grip"><span class="mic">${MIC}</span><span class="st"></span><span class="sp"></span><span class="tabs"></span><button class="x" title="Delete">${X}</button></div><div class="body"></div><div class="rz"></div>`;
-  el.querySelector('.x').addEventListener('click', () => {
-    if (a.recording) { stopRec(); return; }
-    if (!confirm('Delete this recording?')) return;
-    note.audios = note.audios.filter(x => x !== a); el.remove(); save();
-  });
+  const acts = itemActions(el, a, 'audio', 'audios');
+  el.querySelector('.x').addEventListener('click', e => { if (a.recording) { e.stopImmediatePropagation(); stopRec(); } });
+  popout(el.querySelector('.x'), acts);
   dragify(el, el.querySelector('.grip'), a);
   resizify(el, el.querySelector('.rz'), a, () => applyAudioWidth(el, a), 110);
   applyAudioWidth(el, a);
@@ -764,6 +853,120 @@ function fillAudio(el, a) {
   setMode(a.mode || 'single', false);
 }
 
+/* ---------- media notes & embedded cards ----------
+   An imported image / PDF / file becomes a note of its own (kind 'image' | 'pdf' | 'file') whose
+   page background is the media; it can be drawn on, annotated and recorded over like any note.
+   A note can embed a media note as a card (note.embeds); "Edit" on the card opens that note
+   full-screen, and Back returns to the parent. */
+const FILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+const IMG_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+const PDF_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>';
+const mediaKind = f => f.type.startsWith('image/') ? 'image' : (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) ? 'pdf' : 'file';
+const mediaUrl = n => { const k = 'm:' + n.id; if (!urls.has(k) && n.media && n.media.blob) urls.set(k, URL.createObjectURL(n.media.blob)); return urls.get(k); };
+const mediaExt = n => (n.media.name.match(/\.([a-z0-9]{1,5})$/i) || [, 'bin'])[1].toLowerCase();
+
+let pdfjsP = null;
+function pdfjs() { return pdfjsP ||= import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs').then(m => { m.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs'; return m; }); }
+const pdfCache = new Map(); // note id -> Promise<{pages:[{canvas,h}], h}>  rendered at 1000px width
+function pdfPages(n) {
+  if (!pdfCache.has(n.id)) pdfCache.set(n.id, (async () => {
+    const lib = await pdfjs();
+    const doc = await lib.getDocument({ data: await n.media.blob.arrayBuffer() }).promise;
+    const pages = []; let h = 0;
+    for (let i = 1; i <= doc.numPages; i++) {
+      const pg = await doc.getPage(i); const v1 = pg.getViewport({ scale: 1 });
+      const scale = PAGE_W / v1.width, vp = pg.getViewport({ scale: scale * 2 });
+      const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+      const ph = Math.round(vp.height / 2); pages.push({ canvas: c, h: ph }); h += ph;
+    }
+    return { pages, h };
+  })());
+  return pdfCache.get(n.id);
+}
+/* size of the media at 1000px width (cached on the note once known) */
+async function mediaHeight(n) {
+  if (n.media.h) return n.media.h;
+  if (n.kind === 'image') { const img = new Image(); img.src = mediaUrl(n); await img.decode(); n.media.h = Math.round(PAGE_W * img.naturalHeight / img.naturalWidth); }
+  else if (n.kind === 'pdf') n.media.h = (await pdfPages(n)).h;
+  else n.media.h = 0;
+  return n.media.h;
+}
+/* draw a media note (media + strokes + text) into `stack` (a 1000px-wide div) */
+async function renderStack(stack, n) {
+  stack.innerHTML = '';
+  if (n.media && !n.media.blob) { stack.innerHTML = '<div class="missing">Downloading…</div>'; try { await fetchMedia(n); } catch (e) { stack.innerHTML = '<div class="missing">Media not available offline</div>'; return; } stack.innerHTML = ''; }
+  if (n.kind === 'image') { const img = document.createElement('img'); img.src = mediaUrl(n); img.draggable = false; stack.appendChild(img); await mediaHeight(n); }
+  else if (n.kind === 'pdf') { for (const p of (await pdfPages(n)).pages) { const c = document.createElement('canvas'); c.width = p.canvas.width; c.height = p.canvas.height; c.style.height = p.h + 'px'; c.getContext('2d').drawImage(p.canvas, 0, 0); stack.appendChild(c); } await mediaHeight(n); }
+  else if (n.kind === 'file') { const a = document.createElement('a'); a.className = 'chip'; a.innerHTML = FILE_ICON + '<span>' + esc(n.media.name) + '</span>'; a.href = mediaUrl(n) || '#'; a.download = n.media.name; stack.appendChild(a); }
+  const h = Math.max(n.media && n.media.h || 0, 160);
+  const c = document.createElement('canvas'); c.className = 'ink'; c.style.position = 'absolute'; c.style.left = 0; c.style.top = 0; c.style.width = PAGE_W + 'px'; c.style.height = h + 'px';
+  const f = Math.min(1.5, Math.sqrt(6e6 / (PAGE_W * h))); c.width = Math.round(PAGE_W * f); c.height = Math.round(h * f);
+  const cx = c.getContext('2d'); cx.setTransform(f, 0, 0, f, 0, 0);
+  for (const st of n.strokes.filter(x => x.tool === 'hl')) drawStroke(cx, st);
+  for (const st of n.strokes.filter(x => x.tool !== 'hl')) drawStroke(cx, st);
+  stack.appendChild(c);
+  for (const b of n.boxes) { const d = document.createElement('div'); d.className = 'tb'; d.style.cssText = `left:${b.x}px;top:${b.y}px;width:${b.w}px;pointer-events:none`; d.innerHTML = `<div style="padding:8px 10px;font:15px/1.45 Inter,system-ui,sans-serif;white-space:pre-wrap">${esc(b.text)}</div>`; stack.appendChild(d); }
+  stack.style.height = h + 'px';
+  return h;
+}
+function renderEmbed(e) {
+  const el = document.createElement('div'); el.className = 'em'; el.dataset.id = e.id;
+  el.style.left = e.x + 'px'; el.style.top = e.y + 'px'; e.w ||= 480; el.style.width = e.w + 'px';
+  el.innerHTML = `<div class="grip"><span class="nm"></span><span class="sp"></span><button class="edit">Edit</button><button class="x">${X}</button></div><div class="pv"><div class="stack"></div><div class="loading">Loading…</div></div><div class="rz"></div>`;
+  dragify(el, el.querySelector('.grip'), e);
+  popout(el.querySelector('.x'), itemActions(el, e, 'embed', 'embeds'));
+  el.querySelector('.edit').addEventListener('click', ev => { ev.stopPropagation(); openChild(e.noteId); });
+  el.querySelector('.edit').addEventListener('pointerdown', ev => ev.stopPropagation());
+  ov.appendChild(el);
+  const pv = el.querySelector('.pv'), stack = pv.querySelector('.stack');
+  let stackH = 0;
+  const fit = () => { const sc = e.w / PAGE_W; stack.style.transform = `scale(${sc})`; pv.style.height = stackH ? Math.min(640, Math.round(stackH * sc)) + 'px' : ''; };
+  resizify(el, el.querySelector('.rz'), e, fit, 140);
+  (async () => {
+    const n = await DB.get(e.noteId);
+    if (!n) { pv.innerHTML = '<div class="missing">This media note was deleted.</div>'; el.querySelector('.nm').textContent = 'missing'; return; }
+    upgradeNote(n);
+    el.querySelector('.nm').textContent = n.title || (n.media && n.media.name) || 'note';
+    if (n.kind === 'file' && !n.strokes.length && !n.boxes.length) { pv.className = 'pv file'; pv.innerHTML = FILE_ICON + `<span>${esc(n.media.name)}</span>`; pv.style.height = ''; return; }
+    stackH = await renderStack(stack, n); pv.querySelector('.loading')?.remove(); fit();
+  })().catch(err => { pv.innerHTML = `<div class="missing">${esc(err.message)}</div>`; });
+  fit();
+  return el;
+}
+/* make a media note from a file; optionally embed a card for it in the open note */
+async function importMedia(file, embed) {
+  const n = blankNote(); n.kind = mediaKind(file); n.title = file.name.replace(/\.[^.]+$/, '');
+  n.media = { name: file.name, type: file.type || 'application/octet-stream', size: file.size, blob: file, h: 0 };
+  try { await mediaHeight(n); } catch (err) { toast("Couldn't read " + file.name); return null; }
+  n.pageH = Math.max(1600, (n.media.h || 0) + 400);
+  await DB.put(n); schedulePush();
+  if (embed && note) {
+    const w = n.kind === 'file' ? 320 : 600, spot = freeSpot(w, n.kind === 'file' ? 80 : Math.min(640, Math.round((n.media.h || 300) * w / PAGE_W)) + 24);
+    const e = { id: uid(), noteId: n.id, x: spot.x, y: spot.y, w };
+    note.embeds.push(e); const el = renderEmbed(e); deselectAll(); el.classList.add('sel'); save();
+    growPage(e.y + 900);
+  }
+  return n;
+}
+async function openChild(id) { if (note) navStack.push(note.id); await openNote(id); }
+async function goBack() { const id = navStack.pop(); if (id) await openNote(id); }
+$('#backBtn').addEventListener('click', goBack);
+$('#attachBtn').addEventListener('click', () => $('#attachFile').click());
+$('#attachFile').addEventListener('change', async () => { for (const f of $('#attachFile').files) await importMedia(f, true); $('#attachFile').value = ''; });
+scroller.addEventListener('dragover', e => { e.preventDefault(); });
+scroller.addEventListener('drop', async e => { e.preventDefault(); for (const f of e.dataTransfer.files) await importMedia(f, true); });
+document.addEventListener('paste', async e => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) { e.preventDefault(); for (const f of fs) await importMedia(f, true); } });
+async function renderMediaBackground(n) {
+  const m = $('#media'); m.innerHTML = '';
+  if (!n.media) return;
+  if (!n.media.blob) { m.innerHTML = '<a class="chip">Downloading…</a>'; try { await fetchMedia(n); } catch (e) { m.innerHTML = '<a class="chip">Media not available offline</a>'; return; } m.innerHTML = ''; }
+  if (n.kind === 'image') { const img = document.createElement('img'); img.src = mediaUrl(n); img.draggable = false; m.appendChild(img); }
+  else if (n.kind === 'pdf') { const { pages } = await pdfPages(n); if (note !== n) return; for (const p of pages) { const c = document.createElement('canvas'); c.width = p.canvas.width; c.height = p.canvas.height; c.style.height = p.h + 'px'; c.getContext('2d').drawImage(p.canvas, 0, 0); m.appendChild(c); } }
+  else { const a = document.createElement('a'); a.className = 'chip'; a.innerHTML = FILE_ICON + '<span>' + esc(n.media.name) + ' · ' + Math.round(n.media.size / 1024) + ' KB</span>'; a.href = mediaUrl(n); a.download = n.media.name; m.appendChild(a); }
+  if (n.media.h && n.pageH < n.media.h + 200) { n.pageH = n.media.h + 400; layout(); }
+}
+
 /* recording */
 let recording = null; // {a, el, rec, stream, chunks, t0, timer, sr, srOffset, srLen, seg}
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -773,9 +976,8 @@ async function startRec() {
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
   catch (e) { toast('Microphone access denied'); return; }
   const mime = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'].find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
-  const r = scroller.getBoundingClientRect();
-  const p = toLayer(r.left + r.width / 2, r.top + 60);
-  const a = { id: uid(), created: Date.now(), x: clamp(Math.round(p.x - 180), 0, PAGE_W - 360), y: Math.max(0, Math.round(p.y)), w: 360, duration: 0, mime, blob: null, location: null, lines: [], editedText: null, mode: 'single', recording: true };
+  const spot = freeSpot(360, 150);
+  const a = { id: uid(), created: Date.now(), x: spot.x, y: spot.y, w: 360, duration: 0, mime, blob: null, location: null, lines: [], editedText: null, mode: 'single', recording: true };
   note.audios.push(a);
   const el = renderAudio(a);
   deselectAll(); el.classList.add('sel');
@@ -850,27 +1052,59 @@ $('#recStop').addEventListener('click', stopRec);
 
 /* ---------- notes list ---------- */
 async function refreshList() {
-  const all = (await DB.all()).sort((a, b) => b.updated - a.updated);
+  const all = (await DB.all()).map(upgradeNote).sort((a, b) => b.updated - a.updated);
   const list = $('#list'); list.innerHTML = '';
-  for (const n of all) {
+  const row = (n, archived) => {
     const it = document.createElement('div'); it.className = 'it' + (note && n.id === note.id ? ' cur' : '');
-    const bits = [n.strokes.length && `${n.strokes.length} strokes`, n.boxes.length && `${n.boxes.length} text`, n.audios.length && `${n.audios.length} audio`].filter(Boolean).join(' · ');
-    it.innerHTML = `<div class="m"><div class="n">${esc(n.title || 'Untitled note')}</div><div class="d">${fmtD(n.updated)}${bits ? ' · ' + bits : ''}</div></div><button class="del" title="Delete">${X}</button>`;
-    it.addEventListener('click', e => { if (e.target.closest('.del')) return; openNote(n.id); document.body.classList.remove('drawer'); });
-    it.querySelector('.del').addEventListener('click', async () => {
-      if (!confirm(`Delete "${n.title || 'Untitled note'}"? This can't be undone.`)) return;
-      await DB.del(n.id); remoteDelete(n);
-      if (note && note.id === n.id) { const rest = (await DB.all()).sort((a, b) => b.updated - a.updated); rest.length ? await openNote(rest[0].id) : await newNote(); }
+    const bits = [n.strokes.length && `${n.strokes.length} strokes`, n.boxes.length && `${n.boxes.length} text`, n.audios.length && `${n.audios.length} audio`, n.embeds.length && `${n.embeds.length} embedded`].filter(Boolean).join(' · ');
+    const kind = n.kind !== 'note' ? `<span class="k">${n.kind}</span>` : '';
+    it.innerHTML = `${n.media ? '<div class="pv"></div>' : ''}<div class="m"><div class="n">${kind}${esc(n.title || (n.media && n.media.name) || 'Untitled note')}</div><div class="d">${fmtD(n.updated)}${bits ? ' · ' + bits : ''}</div></div>${archived ? '<button class="rs">Restore</button>' : ''}<button class="del" title="Archive or delete">${X}</button>`;
+    if (n.media) thumb(it.querySelector('.pv'), n);
+    it.addEventListener('click', e => { if (e.target.closest('.del, .rs, .pop')) return; navStack = []; openNote(n.id); document.body.classList.remove('drawer'); });
+    const trash = async () => {
+      await DB.del(n.id);
+      if (note && note.id === n.id) { const rest = (await DB.all()).filter(x => !x.archived).sort((a, b) => b.updated - a.updated); rest.length ? await openNote(rest[0].id) : await newNote(); }
       refreshList();
-    });
-    list.appendChild(it);
+      toast('Deleted "' + (n.title || 'Untitled note') + '"', 'Undo', async () => { for (const a of allAudios(n)) a.synced = false; if (n.media) n.media.synced = false; await DB.put(n); delete sync.pushed[n.id]; for (const k of Object.keys(sync.shas)) if (k.includes(n.id)) delete sync.shas[k]; saveSync(); refreshList(); schedulePush(500); });
+      remoteDelete(n);
+    };
+    const setArchived = async v => { n.archived = v; n.updated = Date.now(); await DB.put(n); if (note && note.id === n.id) note.archived = v; refreshList(); schedulePush(); };
+    popout(it.querySelector('.del'), archived ? { trash } : { archive: () => setArchived(true), trash });
+    if (archived) it.querySelector('.rs').addEventListener('click', e => { e.stopPropagation(); setArchived(false); });
+    return it;
+  };
+  for (const n of all.filter(n => !n.archived)) list.appendChild(row(n, false));
+  const arch = all.filter(n => n.archived), items = note ? note.archive : [];
+  if (arch.length || items.length) {
+    const sec = document.createElement('div'); sec.className = 'sec' + (listArchOpen ? ' open' : ''); sec.textContent = `Archived · ${arch.length + items.length}`;
+    const wrap = document.createElement('div'); wrap.style.display = listArchOpen ? '' : 'none';
+    sec.addEventListener('click', () => { listArchOpen = !listArchOpen; sec.classList.toggle('open', listArchOpen); wrap.style.display = listArchOpen ? '' : 'none'; });
+    list.appendChild(sec); list.appendChild(wrap);
+    for (const n of arch) wrap.appendChild(row(n, true));
+    for (const a of items) {
+      const it = document.createElement('div'); it.className = 'it';
+      const label = a.kind === 'box' ? 'Text: ' + (a.item.text.trim().slice(0, 40) || '(empty)') : a.kind === 'audio' ? 'Recording ' + fmtT(a.item.duration) : 'Embedded media';
+      it.innerHTML = `<div class="m"><div class="n">${esc(label)}</div><div class="d">in this note · archived ${fmtD(a.at)}</div></div><button class="rs">Restore</button><button class="del">${X}</button>`;
+      it.querySelector('.rs').addEventListener('click', () => { note.archive = note.archive.filter(x => x !== a); note[a.kind === 'box' ? 'boxes' : a.kind === 'audio' ? 'audios' : 'embeds'].push(a.item); renderItem(a.kind, a.item); save(); refreshList(); });
+      popout(it.querySelector('.del'), { trash: () => { note.archive = note.archive.filter(x => x !== a); save(); refreshList(); } });
+      wrap.appendChild(it);
+    }
   }
+}
+let listArchOpen = false;
+async function thumb(el, n) {
+  try {
+    if (!n.media.blob) { el.innerHTML = n.kind === 'pdf' ? PDF_ICON : n.kind === 'image' ? IMG_ICON : FILE_ICON; return; }
+    if (n.kind === 'image') { const img = document.createElement('img'); img.src = mediaUrl(n); el.appendChild(img); }
+    else if (n.kind === 'pdf') { const { pages } = await pdfPages(n); const c = document.createElement('canvas'); c.width = 80; c.height = 80; const p = pages[0].canvas; const sc = Math.max(80 / p.width, 80 / p.height); c.getContext('2d').drawImage(p, 0, 0, p.width * sc, p.height * sc); el.appendChild(c); }
+    else el.innerHTML = FILE_ICON;
+  } catch (e) { el.innerHTML = FILE_ICON; }
 }
 async function openNote(id) {
   if (recording) stopRec();
   if (note) await saveNow();
   const n = await DB.get(id); if (!n) return;
-  loadNote(n);
+  loadNote(upgradeNote(n));
   localStorage.setItem('notes:last', id);
   refreshList();
 }
@@ -884,12 +1118,15 @@ async function newNote() {
 function loadNote(n, keepView) {
   for (const u of urls.values()) URL.revokeObjectURL(u); urls.clear();
   note = n; undo = []; redo = []; updUndo();
+  upgradeNote(n);
   n.audios = n.audios.filter(a => a.blob || a.file); // drop recordings interrupted by a reload
   for (const a of n.audios) a.recording = false;
-  $('#title').value = n.title;
-  ov.innerHTML = '';
-  n.boxes.forEach(renderBox); n.audios.forEach(renderAudio);
-  if (!keepView) { const fit = (scroller.clientWidth - 16) / PAGE_W; zoom = fit >= 0.7 ? Math.min(fit, 1.4) : 1; }
+  $('#title').value = n.title; $('#title').placeholder = n.media ? n.media.name : 'Untitled note';
+  document.body.classList.toggle('child', navStack.length > 0);
+  ov.innerHTML = ''; closePop();
+  n.boxes.forEach(renderBox); n.audios.forEach(renderAudio); n.embeds.forEach(renderEmbed);
+  renderMediaBackground(n);
+  if (!keepView) { const fit = (scroller.clientWidth - 16) / PAGE_W; zoom = n.media ? Math.min(fit, 1.4) : (fit >= 0.7 ? Math.min(fit, 1.4) : 1); }
   layout(); if (!keepView) { scroller.scrollTop = 0; scroller.scrollLeft = 0; }
 }
 $('#title').addEventListener('input', () => { note.title = $('#title').value; save(); });
@@ -927,8 +1164,15 @@ async function gh(method, path, body, raw) {
 }
 const repoPath = () => `/repos/${sync.owner}/${sync.repo}/contents/`;
 const notePath = n => `notes/${n.id}.json`;
+const allAudios = n => [...n.audios, ...(n.archive || []).filter(a => a.kind === 'audio').map(a => a.item)];
+const mediaPath = n => n.media.file || `media/${n.id}.${mediaExt(n)}`;
 const audioPath = a => a.file || `audio/${a.id}.${extFor(a.mime || (a.blob && a.blob.type) || '')}`;
-function remoteForm(n) { return { ...n, audios: n.audios.map(a => { const { blob, recording, synced, ...rest } = a; return { ...rest, file: audioPath(a) }; }) }; }
+const stripAudio = a => { const { blob, recording, synced, ...rest } = a; return { ...rest, file: audioPath(a) }; };
+function remoteForm(n) {
+  return { ...n, audios: n.audios.map(stripAudio),
+    archive: (n.archive || []).map(x => x.kind === 'audio' ? { ...x, item: stripAudio(x.item) } : x),
+    media: n.media ? (({ blob, synced, ...rest }) => ({ ...rest, file: mediaPath(n) }))(n.media) : null };
+}
 
 async function ensureRepo() {
   if (!sync.owner) { const me = await gh('GET', '/user'); sync.owner = me.login; saveSync(); }
@@ -951,8 +1195,21 @@ async function fetchAudio(a) { // download a recording from the repo into the op
   await saveNow(); return true;
 }
 
+async function fetchMedia(n) {
+  if (!sync.token || !n.media || !n.media.file) throw new Error('not synced');
+  const r = await gh('GET', repoPath() + n.media.file, null, true);
+  n.media.blob = new Blob([await r.blob()], { type: n.media.type || 'application/octet-stream' }); n.media.synced = true;
+  if (note && note.id === n.id) await saveNow(); else await DB.put(n);
+  return true;
+}
 async function pushNote(n) {
-  for (const a of n.audios) if (a.blob && !a.synced) {
+  if (n.media && n.media.blob && !n.media.synced) {
+    const path = mediaPath(n);
+    if (!sync.shas[path]) { const sha = await remoteSha(path); if (sha) sync.shas[path] = sha; }
+    if (!sync.shas[path]) await putFile(path, b64(new Uint8Array(await n.media.blob.arrayBuffer())), null, 'media ' + n.media.name);
+    n.media.file = path; n.media.synced = true;
+  }
+  for (const a of allAudios(n)) if (a.blob && !a.synced) {
     const path = audioPath(a);
     if (!sync.shas[path]) { const sha = await remoteSha(path); if (sha) sync.shas[path] = sha; }
     if (!sync.shas[path]) await putFile(path, b64(new Uint8Array(await a.blob.arrayBuffer())), null, 'audio ' + a.id);
@@ -971,7 +1228,11 @@ async function pushNote(n) {
 }
 async function adoptRemote(remote, sha) {
   const local = await DB.get(remote.id);
-  const merged = { ...remote, audios: remote.audios.map(a => { const l = local && local.audios.find(x => x.id === a.id); return { ...a, blob: l && l.blob || null, synced: true }; }) };
+  const findLocal = id => local && allAudios(local).find(x => x.id === id);
+  const merged = { ...remote,
+    audios: remote.audios.map(a => ({ ...a, blob: findLocal(a.id)?.blob || null, synced: true })),
+    archive: (remote.archive || []).map(x => x.kind === 'audio' ? { ...x, item: { ...x.item, blob: findLocal(x.item.id)?.blob || null, synced: true } } : x),
+    media: remote.media ? { ...remote.media, blob: local && local.media && local.media.blob || null, synced: true } : null };
   await DB.put(merged);
   sync.shas[notePath(remote)] = sha; sync.pushed[remote.id] = remote.updated; saveSync();
   if (note && note.id === merged.id) {
@@ -982,7 +1243,7 @@ async function adoptRemote(remote, sha) {
 async function remoteDelete(n) {
   if (!sync.token) return;
   try {
-    for (const p of [notePath(n), ...n.audios.map(audioPath)]) {
+    for (const p of [notePath(n), ...allAudios(n).map(audioPath), ...(n.media ? [mediaPath(n)] : [])]) {
       const sha = sync.shas[p] || await remoteSha(p);
       if (sha) await gh('DELETE', repoPath() + p, { message: 'delete ' + p, sha });
       delete sync.shas[p];
@@ -1027,7 +1288,7 @@ async function syncAll(reason) {
     if (e.auth) toast('Sync: ' + e.message);
   } finally { syncBusy = false; }
 }
-const isEmptyNote = n => !n.title && !n.strokes.length && !n.boxes.length && !n.audios.length;
+const isEmptyNote = n => !n.title && !n.strokes.length && !n.boxes.length && !n.audios.length && !(n.embeds || []).length && !n.media;
 function schedulePush(ms = 6000) { if (!sync.token) return; clearTimeout(pushT); pushT = setTimeout(() => syncAll('push'), ms); }
 
 function renderSyncPanel() {
@@ -1066,6 +1327,7 @@ $('#exportBtn').addEventListener('click', async () => {
 $('#importBtn').addEventListener('click', () => $('#importFile').click());
 $('#importFile').addEventListener('change', async () => {
   const f = $('#importFile').files[0]; if (!f) return;
+  if (!/\.json$/i.test(f.name)) { const n = await importMedia(f, false); $('#importFile').value = ''; if (n) { navStack = []; openNote(n.id); document.body.classList.remove('drawer'); } return; }
   try {
     const n = JSON.parse(await f.text()); n.id = uid(); n.updated = Date.now();
     for (const a of n.audios || []) { if (a.data) { const bin = atob(a.data); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); a.blob = new Blob([u8], { type: a.type || 'audio/webm' }); delete a.data; } a.id = uid(); }
@@ -1086,7 +1348,7 @@ document.addEventListener('click', e => { if (!e.target.closest('#pop') && !e.ta
   buildPop(); setTool('pen'); updUndo();
   const last = localStorage.getItem('notes:last');
   let n = last && await DB.get(last);
-  if (!n) { const all = (await DB.all()).sort((a, b) => b.updated - a.updated); n = all[0]; }
+  if (!n) { const all = (await DB.all()).filter(x => !x.archived).sort((a, b) => b.updated - a.updated); n = all[0]; }
   if (n) loadNote(n); else { n = blankNote(); await DB.put(n); loadNote(n); }
   refreshList(); setSync(sync.token ? 'idle' : 'off');
   if (sync.token) syncAll('boot');
