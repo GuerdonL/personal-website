@@ -115,6 +115,22 @@
   .it .del:hover { color: var(--danger); background: var(--t0); }
   #drawer footer { padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); font-size: 12px; color: var(--faint); display: flex; gap: 10px; flex-wrap: wrap; }
   #drawer footer button { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+  #syncPanel { border-top: 1px solid var(--line); padding: 10px 12px; font-size: 12px; color: var(--accent); display: flex; flex-direction: column; gap: 6px; }
+  #syncPanel b { color: var(--ink); font-weight: 500; }
+  #syncPanel p { margin: 0; }
+  #syncPanel .muted { color: var(--faint); }
+  #syncPanel a { color: var(--accent); }
+  #syncPanel input { width: 100%; height: 30px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; background: var(--t1); color: var(--ink); font: 13px 'JetBrains Mono', ui-monospace, monospace; outline: none; }
+  #syncPanel input:focus { border-color: var(--line-strong); }
+  #syncPanel .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #syncPanel .btn { height: 28px; padding: 0 10px; border-radius: 6px; background: var(--ink); color: var(--t0); font-weight: 500; }
+  #syncPanel .lnk { text-decoration: underline; text-underline-offset: 2px; }
+  #syncPanel .err { color: var(--danger); }
+  #syncBtn .cloud { position: relative; }
+  #syncBtn[data-state=syncing] svg { animation: pulse 1s infinite; }
+  #syncBtn[data-state=error] { color: var(--danger); }
+  #syncBtn[data-state=off] { opacity: .45; }
+  @keyframes pulse { 50% { opacity: .35; } }
 
   /* ---------- page ---------- */
   #scroller {
@@ -170,6 +186,21 @@
   }
 
   .ac { width: 360px; max-width: 920px; }
+  .ac .grip .mic { display: none; }
+  .ac .grip .mic svg { width: 13px; height: 13px; }
+  .ac .grip .tabs { display: flex; gap: 1px; background: var(--t0); border: 1px solid var(--line); border-radius: 5px; padding: 1px; }
+  .ac .grip .tabs button { height: 16px; padding: 0 6px; border-radius: 3px; font: 10px Inter, system-ui, sans-serif; color: var(--faint); }
+  .ac .grip .tabs button.on { background: var(--ink); color: var(--t0); }
+  .ac .ctl .pct { display: none; font: 12px 'JetBrains Mono', ui-monospace, monospace; color: var(--accent); flex: 1; text-align: center; }
+  .ac .ctl .pin { color: var(--faint); display: inline-flex; flex: none; }
+  .ac .ctl .pin svg { width: 15px; height: 15px; }
+  .ac .ctl a.pin { color: var(--accent); }
+  .ac.narrow .grip .st, .ac.narrow .grip .tabs, .ac.narrow .ctl .seek, .ac.narrow .ctl .time, .ac.narrow .tx { display: none; }
+  .ac.narrow .grip .mic, .ac.narrow .ctl .pct { display: inline-flex; }
+  .ac.narrow .ctl .pct { display: block; }
+  .ac.narrow .body { padding: 6px 8px 8px; }
+  .ac.hidden .tx { display: none; }
+  .ac .dl { font-size: 12px; color: var(--faint); }
   .ac .grip .rec { color: #dc2626; display: inline-flex; align-items: center; gap: 5px; }
   .ac .grip .rec::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #dc2626; animation: blink 1s infinite; }
   .ac .body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px; }
@@ -244,6 +275,7 @@
     <button class="ib" id="zoomIn" title="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6M11 8v6"/></svg></button>
   </div>
   <div class="sep"></div>
+  <button class="ib" id="syncBtn" title="Sync" data-state="off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 .4-9A7 7 0 0 0 4.3 12.5 4 4 0 0 0 6 19h11.5z"/></svg></button>
   <button class="ib" id="recBtn" title="Record audio (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg></button>
   <div id="recpill"><span class="dot"></span><span id="recTime">0:00</span><button id="recStop">Stop</button></div>
   <div id="pop">
@@ -257,6 +289,7 @@
 <aside id="drawer">
   <header><b>Notes</b><button class="new" id="newBtn">+ New</button></header>
   <div id="list"></div>
+  <section id="syncPanel"></section>
   <footer><button id="exportBtn">Export this note (JSON)</button><button id="importBtn">Import</button><input type="file" id="importFile" accept="application/json" hidden></footer>
 </aside>
 
@@ -319,7 +352,7 @@ const scroller = $('#scroller'), wrap = $('#wrap'), layer = $('#layer'), cv = $(
 const urls = new Map(); // audio id -> object URL
 
 let saveT;
-const save = () => { if (!note) return; note.updated = Date.now(); clearTimeout(saveT); saveT = setTimeout(() => DB.put(note).catch(e => toast('Save failed: ' + e.message)), 400); };
+const save = () => { if (!note) return; note.updated = Date.now(); clearTimeout(saveT); saveT = setTimeout(() => DB.put(note).then(() => schedulePush()).catch(e => toast('Save failed: ' + e.message)), 400); };
 const saveNow = () => { if (!note) return; clearTimeout(saveT); return DB.put(note); };
 
 /* ---------- layout / zoom ---------- */
@@ -418,6 +451,7 @@ function doRedo() {
 const touches = new Map(); // pointerId -> {x0,y0,x,y,t0,palm}
 let act = null; // {kind:'draw'|'pan'|'marq'|'erase'|'pinch', ...}
 let penDown = false, lastPenUp = 0, lastPenHover = 0;
+let tap = null; // multi-finger tap tracker: {n, t0, moved}
 const penRecent = () => penDown || now() - lastPenUp < 400 || now() - lastPenHover < 300;
 const isPalmSize = e => (e.width || 0) > 32 || (e.height || 0) > 32;
 const liveTouches = () => [...touches.entries()].filter(([, t]) => !t.palm);
@@ -430,7 +464,10 @@ cv.addEventListener('pointerdown', e => {
     if (palm) return;
     if (act && act.kind === 'draw' && act.ptype === 'pen') return;
     const lt = liveTouches();
-    if (lt.length === 2 && (!act || act.kind === 'pan')) { // two live fingers: pan+zoom (deferred until they move)
+    if (lt.length >= 2) { if (!tap || lt.length > tap.n) tap = { n: lt.length, t0: tap ? tap.t0 : now(), moved: tap ? tap.moved : false }; }
+    else tap = null;
+    if (lt.length === 3 && act && act.kind === 'pinch') { act = null; return; } // third finger: no pinch, wait for the tap
+    if (lt.length === 2 && (!act || act.kind === 'pan' || (act.kind === 'draw' && act.ptype === 'touch'))) { // two live fingers: pan+zoom (deferred until they move)
       if (act) { if (act.kind === 'draw') drawAll(); act = null; }
       const [[ia, a], [ib, b]] = lt;
       act = { kind: 'pinch', armed: false, d0: Math.hypot(a.x - b.x, a.y - b.y), z0: zoom, a: [ia, ib], mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, sl: scroller.scrollLeft, st: scroller.scrollTop };
@@ -469,6 +506,7 @@ cv.addEventListener('pointermove', e => {
     const t = touches.get(e.pointerId); if (!t) return;
     t.x = e.clientX; t.y = e.clientY;
     if (t.palm) return;
+    if (tap && Math.hypot(t.x - t.x0, t.y - t.y0) > 10) tap.moved = true;
     if (!act && touchMode !== 'penonly' && !(touchMode === 'draw' && tool !== 'hand')) {
       // arm a one-finger pan only after real travel, and only if no pen showed up meanwhile
       if (liveTouches().length === 1 && Math.hypot(t.x - t.x0, t.y - t.y0) > (penSeen ? 14 : 6) && !penRecent()) startPan(e);
@@ -507,7 +545,16 @@ cv.addEventListener('pointermove', e => {
 });
 const endPointer = e => {
   if (e.pointerType === 'pen') { penDown = false; lastPenUp = now(); }
-  if (e.pointerType === 'touch') touches.delete(e.pointerId);
+  if (e.pointerType === 'touch') {
+    touches.delete(e.pointerId);
+    if (tap && liveTouches().length === 0) {
+      const t = tap; tap = null;
+      if (!t.moved && now() - t.t0 < 400 && (!act || act.kind === 'pinch' && !act.armed)) {
+        act = null; if (t.n === 2) { doUndo(); toast('Undo'); } else if (t.n === 3) { doRedo(); toast('Redo'); }
+        return;
+      }
+    }
+  }
   if (!act) return;
   if (act.kind === 'pinch') { if (!touches.has(act.a[0]) || !touches.has(act.a[1])) { act = null; commitZoom(); } return; }
   if (act.id !== e.pointerId) return;
@@ -593,11 +640,11 @@ function dragify(el, grip, item, onEnd) {
     grip.addEventListener('pointermove', mv); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
   });
 }
-function resizify(el, handle, item, onResize) {
+function resizify(el, handle, item, onResize, minW = 120) {
   handle.addEventListener('pointerdown', e => {
     e.stopPropagation(); e.preventDefault(); handle.setPointerCapture(e.pointerId);
     const p = toLayer(e.clientX, e.clientY); const w0 = item.w, x0 = p.x;
-    const mv = ev => { const q = toLayer(ev.clientX, ev.clientY); item.w = clamp(Math.round(w0 + q.x - x0), 120, PAGE_W - item.x); el.style.width = item.w + 'px'; onResize && onResize(); };
+    const mv = ev => { const q = toLayer(ev.clientX, ev.clientY); item.w = clamp(Math.round(w0 + q.x - x0), minW, PAGE_W - item.x); el.style.width = item.w + 'px'; onResize && onResize(); };
     const up = () => { handle.removeEventListener('pointermove', mv); handle.removeEventListener('pointerup', up); save(); };
     handle.addEventListener('pointermove', mv); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
   });
@@ -626,25 +673,30 @@ const PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-w
 function urlFor(a) { if (!urls.has(a.id) && a.blob) urls.set(a.id, URL.createObjectURL(a.blob)); return urls.get(a.id); }
 function transcriptText(a) { return a.editedText != null ? a.editedText : a.lines.map(l => l.text).join(' '); }
 
+const MIC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>';
+const NARROW_W = 230;
+function applyAudioWidth(el, a) { el.classList.toggle('narrow', a.w < NARROW_W); }
 function renderAudio(a) {
   const el = document.createElement('div'); el.className = 'ac'; el.dataset.id = a.id;
   el.style.left = a.x + 'px'; el.style.top = a.y + 'px';
-  if (a.w) el.style.width = a.w + 'px';
-  el.innerHTML = `<div class="grip"><span class="st"></span><span class="sp"></span><button class="x" title="Delete">${X}</button></div><div class="body"></div><div class="rz"></div>`;
+  if (!a.w) a.w = 360;
+  el.style.width = a.w + 'px';
+  el.innerHTML = `<div class="grip"><span class="mic">${MIC}</span><span class="st"></span><span class="sp"></span><span class="tabs"></span><button class="x" title="Delete">${X}</button></div><div class="body"></div><div class="rz"></div>`;
   el.querySelector('.x').addEventListener('click', () => {
     if (a.recording) { stopRec(); return; }
     if (!confirm('Delete this recording?')) return;
     note.audios = note.audios.filter(x => x !== a); el.remove(); save();
   });
   dragify(el, el.querySelector('.grip'), a);
-  if (!a.w) a.w = 360;
-  resizify(el, el.querySelector('.rz'), a);
+  resizify(el, el.querySelector('.rz'), a, () => applyAudioWidth(el, a), 110);
+  applyAudioWidth(el, a);
   ov.appendChild(el);
   fillAudio(el, a);
   return el;
 }
 function fillAudio(el, a) {
-  const body = el.querySelector('.body'), st = el.querySelector('.st');
+  const body = el.querySelector('.body'), st = el.querySelector('.st'), tabs = el.querySelector('.tabs');
+  el.classList.remove('hidden'); tabs.innerHTML = '';
   if (a.recording) {
     st.innerHTML = `<span class="rec">recording</span>`;
     body.innerHTML = `<div class="live"><div class="meta"><span class="dur">0:00</span><span class="locs">locating…</span></div><div class="tx"><div class="lines"></div><div class="interim"></div></div><button class="stop">Stop recording</button></div>`;
@@ -652,16 +704,20 @@ function fillAudio(el, a) {
     return;
   }
   st.textContent = fmtD(a.created) + ' · ' + fmtT(a.duration);
-  const loc = a.location
-    ? `<a href="https://www.google.com/maps?q=${a.location.lat},${a.location.lng}" target="_blank" rel="noopener">${PIN}${a.location.lat.toFixed(4)}, ${a.location.lng.toFixed(4)}${a.location.acc ? ` <span style="color:var(--faint)">±${Math.round(a.location.acc)}m</span>` : ''}</a>`
-    : `<span>${PIN} no location</span>`;
+  if (!a.blob) { // audio lives in the sync repo and hasn't been downloaded yet
+    body.innerHTML = `<div class="dl">Downloading audio…</div>`;
+    fetchAudio(a).then(ok => { if (el.isConnected) fillAudio(el, a); }).catch(e => { if (el.isConnected) body.innerHTML = `<div class="dl">Audio not available offline — <button class="retry" style="text-decoration:underline">retry</button></div>`; const r = body.querySelector('.retry'); if (r) r.onclick = () => fillAudio(el, a); });
+    return;
+  }
+  const pin = a.location
+    ? `<a class="pin" href="https://www.google.com/maps?q=${a.location.lat},${a.location.lng}" target="_blank" rel="noopener" title="${a.location.lat.toFixed(4)}, ${a.location.lng.toFixed(4)}${a.location.acc ? ` ±${Math.round(a.location.acc)}m` : ''}">${PIN}</a>`
+    : `<span class="pin" title="No location">${PIN}</span>`;
   body.innerHTML = `
-    <div class="ctl"><button class="play">${PLAY}</button><input class="seek" type="range" min="0" max="1000" value="0"><span class="time">0:00 / ${fmtT(a.duration)}</span></div>
-    <div class="meta">${loc}</div>
-    <div class="tabs"><button data-m="single">Text</button><button data-m="synced">Synced</button></div>
+    <div class="ctl"><button class="play">${PLAY}</button><input class="seek" type="range" min="0" max="1000" value="0"><span class="pct">0%</span><span class="time">0:00 / ${fmtT(a.duration)}</span>${pin}</div>
     <div class="tx"></div>`;
+  tabs.innerHTML = `<button data-m="single" title="Transcript as one text block">Text</button><button data-m="synced" title="Transcript synced to playback">Sync</button><button data-m="hidden" title="Hide transcript">Hide</button>`;
   const audio = new Audio(urlFor(a)); audio.preload = 'metadata';
-  const play = body.querySelector('.play'), seek = body.querySelector('.seek'), time = body.querySelector('.time'), tx = body.querySelector('.tx');
+  const play = body.querySelector('.play'), seek = body.querySelector('.seek'), time = body.querySelector('.time'), pct = body.querySelector('.pct'), tx = body.querySelector('.tx');
   const dur = () => (isFinite(audio.duration) && audio.duration > 0) ? audio.duration : a.duration || 1;
   play.addEventListener('click', () => { audio.paused ? audio.play() : audio.pause(); });
   audio.addEventListener('play', () => play.innerHTML = PAUSE);
@@ -670,13 +726,17 @@ function fillAudio(el, a) {
   let scrubbing = false;
   seek.addEventListener('input', () => { scrubbing = true; time.textContent = fmtT(seek.value / 1000 * dur()) + ' / ' + fmtT(dur()); });
   seek.addEventListener('change', () => { audio.currentTime = seek.value / 1000 * dur(); scrubbing = false; });
+  pct.addEventListener('click', () => { audio.currentTime = 0; }); // tap the percent to restart
   audio.addEventListener('timeupdate', () => {
     if (!scrubbing) { seek.value = Math.round(audio.currentTime / dur() * 1000); time.textContent = fmtT(audio.currentTime) + ' / ' + fmtT(dur()); }
+    pct.textContent = Math.round(audio.currentTime / dur() * 100) + '%';
     if (a.mode === 'synced') highlight(audio.currentTime);
   });
-  const setMode = m => { a.mode = m; body.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.m === m)); renderTx(); save(); };
-  body.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.m)));
+  const setMode = (m, persist) => { a.mode = m; tabs.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.m === m)); el.classList.toggle('hidden', m === 'hidden'); renderTx(); if (persist) save(); };
+  tabs.querySelectorAll('button').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); setMode(b.dataset.m, true); }));
+  tabs.addEventListener('pointerdown', e => e.stopPropagation());
   function renderTx() {
+    if (a.mode === 'hidden') { tx.innerHTML = ''; return; }
     if (!a.lines.length && a.editedText == null) { tx.innerHTML = `<div class="empty">No transcript — speech recognition wasn't available during this recording.</div>`; return; }
     if (a.mode === 'synced') {
       tx.innerHTML = `<div class="lines">${a.lines.map((l, i) => `<div class="ln" data-i="${i}"><span class="t">${fmtT(l.t)}</span><span class="w" contenteditable="true" spellcheck="false">${esc(l.text)}</span></div>`).join('')}</div>`;
@@ -701,7 +761,7 @@ function fillAudio(el, a) {
       ln.classList.toggle('cur', on);
     });
   }
-  setMode(a.mode || 'single');
+  setMode(a.mode || 'single', false);
 }
 
 /* recording */
@@ -799,7 +859,7 @@ async function refreshList() {
     it.addEventListener('click', e => { if (e.target.closest('.del')) return; openNote(n.id); document.body.classList.remove('drawer'); });
     it.querySelector('.del').addEventListener('click', async () => {
       if (!confirm(`Delete "${n.title || 'Untitled note'}"? This can't be undone.`)) return;
-      await DB.del(n.id);
+      await DB.del(n.id); remoteDelete(n);
       if (note && note.id === n.id) { const rest = (await DB.all()).sort((a, b) => b.updated - a.updated); rest.length ? await openNote(rest[0].id) : await newNote(); }
       refreshList();
     });
@@ -821,29 +881,185 @@ async function newNote() {
   localStorage.setItem('notes:last', n.id); refreshList();
   $('#title').focus();
 }
-function loadNote(n) {
+function loadNote(n, keepView) {
   for (const u of urls.values()) URL.revokeObjectURL(u); urls.clear();
   note = n; undo = []; redo = []; updUndo();
-  n.audios = n.audios.filter(a => a.blob); // drop recordings interrupted by a reload
+  n.audios = n.audios.filter(a => a.blob || a.file); // drop recordings interrupted by a reload
   for (const a of n.audios) a.recording = false;
   $('#title').value = n.title;
   ov.innerHTML = '';
   n.boxes.forEach(renderBox); n.audios.forEach(renderAudio);
-  const fit = (scroller.clientWidth - 16) / PAGE_W;
-  zoom = fit >= 0.7 ? Math.min(fit, 1.4) : 1;
-  layout(); scroller.scrollTop = 0; scroller.scrollLeft = 0;
+  if (!keepView) { const fit = (scroller.clientWidth - 16) / PAGE_W; zoom = fit >= 0.7 ? Math.min(fit, 1.4) : 1; }
+  layout(); if (!keepView) { scroller.scrollTop = 0; scroller.scrollLeft = 0; }
 }
 $('#title').addEventListener('input', () => { note.title = $('#title').value; save(); });
 $('#title').addEventListener('change', refreshList);
-$('#menuBtn').addEventListener('click', () => { refreshList(); document.body.classList.toggle('drawer'); });
+$('#menuBtn').addEventListener('click', () => { refreshList(); renderSyncPanel(); document.body.classList.toggle('drawer'); });
 $('#scrim').addEventListener('click', () => document.body.classList.remove('drawer'));
 $('#newBtn').addEventListener('click', () => { newNote(); document.body.classList.remove('drawer'); });
+
+/* ---------- sync: a private GitHub repo holds one JSON per note plus the audio files ----------
+   notes/<id>.json  — the note without blobs; audios carry a `file` path
+   audio/<id>.<ext> — immutable once recorded, uploaded once
+   Last-writer-wins on `updated`. Each device remembers the sha of every remote file it has
+   seen (so pulls fetch only what changed) and the `updated` it last pushed per note. */
+const SYNC_KEY = 'notes:sync';
+const API = localStorage.getItem('notes:apibase') || 'https://api.github.com';
+let sync = (() => { try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; } catch (e) { return {}; } })();
+sync.shas ||= {}; sync.pushed ||= {}; sync.repo ||= 'notes-data';
+const saveSync = () => { try { localStorage.setItem(SYNC_KEY, JSON.stringify(sync)); } catch (e) {} };
+let syncBusy = false, pushT = null, syncState = sync.token ? 'idle' : 'off', syncMsg = '';
+function setSync(state, msg) { syncState = state; syncMsg = msg || ''; const b = $('#syncBtn'); b.dataset.state = state; b.title = msg || { off: 'Sync across devices', idle: 'Synced', syncing: 'Syncing…', error: 'Sync error' }[state]; if (document.body.classList.contains('drawer')) renderSyncPanel(); }
+const extFor = mime => /mp4|m4a|aac/.test(mime) ? 'm4a' : /ogg/.test(mime) ? 'ogg' : 'webm';
+const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+const utf8b64 = str => b64(new TextEncoder().encode(str));
+
+async function gh(method, path, body, raw) {
+  const r = await fetch(API + path, {
+    method, cache: 'no-store',
+    headers: { Authorization: 'Bearer ' + sync.token, Accept: raw ? 'application/vnd.github.raw' : 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (r.status === 401 || r.status === 403) throw Object.assign(new Error('GitHub rejected the token (' + r.status + ')'), { auth: true, status: r.status });
+  if (!r.ok) throw Object.assign(new Error('GitHub ' + r.status + (await r.text().catch(() => '')).slice(0, 140)), { status: r.status });
+  if (r.status === 204) return null;
+  return raw ? r : r.json();
+}
+const repoPath = () => `/repos/${sync.owner}/${sync.repo}/contents/`;
+const notePath = n => `notes/${n.id}.json`;
+const audioPath = a => a.file || `audio/${a.id}.${extFor(a.mime || (a.blob && a.blob.type) || '')}`;
+function remoteForm(n) { return { ...n, audios: n.audios.map(a => { const { blob, recording, synced, ...rest } = a; return { ...rest, file: audioPath(a) }; }) }; }
+
+async function ensureRepo() {
+  if (!sync.owner) { const me = await gh('GET', '/user'); sync.owner = me.login; saveSync(); }
+  try { await gh('GET', `/repos/${sync.owner}/${sync.repo}`); return; }
+  catch (e) { if (e.status !== 404) throw e; }
+  try { await gh('POST', '/user/repos', { name: sync.repo, private: true, auto_init: true, description: 'notes page — synced notes (written by the notes app)' }); }
+  catch (e) { throw new Error(`Repo ${sync.owner}/${sync.repo} not found and the token can't create it — create a private repo with that name, or use a classic token with the "repo" scope.`); }
+}
+async function putFile(path, contentB64, sha, msg) {
+  const r = await gh('PUT', repoPath() + path, { message: msg, content: contentB64, ...(sha ? { sha } : {}) });
+  sync.shas[path] = r.content.sha; saveSync(); return r.content.sha;
+}
+async function remoteSha(path) { try { const m = await gh('GET', repoPath() + path); return m.sha; } catch (e) { if (e.status === 404) return null; throw e; } }
+
+async function fetchAudio(a) { // download a recording from the repo into the open note
+  if (!sync.token || !a.file) throw new Error('not synced');
+  const r = await gh('GET', repoPath() + a.file, null, true);
+  a.blob = await r.blob(); a.synced = true;
+  if (!a.blob.type || a.blob.type === 'application/octet-stream') a.blob = new Blob([a.blob], { type: a.mime || 'audio/mp4' });
+  await saveNow(); return true;
+}
+
+async function pushNote(n) {
+  for (const a of n.audios) if (a.blob && !a.synced) {
+    const path = audioPath(a);
+    if (!sync.shas[path]) { const sha = await remoteSha(path); if (sha) sync.shas[path] = sha; }
+    if (!sync.shas[path]) await putFile(path, b64(new Uint8Array(await a.blob.arrayBuffer())), null, 'audio ' + a.id);
+    a.file = path; a.synced = true;
+  }
+  const path = notePath(n), content = utf8b64(JSON.stringify(remoteForm(n)));
+  try { await putFile(path, content, sync.shas[path], (n.title || 'untitled') + ' @ ' + new Date(n.updated).toISOString()); }
+  catch (e) {
+    if (e.status !== 409 && e.status !== 422) throw e;
+    const sha = await remoteSha(path);               // someone else wrote it: compare and resolve
+    const remote = sha ? await (await gh('GET', repoPath() + path, null, true)).json() : null;
+    if (remote && remote.updated > n.updated) { await adoptRemote(remote, sha); return; }
+    await putFile(path, content, sha, 'merge ' + n.id);
+  }
+  sync.pushed[n.id] = n.updated; saveSync();
+}
+async function adoptRemote(remote, sha) {
+  const local = await DB.get(remote.id);
+  const merged = { ...remote, audios: remote.audios.map(a => { const l = local && local.audios.find(x => x.id === a.id); return { ...a, blob: l && l.blob || null, synced: true }; }) };
+  await DB.put(merged);
+  sync.shas[notePath(remote)] = sha; sync.pushed[remote.id] = remote.updated; saveSync();
+  if (note && note.id === merged.id) {
+    if (act || recording || note.updated > merged.updated) return;  // mid-stroke: leave it, next pull will catch up
+    loadNote(merged, true);
+  }
+}
+async function remoteDelete(n) {
+  if (!sync.token) return;
+  try {
+    for (const p of [notePath(n), ...n.audios.map(audioPath)]) {
+      const sha = sync.shas[p] || await remoteSha(p);
+      if (sha) await gh('DELETE', repoPath() + p, { message: 'delete ' + p, sha });
+      delete sync.shas[p];
+    }
+    delete sync.pushed[n.id]; saveSync();
+  } catch (e) { setSync('error', e.message); }
+}
+
+async function syncAll(reason) {
+  if (!sync.token || syncBusy || !navigator.onLine) return;
+  syncBusy = true; setSync('syncing');
+  try {
+    await ensureRepo();
+    if (note) await saveNow();
+    // --- pull ---
+    let list = [];
+    try { list = await gh('GET', repoPath() + 'notes'); } catch (e) { if (e.status !== 404) throw e; }
+    const remoteIds = new Set();
+    for (const f of list) {
+      if (!f.name.endsWith('.json')) continue;
+      const id = f.name.slice(0, -5); remoteIds.add(id);
+      if (sync.shas[f.path] === f.sha) continue;
+      const remote = await (await gh('GET', repoPath() + f.path, null, true)).json();
+      const local = await DB.get(id);
+      if (!local || remote.updated > local.updated) await adoptRemote(remote, f.sha);
+      else { sync.shas[f.path] = f.sha; if (local.updated > remote.updated) delete sync.pushed[id]; saveSync(); } // ours is newer: push below
+    }
+    // --- reconcile deletions & push ---
+    for (const n of await DB.all()) {
+      if (!remoteIds.has(n.id) && sync.pushed[n.id]) { // we pushed it before and it's gone remotely: deleted elsewhere
+        await DB.del(n.id); delete sync.pushed[n.id]; delete sync.shas[notePath(n)]; saveSync();
+        if (note && note.id === n.id) { const rest = (await DB.all()).sort((a, b) => b.updated - a.updated); rest.length ? loadNote(rest[0], true) : await newNote(); }
+        continue;
+      }
+      if (n.updated > (sync.pushed[n.id] || 0) && !isEmptyNote(n)) await pushNote(n);
+    }
+    sync.syncedAt = Date.now(); saveSync();
+    setSync('idle', 'Synced ' + new Date(sync.syncedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
+    if (document.body.classList.contains('drawer')) refreshList();
+  } catch (e) {
+    setSync('error', e.message);
+    if (e.auth) toast('Sync: ' + e.message);
+  } finally { syncBusy = false; }
+}
+const isEmptyNote = n => !n.title && !n.strokes.length && !n.boxes.length && !n.audios.length;
+function schedulePush(ms = 6000) { if (!sync.token) return; clearTimeout(pushT); pushT = setTimeout(() => syncAll('push'), ms); }
+
+function renderSyncPanel() {
+  const el = $('#syncPanel');
+  if (!sync.token) {
+    el.innerHTML = `<b>Sync across devices</b>
+      <p class="muted">Notes and recordings are kept in a private GitHub repo on your account (<code>notes-data</code>, created for you). Each device connects once with a token.</p>
+      <p class="muted">1. <a href="https://github.com/settings/tokens/new?scopes=repo&description=notes%20page" target="_blank" rel="noopener">Create a token</a> with the <b>repo</b> scope (no expiry is easiest).<br>2. Paste it here, and on your other devices.</p>
+      <input id="stoken" type="password" placeholder="ghp_… or github_pat_…" autocomplete="off" spellcheck="false">
+      <div class="row"><button class="btn" id="sconnect">Connect</button>${syncMsg ? `<span class="err">${esc(syncMsg)}</span>` : ''}</div>`;
+    const go = () => { const tok = el.querySelector('#stoken').value.trim(); if (!tok) return; sync = { token: tok, repo: 'notes-data', shas: {}, pushed: {} }; saveSync(); setSync('idle'); syncAll('connect'); };
+    el.querySelector('#sconnect').addEventListener('click', go);
+    el.querySelector('#stoken').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  } else {
+    const link = sync.owner ? `<a href="https://github.com/${esc(sync.owner)}/${esc(sync.repo)}" target="_blank" rel="noopener">${esc(sync.owner)}/${esc(sync.repo)}</a>` : esc(sync.repo);
+    el.innerHTML = `<b>Sync</b>
+      <p>${syncState === 'error' ? `<span class="err">${esc(syncMsg)}</span>` : syncState === 'syncing' ? 'Syncing…' : (sync.syncedAt ? 'Synced ' + fmtD(sync.syncedAt) : 'Connected')} · ${link}</p>
+      <div class="row"><button class="lnk" id="ssync">Sync now</button><button class="lnk" id="sdisc">Disconnect this device</button></div>`;
+    el.querySelector('#ssync').addEventListener('click', () => syncAll('manual'));
+    el.querySelector('#sdisc').addEventListener('click', () => { if (!confirm('Disconnect? Notes stay on this device and in the repo.')) return; sync = { repo: sync.repo, shas: {}, pushed: {} }; saveSync(); setSync('off'); renderSyncPanel(); });
+  }
+}
+$('#syncBtn').addEventListener('click', () => { if (sync.token) syncAll('manual'); refreshList(); document.body.classList.add('drawer'); renderSyncPanel(); });
+window.addEventListener('online', () => schedulePush(500));
+document.addEventListener('visibilitychange', () => { if (!document.hidden) schedulePush(300); });
+setInterval(() => { if (!document.hidden) syncAll('tick'); }, 90000);
 
 /* export / import (audio embedded as base64) */
 const b2b64 = blob => new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob); });
 $('#exportBtn').addEventListener('click', async () => {
   const out = JSON.parse(JSON.stringify({ ...note, audios: [] }));
-  for (const a of note.audios) out.audios.push({ ...a, blob: null, data: await b2b64(a.blob), type: a.blob.type });
+  for (const a of note.audios) if (a.blob) out.audios.push({ ...a, blob: null, data: await b2b64(a.blob), type: a.blob.type });
   const blob = new Blob([JSON.stringify(out)], { type: 'application/json' });
   const u = URL.createObjectURL(blob); const l = document.createElement('a'); l.href = u; l.download = (note.title || 'note') + '.json'; l.click(); setTimeout(() => URL.revokeObjectURL(u), 5000);
 });
@@ -872,7 +1088,8 @@ document.addEventListener('click', e => { if (!e.target.closest('#pop') && !e.ta
   let n = last && await DB.get(last);
   if (!n) { const all = (await DB.all()).sort((a, b) => b.updated - a.updated); n = all[0]; }
   if (n) loadNote(n); else { n = blankNote(); await DB.put(n); loadNote(n); }
-  refreshList();
+  refreshList(); setSync(sync.token ? 'idle' : 'off');
+  if (sync.token) syncAll('boot');
 })();
 })();
 </script>
