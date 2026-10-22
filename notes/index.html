@@ -268,9 +268,9 @@
   #media canvas + canvas { border-top: 1px solid var(--line); }
   #media .chip { pointer-events: auto; margin: 20px; display: inline-flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; background: var(--t1); border: 1px solid var(--line); color: var(--accent); font-size: 13px; text-decoration: none; }
   #media .chip svg { width: 20px; height: 20px; }
-  #backBtn { display: none; }
-  body.child #backBtn { display: grid; }
-  body.child #menuBtn { display: none; }
+  #bar #backBtn { display: none; }
+  body.child #bar #backBtn { display: grid; }
+  body.child #bar #menuBtn { display: none; }
   .it .k { display: inline-block; font: 10px/14px 'JetBrains Mono', ui-monospace, monospace; color: var(--faint); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-right: 6px; vertical-align: 1px; }
   .it .pv { width: 40px; height: 40px; border-radius: 6px; background: var(--t1); overflow: hidden; flex: none; display: grid; place-items: center; color: var(--faint); }
   .it .pv img, .it .pv canvas { width: 100%; height: 100%; object-fit: cover; }
@@ -281,6 +281,27 @@
   .it .rs { color: var(--accent); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; margin-right: 4px; }
   #toast.act { pointer-events: auto; }
   #toast button { color: var(--match); font-weight: 500; margin-left: 12px; text-decoration: underline; text-underline-offset: 2px; }
+
+  /* selection */
+  #selui { position: absolute; left: 0; top: 0; width: 1000px; height: 100%; pointer-events: none; --iz: 1; }
+  #selui > * { pointer-events: auto; }
+  #selbox { position: absolute; display: none; border: 1px solid var(--sel); outline: 1px solid rgba(255,255,255,.5); pointer-events: none; }
+  #selbox.on { display: block; }
+  .hd { position: absolute; width: calc(12px * var(--iz)); height: calc(12px * var(--iz)); background: var(--t0); border: calc(1.5px * var(--iz)) solid var(--sel); border-radius: 2px; transform: translate(-50%, -50%); touch-action: none; }
+  .hd.nw, .hd.se { cursor: nwse-resize; } .hd.ne, .hd.sw { cursor: nesw-resize; }
+  .hd.rot { border-radius: 50%; cursor: grab; }
+  #rotline { position: absolute; width: 0; border-left: 1px dashed var(--sel); transform: translateX(-50%); pointer-events: none; }
+  #seltb {
+    position: absolute; display: none; gap: 2px; padding: 3px; background: var(--t0); border: 1px solid var(--line); border-radius: 8px;
+    box-shadow: var(--shadow); transform: translate(-50%, calc(-100% - 10px * var(--iz))) scale(var(--iz)); transform-origin: 50% 100%; white-space: nowrap;
+  }
+  #seltb.on { display: flex; }
+  #seltb button { height: 28px; padding: 0 10px; border-radius: 6px; font: 500 12px Inter, system-ui, sans-serif; color: var(--accent); }
+  #seltb button:hover { background: var(--t1); }
+  #seltb button.danger { color: var(--danger); }
+  #seltb button.prime { background: var(--ink); color: var(--t0); }
+  #seltb .n { font: 11px 'JetBrains Mono', ui-monospace, monospace; color: var(--faint); padding: 0 6px; align-self: center; }
+  #cv.hand { cursor: default; }
 
   /* toast */
   #toast {
@@ -309,7 +330,7 @@
     <button class="ib" data-tool="hl" title="Highlighter (H)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l-6 6v3h9l3-3"/><path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg></button>
     <button class="ib" data-tool="eraser" title="Eraser (E)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16a2 2 0 0 1 0-2.8l9.2-9.2a2 2 0 0 1 2.8 0l5.2 5.2a2 2 0 0 1 0 2.8L13 19"/><path d="M6 11l7 7"/></svg></button>
     <button class="ib" data-tool="text" title="Text box (T)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 9h8M12 9v7"/></svg></button>
-    <button class="ib" data-tool="hand" title="Move / select (V)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v1M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.9-2.3l-4-4A2 2 0 0 1 5 12.9l1 .7"/></svg></button>
+    <button class="ib" data-tool="hand" title="Select (V): drag a box or tap a stroke; move, scale, rotate, group, tidy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v1M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.9-2.3l-4-4A2 2 0 0 1 5 12.9l1 .7"/></svg></button>
   </div>
   <div class="sep"></div>
   <div class="grp">
@@ -323,6 +344,7 @@
     <button class="ib" id="zoomIn" title="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6M11 8v6"/></svg></button>
   </div>
   <div class="sep"></div>
+  <button class="ib" id="tidyBtn" title="Tidy handwriting (selection, or the whole page)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M5 18l.8 2.2L8 21l-2.2.8L5 24l-.8-2.2L2 21l2.2-.8z" transform="translate(0,-3) scale(.9)"/><path d="M19 2l.5 1.5L21 4l-1.5.5L19 6l-.5-1.5L17 4l1.5-.5z"/></svg></button>
   <button class="ib" id="attachBtn" title="Insert image, PDF or file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button>
   <input type="file" id="attachFile" hidden>
   <button class="ib" id="syncBtn" title="Sync" data-state="off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 .4-9A7 7 0 0 0 4.3 12.5 4 4 0 0 0 6 19h11.5z"/></svg></button>
@@ -350,6 +372,7 @@
       <canvas id="cv"></canvas>
       <div id="ov"></div>
       <div id="marq"></div>
+      <div id="selui"><div id="selbox"></div><div id="rotline"></div><div class="hd nw"></div><div class="hd ne"></div><div class="hd sw"></div><div class="hd se"></div><div class="hd rot"></div><div id="seltb"></div></div>
       <button id="more">+ more space</button>
     </div>
   </div>
@@ -357,6 +380,7 @@
 
 <div id="toast"></div>
 
+<script src="hw.js"></script>
 <script>
 (() => {
 'use strict';
@@ -413,7 +437,7 @@ function layout(redraw = true) {
   wrap.style.width = PAGE_W * zoom + 'px';
   wrap.style.height = note.pageH * zoom + 'px';
   layer.style.height = note.pageH + 'px';
-  layer.style.transform = `scale(${zoom})`;
+  layer.style.transform = `scale(${zoom})`; selui.style.setProperty('--iz', 1 / zoom); if (sel.size) updateSelUI();
   ov.style.height = note.pageH + 'px';
   if (redraw) sizeCanvas();
 }
@@ -456,8 +480,8 @@ function drawStroke(c, s, from = 0) {
   c.restore();
 }
 function segW(s, p) {
-  if (s.tool === 'hl') return 22;
-  const base = WIDTHS[s.width] || 2.6;
+  if (s.tool === 'hl') return 22 * (s.k || 1);
+  const base = (WIDTHS[s.width] || 2.6) * (s.k || 1);
   const pr = p.p == null ? 0.5 : p.p;
   return base * (0.45 + pr * 1.3);
 }
@@ -473,24 +497,95 @@ function eraseAt(x, y) {
   const R = 10 / Math.max(0.5, zoom) + 4;
   const hit = note.strokes.filter(s => s.points.some(p => (p.x - x) ** 2 + (p.y - y) ** 2 < R * R));
   if (!hit.length) return;
-  note.strokes = note.strokes.filter(s => !hit.includes(s));
+  note.strokes = note.strokes.filter(s => !hit.includes(s)); for (const h of hit) sel.delete(h);
   pushUndo({ type: 'erase', strokes: hit });
   drawAll(); save();
 }
 function pushUndo(a) { undo.push(a); if (undo.length > 200) undo.shift(); redo = []; updUndo(); }
 function updUndo() { $('#undoBtn').disabled = !undo.length; $('#redoBtn').disabled = !redo.length; }
+const restoreSnap = snap => { for (const e of snap) { e.s.points = e.points.map(p => ({ ...p })); e.s.k = e.k; if (e.g == null) delete e.s.g; else e.s.g = e.g; } };
 function doUndo() {
   const a = undo.pop(); if (!a) return;
   if (a.type === 'add') note.strokes = note.strokes.filter(s => s !== a.stroke);
-  else note.strokes.push(...a.strokes);
-  redo.push(a); updUndo(); drawAll(); save();
+  else if (a.type === 'erase') note.strokes.push(...a.strokes);
+  else if (a.type === 'edit') restoreSnap(a.before);
+  redo.push(a); updUndo(); drawAll(); updateSelUI(); save();
 }
 function doRedo() {
   const a = redo.pop(); if (!a) return;
   if (a.type === 'add') note.strokes.push(a.stroke);
-  else note.strokes = note.strokes.filter(s => !a.strokes.includes(s));
-  undo.push(a); updUndo(); drawAll(); save();
+  else if (a.type === 'erase') note.strokes = note.strokes.filter(s => !a.strokes.includes(s));
+  else if (a.type === 'edit') restoreSnap(a.after);
+  undo.push(a); updUndo(); drawAll(); updateSelUI(); save();
 }
+
+/* ---------- selection, transforms, groups, tidy ---------- */
+const sel = new Set();
+const snapOf = strokes => strokes.map(s => ({ s, points: s.points.map(p => ({ ...p })), k: s.k || 1, g: s.g }));
+function selBox() { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const s of sel) for (const p of s.points) { if (p.x < x0) x0 = p.x; if (p.y < y0) y0 = p.y; if (p.x > x1) x1 = p.x; if (p.y > y1) y1 = p.y; } return sel.size ? { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 } : null; }
+function expandGroups() { const gs = new Set([...sel].map(s => s.g).filter(Boolean)); if (gs.size) for (const s of note.strokes) if (gs.has(s.g)) sel.add(s); }
+function setSel(strokes, add) { if (!add) sel.clear(); for (const s of strokes) sel.add(s); expandGroups(); updateSelUI(); }
+function clearSel() { if (sel.size) { sel.clear(); updateSelUI(); } }
+const strokeBox = s => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const p of s.points) { if (p.x < x0) x0 = p.x; if (p.y < y0) y0 = p.y; if (p.x > x1) x1 = p.x; if (p.y > y1) y1 = p.y; } return { x0, y0, x1, y1 }; };
+function strokesInRect(r) { return note.strokes.filter(s => { const b = strokeBox(s); return b.x0 < r.x1 && b.x1 > r.x0 && b.y0 < r.y1 && b.y1 > r.y0; }); }
+function strokeAt(x, y) { // nearest stroke within a tap radius
+  const R = 8 / Math.max(0.4, zoom) + 3; let best = null, bd = R * R;
+  for (const s of note.strokes) { const b = strokeBox(s); if (x < b.x0 - R || x > b.x1 + R || y < b.y0 - R || y > b.y1 + R) continue;
+    const P = s.points; for (let i = 0; i < P.length; i++) { let d; if (i === 0 || P.length === 1) d = (P[i].x - x) ** 2 + (P[i].y - y) ** 2; else { const a = P[i - 1], b2 = P[i], dx = b2.x - a.x, dy = b2.y - a.y, L = dx * dx + dy * dy || 1, t = clamp(((x - a.x) * dx + (y - a.y) * dy) / L, 0, 1); d = (a.x + t * dx - x) ** 2 + (a.y + t * dy - y) ** 2; } if (d < bd) { bd = d; best = s; } } }
+  return best;
+}
+const selui = $('#selui'), selbox = $('#selbox'), seltb = $('#seltb');
+function updateSelUI() {
+  const b = selBox();
+  selbox.classList.toggle('on', !!b); seltb.classList.toggle('on', !!b); selui.querySelectorAll('.hd, #rotline').forEach(h => h.style.display = b ? '' : 'none');
+  if (!b) return;
+  const pad = 6 / zoom; const x0 = b.x0 - pad, y0 = b.y0 - pad, x1 = b.x1 + pad, y1 = b.y1 + pad;
+  selbox.style.cssText = `left:${x0}px;top:${y0}px;width:${x1 - x0}px;height:${y1 - y0}px`;
+  const pos = (sel, x, y) => { const el = selui.querySelector(sel); el.style.left = x + 'px'; el.style.top = y + 'px'; };
+  pos('.hd.nw', x0, y0); pos('.hd.ne', x1, y0); pos('.hd.sw', x0, y1); pos('.hd.se', x1, y1);
+  const ry = y0 - 28 / zoom; pos('.hd.rot', (x0 + x1) / 2, ry);
+  const rl = $('#rotline'); rl.style.left = (x0 + x1) / 2 + 'px'; rl.style.top = ry + 'px'; rl.style.height = (y0 - ry) + 'px';
+  const groups = new Set([...sel].map(s => s.g).filter(Boolean)), allGrouped = [...sel].every(s => s.g) && groups.size === 1;
+  seltb.innerHTML = `<span class="n">${sel.size}</span><button class="prime" data-a="tidy">Tidy</button>${sel.size > 1 && !allGrouped ? '<button data-a="group">Group</button>' : ''}${groups.size ? '<button data-a="ungroup">Ungroup</button>' : ''}<button data-a="dup">Duplicate</button><button class="danger" data-a="del">Delete</button>`;
+  seltb.style.left = (x0 + x1) / 2 + 'px'; seltb.style.top = (ry - 10 / zoom) + 'px';
+  seltb.querySelectorAll('button').forEach(bt => bt.addEventListener('click', e => { e.stopPropagation(); selAction(bt.dataset.a); }));
+}
+seltb.addEventListener('pointerdown', e => e.stopPropagation());
+function commitEdit(before) { const after = snapOf(before.map(e => e.s)); if (JSON.stringify(after.map(e => [e.points, e.k, e.g])) === JSON.stringify(before.map(e => [e.points, e.k, e.g]))) return; pushUndo({ type: 'edit', before, after }); drawAll(); updateSelUI(); save(); }
+function selAction(a) {
+  const strokes = [...sel]; if (!strokes.length) return;
+  if (a === 'del') { note.strokes = note.strokes.filter(s => !sel.has(s)); pushUndo({ type: 'erase', strokes }); clearSel(); drawAll(); save(); }
+  else if (a === 'group') { const before = snapOf(strokes), g = uid(); for (const s of strokes) s.g = g; commitEdit(before); }
+  else if (a === 'ungroup') { const before = snapOf(strokes); for (const s of strokes) delete s.g; commitEdit(before); }
+  else if (a === 'dup') { const b = selBox(), off = Math.max(20, b.h * 0.2); const copies = strokes.map(s => ({ ...s, id: uid(), g: s.g ? s.g + 'c' : undefined, points: s.points.map(p => ({ ...p, x: p.x + off, y: p.y + off })) })); note.strokes.push(...copies); for (const c of copies) { pushUndo({ type: 'add', stroke: c }); } setSel(copies); drawAll(); save(); }
+  else if (a === 'tidy') tidySelection(strokes);
+}
+function tidySelection(strokes) {
+  const ink = strokes.filter(s => s.tool !== 'hl'); if (!ink.length) return;
+  const before = snapOf(ink);
+  let r; try { r = HW.tidy(ink); } catch (e) { toast('Tidy failed: ' + e.message); return; }
+  commitEdit(before);
+  toast(`Tidied ${r.chars} character${r.chars === 1 ? '' : 's'}${r.text.replace(/[·\s]/g, '') ? ' — read as: ' + r.text.replace(/\n/g, ' / ').slice(0, 80) : ''}`, 'Undo', doUndo);
+}
+$('#tidyBtn').addEventListener('click', () => { if (sel.size) tidySelection([...sel]); else if (note.strokes.length) { setSel(note.strokes); tidySelection([...sel]); } else toast('Nothing to tidy yet'); });
+/* handles */
+function handleDrag(el, onStart, onMove) {
+  el.addEventListener('pointerdown', e => {
+    e.stopPropagation(); e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    const before = snapOf([...sel]), b = selBox(), st = onStart(toLayer(e.clientX, e.clientY), b, e);
+    const mv = ev => { const p = toLayer(ev.clientX, ev.clientY); const T = onMove(p, b, st, ev); for (const en of before) { en.s.points = en.points.map(q => { const r = T(q); return { ...q, x: r.x, y: r.y }; }); if (T.k) en.s.k = (en.k || 1) * T.k; } drawAll(); updateSelUI(); };
+    const up = () => { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); commitEdit(before); };
+    el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  });
+}
+for (const c of ['nw', 'ne', 'sw', 'se']) handleDrag(selui.querySelector('.hd.' + c), (p, b) => ({ ax: c.includes('w') ? b.x1 : b.x0, ay: c.includes('n') ? b.y1 : b.y0 }),
+  (p, b, st, ev) => { let sx = (p.x - st.ax) / ((c.includes('w') ? b.x0 : b.x1) - st.ax || 1), sy = (p.y - st.ay) / ((c.includes('n') ? b.y0 : b.y1) - st.ay || 1);
+    if (ev.shiftKey || ev.pointerType === 'touch') { const u = Math.max(Math.abs(sx), Math.abs(sy)); sx = Math.sign(sx || 1) * u; sy = Math.sign(sy || 1) * u; }
+    sx = Math.abs(sx) < 0.05 ? 0.05 * Math.sign(sx || 1) : sx; sy = Math.abs(sy) < 0.05 ? 0.05 * Math.sign(sy || 1) : sy;
+    const T = q => ({ x: st.ax + (q.x - st.ax) * sx, y: st.ay + (q.y - st.ay) * sy }); T.k = Math.sqrt(Math.abs(sx * sy)); return T; });
+handleDrag(selui.querySelector('.hd.rot'), (p, b) => ({ cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2, a0: Math.atan2(p.y - (b.y0 + b.y1) / 2, p.x - (b.x0 + b.x1) / 2) }),
+  (p, b, st, ev) => { let a = Math.atan2(p.y - st.cy, p.x - st.cx) - st.a0; if (ev.shiftKey) a = Math.round(a / (Math.PI / 12)) * (Math.PI / 12); const c = Math.cos(a), s = Math.sin(a); return q => ({ x: st.cx + (q.x - st.cx) * c - (q.y - st.cy) * s, y: st.cy + (q.x - st.cx) * s + (q.y - st.cy) * c }); });
+function nudge(dx, dy) { if (!sel.size) return; const before = snapOf([...sel]); for (const s of sel) for (const p of s.points) { p.x += dx; p.y += dy; } commitEdit(before); }
 
 /* ---------- pointer handling on canvas ---------- */
 /* Touch policy ("touchMode"):
@@ -527,14 +622,19 @@ cv.addEventListener('pointerdown', e => {
       return;
     }
     if (lt.length !== 1 || act) return;
-    if (touchMode === 'draw' && tool !== 'hand') { /* fall through to draw */ }
+    if (touchMode === 'draw') { /* fall through: finger acts like a pen in this mode */ }
     else return; // single finger: pan is armed in pointermove once it travels far enough
   }
   if (act) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
-  if (tool === 'hand') { startPan(e); return; }
   const p = toLayer(e.clientX, e.clientY);
   try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  if (tool === 'hand') {
+    const b = selBox(), pad = 6 / zoom;
+    if (b && p.x >= b.x0 - pad && p.x <= b.x1 + pad && p.y >= b.y0 - pad && p.y <= b.y1 + pad) { act = { kind: 'move', id: e.pointerId, x0: p.x, y0: p.y, before: snapOf([...sel]) }; cv.style.cursor = 'move'; }
+    else { act = { kind: 'smarq', id: e.pointerId, x0: p.x, y0: p.y, add: e.shiftKey }; }
+    return;
+  }
   if (tool === 'pen' || tool === 'hl') {
     const s = { id: uid(), tool, color, width, points: [{ x: p.x, y: p.y, p: pr(e) }] };
     act = { kind: 'draw', id: e.pointerId, ptype: e.pointerType, s, n: 1 };
@@ -560,7 +660,7 @@ cv.addEventListener('pointermove', e => {
     t.x = e.clientX; t.y = e.clientY;
     if (t.palm) return;
     if (tap && Math.hypot(t.x - t.x0, t.y - t.y0) > 10) tap.moved = true;
-    if (!act && touchMode !== 'penonly' && !(touchMode === 'draw' && tool !== 'hand')) {
+    if (!act && touchMode !== 'penonly' && touchMode !== 'draw') {
       // arm a one-finger pan only after real travel, and only if no pen showed up meanwhile
       if (liveTouches().length === 1 && Math.hypot(t.x - t.x0, t.y - t.y0) > (penSeen ? 14 : 6) && !penRecent()) startPan(e);
     }
@@ -588,7 +688,11 @@ cv.addEventListener('pointermove', e => {
     drawStroke(ctx, s, act.n); act.n = s.points.length;
   } else if (act.kind === 'erase') {
     for (const ev of evs) { const p = toLayer(ev.clientX, ev.clientY); eraseAt(p.x, p.y); }
-  } else if (act.kind === 'marq') {
+  } else if (act.kind === 'move') {
+    const p = toLayer(e.clientX, e.clientY), dx = p.x - act.x0, dy = p.y - act.y0;
+    for (const en of act.before) en.s.points = en.points.map(q => ({ ...q, x: q.x + dx, y: q.y + dy }));
+    drawAll(); updateSelUI();
+  } else if (act.kind === 'marq' || act.kind === 'smarq') {
     const p = toLayer(e.clientX, e.clientY);
     const m = $('#marq'); m.style.display = 'block';
     m.style.left = Math.min(p.x, act.x0) + 'px'; m.style.top = Math.min(p.y, act.y0) + 'px';
@@ -619,6 +723,13 @@ const endPointer = e => {
       const maxY = Math.max(...s.points.map(p => p.y));
       growPage(maxY + 300); save();
     } else drawAll();
+  } else if (act.kind === 'move') {
+    commitEdit(act.before);
+  } else if (act.kind === 'smarq') {
+    const m = $('#marq'); m.style.display = 'none';
+    const w = act.x1 == null ? 0 : Math.abs(act.x1 - act.x0), h = act.y1 == null ? 0 : Math.abs(act.y1 - act.y0);
+    if (w < 4 / zoom && h < 4 / zoom) { const s = strokeAt(act.x0, act.y0); if (s) { if (act.add && sel.has(s)) { sel.delete(s); updateSelUI(); } else setSel([s], act.add); } else if (!act.add) clearSel(); }
+    else setSel(strokesInRect({ x0: Math.min(act.x0, act.x1), y0: Math.min(act.y0, act.y1), x1: Math.max(act.x0, act.x1), y1: Math.max(act.y0, act.y1) }), act.add);
   } else if (act.kind === 'marq') {
     const m = $('#marq'); m.style.display = 'none';
     const w = act.x1 == null ? 0 : Math.abs(act.x1 - act.x0), h = act.y1 == null ? 0 : Math.abs(act.y1 - act.y0);
@@ -645,7 +756,7 @@ function setTool(t) {
   tool = t;
   document.querySelectorAll('#tools .ib').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
   cv.className = t;
-  if (t !== 'hand') deselectAll();
+  if (t !== 'hand') { deselectAll(); clearSel(); }
   if (t !== 'pen') $('#pop').classList.remove('open');
 }
 document.querySelectorAll('#tools .ib').forEach(b => b.addEventListener('click', () => {
@@ -673,11 +784,17 @@ $('#more').addEventListener('click', () => { note.pageH += 800; layout(); save()
 document.addEventListener('keydown', e => {
   const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName) || document.activeElement.isContentEditable;
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { if (typing) return; e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return; }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g' && sel.size) { e.preventDefault(); selAction(e.shiftKey ? 'ungroup' : 'group'); return; }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a' && tool === 'hand' && !typing) { e.preventDefault(); setSel(note.strokes); return; }
+  if (!typing && sel.size) {
+    if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); selAction('del'); return; }
+    if (e.key.startsWith('Arrow')) { e.preventDefault(); const d = e.shiftKey ? 10 : 1; nudge(e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0, e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0); return; }
+  }
   if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === 'p') setTool('pen'); else if (k === 'h') setTool('hl'); else if (k === 'e') setTool('eraser'); else if (k === 't') setTool('text'); else if (k === 'v') setTool('hand');
   else if (k === 'r') { recording ? stopRec() : startRec(); }
-  else if (k === 'escape') { deselectAll(); closePop(); document.body.classList.remove('drawer'); }
+  else if (k === 'escape') { deselectAll(); clearSel(); closePop(); document.body.classList.remove('drawer'); }
 });
 
 /* ---------- overlay items (text boxes, audio cards) ---------- */
@@ -1117,7 +1234,7 @@ async function newNote() {
 }
 function loadNote(n, keepView) {
   for (const u of urls.values()) URL.revokeObjectURL(u); urls.clear();
-  note = n; undo = []; redo = []; updUndo();
+  note = n; undo = []; redo = []; updUndo(); sel.clear();
   upgradeNote(n);
   n.audios = n.audios.filter(a => a.blob || a.file); // drop recordings interrupted by a reload
   for (const a of n.audios) a.recording = false;
@@ -1127,7 +1244,7 @@ function loadNote(n, keepView) {
   n.boxes.forEach(renderBox); n.audios.forEach(renderAudio); n.embeds.forEach(renderEmbed);
   renderMediaBackground(n);
   if (!keepView) { const fit = (scroller.clientWidth - 16) / PAGE_W; zoom = n.media ? Math.min(fit, 1.4) : (fit >= 0.7 ? Math.min(fit, 1.4) : 1); }
-  layout(); if (!keepView) { scroller.scrollTop = 0; scroller.scrollLeft = 0; }
+  layout(); updateSelUI(); if (!keepView) { scroller.scrollTop = 0; scroller.scrollLeft = 0; }
 }
 $('#title').addEventListener('input', () => { note.title = $('#title').value; save(); });
 $('#title').addEventListener('change', refreshList);
