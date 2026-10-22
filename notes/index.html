@@ -446,15 +446,16 @@ function sizeCanvas() {
   cv._f = factor;
   drawAll();
 }
-function setZoom(z, cx, cy) { // keep the layer point under client (cx,cy) fixed
-  z = clamp(z, 0.3, 3);
+function zoomTo(z, anchor, cx, cy) { // set zoom so that layer point `anchor` sits under client point (cx,cy)
+  zoom = clamp(z, 0.3, 3); layout(false);
+  const wr = wrap.getBoundingClientRect(); // after resize, where would the anchor land
+  scroller.scrollLeft += (wr.left + anchor.x * zoom) - cx;
+  scroller.scrollTop += (wr.top + anchor.y * zoom) - cy;
+}
+function setZoom(z, cx, cy) { // zoom about a client point (buttons: the viewport centre; wheel: the cursor)
   const r = scroller.getBoundingClientRect();
   if (cx == null) { cx = r.left + r.width / 2; cy = r.top + r.height / 2; }
-  const p = toLayer(cx, cy);
-  zoom = z; layout(false);
-  const wr = wrap.getBoundingClientRect(); // after resize, where would p land
-  scroller.scrollLeft += (wr.left + p.x * zoom) - cx;
-  scroller.scrollTop += (wr.top + p.y * zoom) - cy;
+  zoomTo(z, toLayer(cx, cy), cx, cy);
 }
 let zoomT; const commitZoom = () => { clearTimeout(zoomT); zoomT = setTimeout(sizeCanvas, 120); };
 function toLayer(cx, cy) { const r = layer.getBoundingClientRect(); return { x: (cx - r.left) / zoom, y: (cy - r.top) / zoom }; }
@@ -622,10 +623,9 @@ scroller.addEventListener('pointermove', e => {
   if (gest.n !== 2 || penDown || !touches.has(gest.ids[0]) || !touches.has(gest.ids[1])) return;
   const a = touches.get(gest.ids[0]), b = touches.get(gest.ids[1]);
   const d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-  if (!gest.armed) { if (Math.abs(d - gest.d0) < 10 && Math.hypot(mx - gest.mx, my - gest.my) < 8) return; gest.armed = true; gest.d0 = d; gest.mx = mx; gest.my = my; gest.sl = scroller.scrollLeft; gest.st = scroller.scrollTop; }
-  scroller.scrollLeft = gest.sl - (mx - gest.mx); scroller.scrollTop = gest.st - (my - gest.my);
-  const z = gest.z0 * d / gest.d0;
-  if (Math.abs(z - zoom) > 0.002) setZoom(z, mx, my);
+  if (!gest.armed) { if (Math.abs(d - gest.d0) < 10 && Math.hypot(mx - gest.mx, my - gest.my) < 8) return; gest.armed = true; gest.d0 = d; gest.z0 = zoom; gest.anchor = toLayer(mx, my); }
+  // the page point that was under the fingers when the gesture armed stays under their midpoint: pan and zoom in one step
+  zoomTo(gest.z0 * d / gest.d0, gest.anchor, mx, my);
 }, true);
 const endTouch = e => {
   if (e.pointerType !== 'touch') return;
