@@ -91,7 +91,7 @@
     <canvas id="cv"></canvas>
     <div id="hint">Write anything, anywhere — several blocks, at angles, with labels and stray marks.<br>Then press <kbd>Recognize</kbd> (or <kbd>Enter</kbd>). The first run downloads the model.</div>
   </div>
-  <div id="side"><div class="empty">Recognized text appears here, one box per text block, one field per line. Fix any line and press <b>Save</b>: the corrected pairs are kept on this device as training data (Export downloads them).</div></div>
+  <div id="side"><div class="empty">Recognized text appears here, one box per text block, one field per line. Every recognized line, and every correction you make, is kept on this device automatically as training data (Export / Copy data gets it out).</div></div>
 </div>
 <div id="status">
   <span>strokes <b id="stStrokes">0</b></span>
@@ -137,6 +137,7 @@ const idb = {
   open() { return new Promise((res, rej) => { const r = indexedDB.open('hw', 1); r.onupgradeneeded = () => r.result.createObjectStore('pairs', { keyPath: 'id', autoIncrement: true }); r.onsuccess = () => { this.db = r.result; res(); }; r.onerror = () => rej(r.error); }); },
   tx(mode) { return this.db.transaction('pairs', mode).objectStore('pairs'); },
   add(o) { return new Promise((res, rej) => { const r = this.tx('readwrite').add(o); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  put(o) { return new Promise((res, rej) => { const r = this.tx('readwrite').put(o); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
   all() { return new Promise((res, rej) => { const r = this.tx('readonly').getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
   count() { return new Promise((res, rej) => { const r = this.tx('readonly').count(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
   clear() { return new Promise((res, rej) => { const r = this.tx('readwrite').clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }); },
@@ -390,7 +391,7 @@ async function recognizeAll() {
     for (const c of layout.chunks) for (const L of c.lines) {
       const key = lineKey(L); if (recog.has(key)) continue;
       stat('stMsg', `reading line ${++nl}…`); renderSide();
-      try { const text = await recognizeLine(L, c); recog.set(key, { text, edited: false, crop: L.crop }); } catch (e) { recog.set(key, { text: '', error: String(e.message || e) }); stat('stMsg', 'recognition error: ' + (e.message || e)); break; }
+      try { const text = await recognizeLine(L, c); recog.set(key, { text, edited: false, crop: L.crop }); await saveLine(L, c); stat('stPairs', await idb.count()); } catch (e) { recog.set(key, { text: '', error: String(e.message || e) }); stat('stMsg', 'recognition error: ' + (e.message || e)); break; }
       renderSide(); render();
     }
     stat('stMsg', nl ? `${nl} line${nl > 1 ? 's' : ''} in ${Math.round(performance.now() - t0)} ms` : 'nothing new to read');
@@ -440,7 +441,7 @@ function render() {
 function renderLive() { if (!live) return; render(); drawStroke(live, 0.92); }
 function renderSide() {
   const side = $('side');
-  if (!layout || !layout.chunks.length) { side.innerHTML = '<div class="empty">Recognized text appears here, one box per text block, one field per line. Fix any line and press <b>Save</b>: the corrected pairs are kept on this device as training data (Export downloads them).</div>'; return; }
+  if (!layout || !layout.chunks.length) { side.innerHTML = '<div class="empty">Recognized text appears here, one box per text block, one field per line. Every recognized line, and every correction you make, is kept on this device automatically as training data (Export / Copy data gets it out).</div>'; return; }
   const frag = document.createDocumentFragment();
   for (const c of layout.chunks) {
     const d = document.createElement('div'); d.className = 'chunk';
@@ -453,12 +454,12 @@ function renderSide() {
       const ta = document.createElement('textarea'); ta.rows = 1; ta.value = r ? r.text : ''; ta.placeholder = r && r.error ? 'error' : busy ? '…' : 'not read yet';
       if (r && r.edited) ta.classList.add('edited');
       ta.addEventListener('input', () => { ta.classList.add('edited'); ta.rows = Math.max(1, Math.ceil(ta.value.length / 36)); });
-      ta.addEventListener('change', () => { recog = recog || new Map(); recog.set(lineKey(L), { text: ta.value.trim(), edited: true, model: r && r.text, crop: r && r.crop }); render(); });
+      ta.addEventListener('change', () => { recog = recog || new Map(); recog.set(lineKey(L), { text: ta.value.trim(), edited: true, model: (r && (r.edited ? r.model : r.text)) || null, crop: r && r.crop }); render(); saveLine(L, c).then(async () => stat('stPairs', await idb.count())); });
       row.appendChild(ta); d.appendChild(row);
       if (r && r.crop && settings.crops) { const im = document.createElement('img'); im.className = 'crop'; im.src = r.crop; im.title = 'what the model saw'; d.appendChild(im); }
     });
     const act = document.createElement('div'); act.className = 'act';
-    const bs = document.createElement('button'); bs.className = 'btn'; bs.textContent = 'Save as training data'; bs.onclick = () => savePairs(c);
+    const bs = document.createElement('button'); bs.className = 'btn'; bs.textContent = 'Saved automatically ✓'; bs.onclick = () => savePairs(c);
     const bc = document.createElement('button'); bc.className = 'btn'; bc.textContent = 'Copy text'; bc.onclick = () => { navigator.clipboard?.writeText(c.lines.map(L => (recog && recog.get(lineKey(L))?.text) || '').join('\n')); stat('stMsg', 'copied'); };
     act.append(bs, bc); d.appendChild(act); frag.appendChild(d);
   }
@@ -468,17 +469,27 @@ function renderSide() {
 /* =========================================================================
    7. training data
    ========================================================================= */
-async function savePairs(c) {
-  let n = 0;
-  for (const L of c.lines) {
-    const r = recog && recog.get(lineKey(L)); if (!r || !r.text) continue;
-    const sc = 1 / Math.max(1, L.y1 - L.y0);   // line-normalised coordinates: height 1, origin at the line's top-left
-    const st = L.members.map(o => ({ t0: o.s.t0, pts: o.rp.map(p => [+((p.x - L.x0) * sc).toFixed(4), +((p.y - L.y0) * sc).toFixed(4), +p.p.toFixed(2)]) }));
-    await idb.add({ ts: Date.now(), text: r.text, model_text: r.edited ? (r.model || null) : r.text, edited: !!r.edited, deg: c.deg, device: navigator.userAgent.slice(0, 40), strokes: st });
-    n++;
-  }
-  stat('stPairs', await idb.count()); stat('stMsg', `saved ${n} line pair${n === 1 ? '' : 's'}`);
+const savedIds = new Map();   // lineKey → IndexedDB id, so an edit updates its pair instead of adding one
+function pairFor(L, c, r) {
+  const sc = 1 / Math.max(1, L.y1 - L.y0);   // line-normalised coordinates: height 1, origin at the line's top-left
+  const st = L.members.map(o => ({ t0: o.s.t0, pts: o.rp.map((p, i) => [+((p.x - L.x0) * sc).toFixed(4), +((p.y - L.y0) * sc).toFixed(4), +((o.s.pts[i] && o.s.pts[i].p) || 0.5).toFixed(2)]) }));
+  return { ts: Date.now(), text: r.text, model_text: r.edited ? (r.model || null) : r.text, model: loadedModel, edited: !!r.edited, deg: c.deg, device: navigator.userAgent.slice(0, 40), strokes: st };
 }
+async function saveLine(L, c) {
+  const r = recog && recog.get(lineKey(L)); if (!r || !r.text || !idb.db) return false;
+  const k = lineKey(L), o = pairFor(L, c, r);
+  if (savedIds.has(k)) { o.id = savedIds.get(k); await idb.put(o); } else savedIds.set(k, await idb.add(o));
+  return true;
+}
+// Every line with text is kept automatically: after recognition, after an edit, and
+// before the ink is cleared. The Save button just forces it for a block.
+async function autosaveAll() {
+  if (!layout) return 0; let n = 0;
+  for (const c of layout.chunks) for (const L of c.lines) if (await saveLine(L, c)) n++;
+  if (n) stat('stPairs', await idb.count());
+  return n;
+}
+async function savePairs(c) { let n = 0; for (const L of c.lines) if (await saveLine(L, c)) n++; stat('stPairs', await idb.count()); stat('stMsg', `saved ${n} line pair${n === 1 ? '' : 's'}`); }
 async function exportText() { const pairs = await idb.all(); return pairs.map(p => JSON.stringify(p)).join('\n'); }
 $('bExport').onclick = async () => {
   const text = await exportText(); const name = `handwriting-pairs-${new Date().toISOString().slice(0, 10)}.jsonl`;
@@ -504,7 +515,7 @@ $('bReread').onclick = () => { recog = null; renderSide(); render(); recognizeAl
 $('bLoad').onclick = () => ensureModel().catch(() => {});
 $('model').value = settings.model; $('model').onchange = e => { settings.model = e.target.value; save(LS_SET, settings); recog = null; renderSide(); render(); };
 $('bUndo').onclick = () => { if (strokes.length) { redo.push(strokes.pop()); stat('stStrokes', strokes.length); layout = analyze(); render(); renderSide(); } };
-$('bClear').onclick = () => { strokes = []; redo = []; layout = null; recog = null; stat('stStrokes', 0); stat('stLayout', '–'); hint.style.display = ''; render(); renderSide(); };
+$('bClear').onclick = async () => { await autosaveAll(); savedIds.clear(); strokes = []; redo = []; layout = null; recog = null; stat('stStrokes', 0); stat('stLayout', '–'); hint.style.display = ''; render(); renderSide(); };
 for (const [id, k] of [['sChunks', 'chunks'], ['sLines', 'lines'], ['sWords', 'words'], ['sText', 'text'], ['sCrops', 'crops'], ['sPen', 'pen'], ['sAuto', 'auto']]) { $(id).checked = settings[k]; $(id).onchange = e => { settings[k] = e.target.checked; save(LS_SET, settings); render(); renderSide(); }; }
 addEventListener('keydown', e => {
   if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
