@@ -48,6 +48,7 @@ def main():
     ap = argparse.ArgumentParser(); ap.add_argument('--data', default='data'); ap.add_argument('--base', default='microsoft/trocr-small-handwritten'); ap.add_argument('--out', default='model')
     ap.add_argument('--epochs', type=float, default=20); ap.add_argument('--lr', type=float, default=2e-5); ap.add_argument('--bs', type=int, default=8)
     ap.add_argument('--train', default='encoder', choices=['encoder', 'all'], help='encoder: adapt the vision side only (default, best for small data); all: whole model')
+    ap.add_argument('--report', default='', help='write {"before": {...}, "after": {...}, "train": n, "val": n} as JSON here')
     a = ap.parse_args()
     processor = TrOCRProcessor.from_pretrained(a.base); model = VisionEncoderDecoderModel.from_pretrained(a.base)
     # Keep the checkpoint's own special-token setup (TrOCR starts decoding from its EOS id, 2,
@@ -79,9 +80,13 @@ def main():
         load_best_model_at_end=bool(len(val)), metric_for_best_model='cer', greater_is_better=False, logging_steps=10, report_to=[], remove_unused_columns=False)
     tr = Trainer(model=model, args=args, train_dataset=train, eval_dataset=val if len(val) else None, data_collator=default_data_collator, compute_metrics=metrics if len(val) else None, processing_class=processor,
                         callbacks=[EarlyStoppingCallback(early_stopping_patience=6)] if len(val) else [])
-    if len(val): print('before:', tr.evaluate())
+    before = tr.evaluate() if len(val) else {}
+    if len(val): print('before:', before)
     tr.train()
-    if len(val): print('after:', tr.evaluate())
+    after = tr.evaluate() if len(val) else {}
+    if len(val): print('after:', after)
     model.save_pretrained(a.out); processor.save_pretrained(a.out); print('saved to', a.out)
+    if a.report:
+        import json; pathlib.Path(a.report).write_text(json.dumps({'before': before, 'after': after, 'train': len(train), 'val': len(val), 'base': a.base}, indent=1))
 
 if __name__ == '__main__': main()

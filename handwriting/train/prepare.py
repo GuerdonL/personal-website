@@ -66,12 +66,14 @@ def main():
             if l.strip():
                 r = json.loads(l)
                 if usable(r): rows.append(r)
-    # dedupe by stroke content (the page may export the same pair twice across sessions)
-    seen = set(); uniq = []
+    # dedupe: the same ink is synced again every time its correction changes, so keep only the
+    # NEWEST version of each stroke set (by t0 list + device); older exports without t0s fall back to content
+    best = {}
     for r in rows:
-        k = (norm(r['text']), len(r['strokes']), round(sum(p[0] for s in r['strokes'] for p in s['pts']), 2))
-        if k not in seen: seen.add(k); uniq.append(r)
-    rows = uniq
+        ts = tuple(s.get('t0') for s in r['strokes'])
+        k = ('t0', r.get('device', ''), ts) if all(t is not None for t in ts) else ('c', norm(r['text']), len(r['strokes']), round(sum(p[0] for s in r['strokes'] for p in s['pts']), 2))
+        if k not in best or r.get('ts', 0) >= best[k].get('ts', 0): best[k] = r
+    rows = list(best.values()); rows.sort(key=lambda r: r.get('ts', 0))
     rng.shuffle(rows); nval = max(1, int(len(rows) * a.val)) if len(rows) >= 6 else 0
     out = pathlib.Path(a.out); (out / 'train').mkdir(parents=True, exist_ok=True); (out / 'val').mkdir(parents=True, exist_ok=True)
     tsv = {'train': [], 'val': []}

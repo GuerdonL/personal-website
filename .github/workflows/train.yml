@@ -1,0 +1,49 @@
+name: Train handwriting model
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_publish:
+        description: "Publish even if CER did not improve"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "17 10 * * 0"   # Sundays 03:17 PT — the free Kaggle GPU quota is weekly
+
+jobs:
+  kaggle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI
+        run: pip install -q kaggle
+
+      - name: Push the training kernel to Kaggle
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          cd handwriting/train/kaggle
+          sed "s/KAGGLE_USERNAME/$KAGGLE_USERNAME/" kernel-metadata.template.json > kernel-metadata.json
+          if [ "${{ inputs.force_publish }}" = "true" ]; then sed -i "s/os.environ.get('FORCE_PUBLISH', '0')/'1'/" train.py; fi
+          kaggle kernels push -p .
+
+      - name: Wait for the kernel to finish
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          K="$KAGGLE_USERNAME/handwriting-trocr-train"
+          for i in $(seq 1 110); do
+            S=$(kaggle kernels status "$K" 2>&1 || true); echo "$S"
+            case "$S" in
+              *complete*) break ;;
+              *error*|*cancel*) echo "kernel failed"; FAIL=1; break ;;
+            esac
+            sleep 60
+          done
+          mkdir -p out && kaggle kernels output "$K" -p out || true
+          echo "----- kernel log (tail) -----"; tail -n 80 out/*.log 2>/dev/null || ls -la out
+          [ -z "$FAIL" ]

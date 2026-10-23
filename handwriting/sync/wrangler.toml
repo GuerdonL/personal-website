@@ -1,0 +1,8 @@
+name = "handwriting-sync"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+DATASET_REPO = "GuerdonL/handwriting-pairs"      # private HF dataset repo (create it on huggingface.co first)
+ALLOWED_ORIGIN = "https://guerdonl.github.io"      # where /handwriting is served from
+# secrets (not here): HF_TOKEN, PASSPHRASE  →  npx wrangler secret put <NAME>

@@ -69,6 +69,7 @@
     model <select id="model">
       <option value="Xenova/trocr-small-handwritten">TrOCR small (≈80 MB)</option>
       <option value="Xenova/trocr-base-handwritten">TrOCR base (≈350 MB, better)</option>
+      <option value="GuerdonL/trocr-guerdon">mine (fine-tuned, from the hub)</option>
       <option value="__custom">custom…</option>
     </select>
     <button class="btn" id="bLoad">Load</button>
@@ -86,6 +87,8 @@
     <button class="btn" id="bExport">Export</button>
     <button class="btn" id="bCopy" title="Copy all saved pairs as JSONL">Copy data</button>
     <button class="btn" id="bForget">Forget data</button>
+    <button class="btn" id="bSync" title="Send new and changed pairs to your private dataset (set up with ⚙)">Sync</button>
+    <button class="btn" id="bSyncSet" title="Sync settings: endpoint and passphrase">⚙</button>
   </div>
 </div>
 <div id="main">
@@ -207,7 +210,7 @@ const endStroke = e => {
 function addStroke(st) {
   strokes.push(st); redo = [];
   stat('stStrokes', strokes.length); layout = analyze(); render();
-  if (settings.auto) { clearTimeout(autoTimer); autoTimer = setTimeout(() => recognizeAll(true), 1500); clearTimeout(idleTimer); idleTimer = setTimeout(() => autosaveAll(), 20000); }
+  if (settings.auto) { clearTimeout(autoTimer); autoTimer = setTimeout(() => recognizeAll(true), 1500); clearTimeout(idleTimer); idleTimer = setTimeout(async () => { await autosaveAll(); syncPairs(true); }, 20000); }
 }
 cv.addEventListener('pointerup', endStroke); cv.addEventListener('pointercancel', endStroke);
 cv.addEventListener('lostpointercapture', e => { if (live && e.pointerId === live.id) endStroke(e); });
@@ -758,6 +761,37 @@ $('bCopy').onclick = async () => {
 $('bForget').onclick = async () => { if (confirm('Delete all saved training pairs on this device?')) { await idb.clear(); stat('stPairs', 0); } };
 
 /* =========================================================================
+   sync: new and changed pairs → your Worker → private Hugging Face dataset
+   (see sync/worker.js). Endpoint and passphrase live only in this browser.
+   ========================================================================= */
+const LS_SYNC = 'hw.v1.sync', LS_SYNCED = 'hw.v1.synced';
+const syncCfg = load(LS_SYNC, { url: '', pass: '' });
+const synced = load(LS_SYNCED, {});                 // pair id → fingerprint of what was last sent
+const fingerprint = p => p.text + '|' + (p.words || []).map(w => w.text + '/' + (w.rejected || []).length).join(' ') + '|' + p.strokes.length;
+let syncing = false;
+async function syncPairs(quiet = false) {
+  if (!syncCfg.url) { if (!quiet) stat('stMsg', 'set a sync endpoint first (⚙)'); return; }
+  if (syncing) return; syncing = true;
+  try {
+    const pairs = (await idb.all()).filter(p => p.text && synced[p.id] !== fingerprint(p));
+    if (!pairs.length) { stat('stSync', 'up to date'); if (!quiet) stat('stMsg', 'nothing new to sync'); return; }
+    stat('stSync', `sending ${pairs.length}…`);
+    const r = await fetch(syncCfg.url.replace(/\/$/, '') + '/pairs', { method: 'POST', headers: { 'Content-Type': 'text/plain', 'X-Passphrase': syncCfg.pass }, body: pairs.map(p => JSON.stringify(p)).join('\n') });
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.status);
+    for (const p of pairs) synced[p.id] = fingerprint(p); save(LS_SYNCED, synced);
+    stat('stSync', `${pairs.length} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`); if (!quiet) stat('stMsg', `synced ${j.lines} pairs`);
+  } catch (e) { stat('stSync', 'failed'); stat('stMsg', 'sync failed: ' + (e.message || e)); }
+  finally { syncing = false; }
+}
+$('bSync').onclick = () => syncPairs(false);
+$('bSyncSet').onclick = () => {
+  const url = prompt('Sync endpoint (your Worker URL, e.g. https://handwriting-sync.<you>.workers.dev). Empty disables sync.', syncCfg.url); if (url == null) return;
+  syncCfg.url = url.trim(); if (syncCfg.url) { const pw = prompt('Passphrase (the PASSPHRASE secret of the Worker)', syncCfg.pass); if (pw == null) return; syncCfg.pass = pw; }
+  save(LS_SYNC, syncCfg); stat('stSync', syncCfg.url ? 'configured' : '–');
+};
+if (syncCfg.url) stat('stSync', 'configured');
+
+/* =========================================================================
    wiring
    ========================================================================= */
 $('bRec').onclick = async () => { await recognizeAll(false); await autosaveAll(); };
@@ -771,7 +805,7 @@ $('model').onchange = e => {
   settings.model = v; save(LS_SET, settings); syncModelSelect(); recog = null; renderSide(); render();
 };
 $('bUndo').onclick = () => { if (gest) { clearTimeout(gest.timer); gest = null; render(); return; } if (strokes.length) { redo.push(strokes.pop()); stat('stStrokes', strokes.length); layout = analyze(); render(); renderSide(); } };
-$('bClear').onclick = async () => { closeWordEditor(true); if (gest) { clearTimeout(gest.timer); gest = null; } await autosaveAll(); savedIds.clear(); savedStrokes.clear(); strokes = []; redo = []; layout = null; recog = null; stat('stStrokes', 0); stat('stLayout', '–'); hint.style.display = ''; render(); renderSide(); };
+$('bClear').onclick = async () => { closeWordEditor(true); if (gest) { clearTimeout(gest.timer); gest = null; } await autosaveAll(); syncPairs(true); savedIds.clear(); savedStrokes.clear(); strokes = []; redo = []; layout = null; recog = null; stat('stStrokes', 0); stat('stLayout', '–'); hint.style.display = ''; render(); renderSide(); };
 for (const [id, k] of [['sChunks', 'chunks'], ['sLines', 'lines'], ['sWords', 'words'], ['sLabels', 'labels'], ['sCrops', 'crops'], ['sPen', 'pen'], ['sAuto', 'auto']]) { $(id).checked = settings[k]; $(id).onchange = e => { settings[k] = e.target.checked; save(LS_SET, settings); render(); renderSide(); }; }
 addEventListener('keydown', e => {
   if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
