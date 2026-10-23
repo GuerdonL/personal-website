@@ -401,13 +401,25 @@ let toastT; const toast = (m, action, fn) => { const t = $('#toast'); t.textCont
 
 /* ---------- storage ---------- */
 const DB = (() => {
-  let p;
-  const open = () => p ||= new Promise((res, rej) => {
-    const r = indexedDB.open('notes-app', 1);
-    r.onupgradeneeded = () => r.result.createObjectStore('notes', { keyPath: 'id' });
-    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  /* Safari (above all a home-screen web app returning from the background) closes IndexedDB
+     connections behind the page's back. Never cache a dead connection: reopen on 'close' or
+     'versionchange', and retry a transaction once when the connection turns out to be closing. */
+  let p = null;
+  const open = (version = 1) => p ||= new Promise((res, rej) => {
+    const r = version ? indexedDB.open('notes-app', version) : indexedDB.open('notes-app');
+    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('notes')) r.result.createObjectStore('notes', { keyPath: 'id' }); };
+    r.onsuccess = () => { const db = r.result; db.onclose = () => { p = null; }; db.onversionchange = () => { db.close(); p = null; }; res(db); };
+    r.onerror = () => { p = null; if (version && r.error && r.error.name === 'VersionError') open(0).then(res, rej); else rej(r.error); };
+    r.onblocked = () => { p = null; rej(new Error('database blocked')); };
   });
-  const tx = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('notes', mode); const q = fn(t.objectStore('notes')); t.oncomplete = () => res(q.result); t.onerror = () => rej(t.error); }); };
+  const run = (db, mode, fn) => new Promise((res, rej) => { const t = db.transaction('notes', mode); const q = fn(t.objectStore('notes')); t.oncomplete = () => res(q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('transaction aborted')); });
+  const closing = e => e && (e.name === 'InvalidStateError' || /clos/i.test(e.message || ''));
+  const tx = async (mode, fn) => {
+    for (let attempt = 0; ; attempt++) {
+      try { return await run(await open(), mode, fn); }
+      catch (e) { p = null; if (attempt >= 2 || !closing(e)) throw e; await new Promise(r => setTimeout(r, 150 * (attempt + 1))); }
+    }
+  };
   return {
     all: () => tx('readonly', s => s.getAll()),
     get: id => tx('readonly', s => s.get(id)),
@@ -428,7 +440,7 @@ let navStack = []; // parent note ids when editing an embedded media note
 
 let saveT;
 const save = () => { if (!note) return; note.updated = Date.now(); clearTimeout(saveT); saveT = setTimeout(() => DB.put(note).then(() => schedulePush()).catch(e => toast('Save failed: ' + e.message)), 400); };
-const saveNow = () => { if (!note) return; clearTimeout(saveT); return DB.put(note); };
+const saveNow = () => { if (!note) return; clearTimeout(saveT); return DB.put(note).catch(e => { toast('Save failed: ' + e.message); throw e; }); };
 
 /* ---------- layout / zoom ---------- */
 function layout(redraw = true) {
@@ -1319,13 +1331,28 @@ async function pushNote(n) {
     if (e.status !== 409 && e.status !== 422) throw e;
     const sha = await remoteSha(path);               // someone else wrote it: compare and resolve
     const remote = sha ? await (await gh('GET', repoPath() + path, null, true)).json() : null;
-    if (remote && remote.updated > n.updated) { await adoptRemote(remote, sha); return; }
+    if (remote && remote.updated > n.updated) { await adoptRemote(remote, sha, true); return; }
+    if (remote && remote.updated > (sync.pushed[n.id] || 0)) await keepConflictCopy({ ...remote, audios: remote.audios.map(a => ({ ...a, blob: null })) , media: remote.media ? { ...remote.media, blob: null } : null }, 'other device’s version');
     await putFile(path, content, sha, 'merge ' + n.id);
   }
   sync.pushed[n.id] = n.updated; saveSync();
 }
-async function adoptRemote(remote, sha) {
+/* Both sides changed the same note since this device last synced it: keep ours as an archived
+   "conflict copy" so nothing is lost, then take theirs (or vice versa). */
+async function keepConflictCopy(losing, winnerLabel) {
+  if (!losing || isEmptyNote(losing)) return;
+  const copy = { ...upgradeNote({ ...losing }), id: uid(), archived: true, updated: Date.now(), title: (losing.title || (losing.media && losing.media.name) || 'Untitled note') + ' (conflict copy, ' + winnerLabel + ')' };
+  // recordings/media are immutable files: the copy can point at the same ones already in the repo; only unsynced blobs need re-upload
+  const dup = a => a.file ? { ...a, synced: true } : { ...a, id: uid(), synced: false };
+  copy.audios = copy.audios.map(dup);
+  copy.archive = copy.archive.map(x => x.kind === 'audio' ? { ...x, item: dup(x.item) } : x);
+  if (copy.media) copy.media = copy.media.file ? { ...copy.media, synced: true } : { ...copy.media, synced: false };
+  await DB.put(copy);
+  toast('Edits to "' + (losing.title || 'Untitled note') + '" collided with another device — the other version is kept under Archived');
+}
+async function adoptRemote(remote, sha, conflict) {
   const local = await DB.get(remote.id);
+  if (conflict && local && local.updated > (sync.pushed[local.id] || 0)) await keepConflictCopy(local, 'this device’s version');
   const findLocal = id => local && allAudios(local).find(x => x.id === id);
   const merged = { ...remote,
     audios: remote.audios.map(a => ({ ...a, blob: findLocal(a.id)?.blob || null, synced: true })),
@@ -1366,8 +1393,12 @@ async function syncAll(reason) {
       if (sync.shas[f.path] === f.sha) continue;
       const remote = await (await gh('GET', repoPath() + f.path, null, true)).json();
       const local = await DB.get(id);
-      if (!local || remote.updated > local.updated) await adoptRemote(remote, f.sha);
-      else { sync.shas[f.path] = f.sha; if (local.updated > remote.updated) delete sync.pushed[id]; saveSync(); } // ours is newer: push below
+      const localDirty = local && local.updated > (sync.pushed[id] || 0), remoteChanged = !!sync.shas[f.path] || !!sync.pushed[id]; // we had seen an earlier version
+      if (!local || remote.updated > local.updated) await adoptRemote(remote, f.sha, localDirty && remoteChanged);
+      else { // ours is newer: keep theirs if they also changed it, then push below
+        if (localDirty && remoteChanged && remote.updated > (sync.pushed[id] || 0)) await keepConflictCopy({ ...remote, audios: remote.audios.map(a => ({ ...a, blob: null })), media: remote.media ? { ...remote.media, blob: null } : null }, 'other device’s version');
+        sync.shas[f.path] = f.sha; if (local.updated > remote.updated) delete sync.pushed[id]; saveSync();
+      }
     }
     // --- reconcile deletions & push ---
     for (const n of await DB.all()) {
