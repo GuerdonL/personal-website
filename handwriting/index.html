@@ -68,6 +68,7 @@
     model <select id="model">
       <option value="Xenova/trocr-small-handwritten">TrOCR small (≈80 MB)</option>
       <option value="Xenova/trocr-base-handwritten">TrOCR base (≈350 MB, better)</option>
+      <option value="__custom">custom…</option>
     </select>
     <button class="btn" id="bLoad">Load</button>
   </div>
@@ -376,7 +377,7 @@ async function ensureModel() {
     try { if (navigator.gpu && await navigator.gpu.requestAdapter()) dev = 'webgpu'; } catch {}
     // The 8-bit decoder of TrOCR degenerates into runs of punctuation; keep the decoder in
     // fp32 (small: ~80 MB). The encoder tolerates q8, which keeps the base model downloadable.
-    const dtype = settings.model.includes('small') ? { encoder_model: 'fp32', decoder_model_merged: 'fp32' } : { encoder_model: 'q8', decoder_model_merged: 'fp32' };
+    const dtype = settings.model.includes('base') ? { encoder_model: 'q8', decoder_model_merged: 'fp32' } : { encoder_model: 'fp32', decoder_model_merged: 'fp32' };
     try { pipe = await tjs.pipeline('image-to-text', settings.model, { dtype, device: dev, progress_callback }); }
     catch (e) { if (dev === 'webgpu') { console.warn('webgpu failed, falling back to wasm', e); dev = 'wasm'; pipe = await tjs.pipeline('image-to-text', settings.model, { dtype, device: 'wasm', progress_callback }); } else throw e; }
     loadedModel = settings.model; stat('stModel', settings.model.split('/')[1] + ' · ' + (pipe.model?.sessions ? Object.values(pipe.model.sessions)[0]?.config?.executionProviders?.[0] || dev : dev));
@@ -529,7 +530,13 @@ $('bForget').onclick = async () => { if (confirm('Delete all saved training pair
 $('bRec').onclick = recognizeAll;
 $('bReread').onclick = () => { recog = null; renderSide(); render(); recognizeAll(); };
 $('bLoad').onclick = () => ensureModel().catch(() => {});
-$('model').value = settings.model; $('model').onchange = e => { settings.model = e.target.value; save(LS_SET, settings); recog = null; renderSide(); render(); };
+function syncModelSelect() { const sel = $('model'); if (![...sel.options].some(o => o.value === settings.model)) { const o = document.createElement('option'); o.value = settings.model; o.textContent = settings.model + ' (custom)'; sel.insertBefore(o, sel.lastElementChild); } sel.value = settings.model; }
+syncModelSelect();
+$('model').onchange = e => {
+  let v = e.target.value;
+  if (v === '__custom') { v = prompt('Hugging Face model id (a fine-tuned TrOCR exported for transformers.js, see handwriting/train/README.md):', settings.model.startsWith('Xenova/') ? '' : settings.model); if (!v || !v.trim()) { syncModelSelect(); return; } v = v.trim(); }
+  settings.model = v; save(LS_SET, settings); syncModelSelect(); recog = null; renderSide(); render();
+};
 $('bUndo').onclick = () => { if (strokes.length) { redo.push(strokes.pop()); stat('stStrokes', strokes.length); layout = analyze(); render(); renderSide(); } };
 $('bClear').onclick = async () => { await autosaveAll(); savedIds.clear(); strokes = []; redo = []; layout = null; recog = null; stat('stStrokes', 0); stat('stLayout', '–'); hint.style.display = ''; render(); renderSide(); };
 for (const [id, k] of [['sChunks', 'chunks'], ['sLines', 'lines'], ['sWords', 'words'], ['sText', 'text'], ['sCrops', 'crops'], ['sPen', 'pen'], ['sAuto', 'auto']]) { $(id).checked = settings[k]; $(id).onchange = e => { settings[k] = e.target.checked; save(LS_SET, settings); render(); renderSide(); }; }
