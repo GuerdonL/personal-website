@@ -20,8 +20,16 @@ Everything but the recognizer is in `index.html`:
    IAM-style) and read by TrOCR-handwritten running in the browser through
    transformers.js. The model's decoder is a language model over the whole line,
    so l/I/1-style ambiguities are resolved from context.
-7. **Correction** — edits are stored (IndexedDB) with line-normalised strokes,
-   the model's original guess, timestamps and the block's angle.
+7. **Words & correction** — the line's text is distributed over its word boxes
+   (1:1 when the counts agree, otherwise a small DP that matches cumulative text
+   length to cumulative ink width) and each word's reading is drawn under its ink.
+   Draw an **X** over a wrong word: the reading is crossed out, the word is read
+   again on its own (one greedy pass plus a few sampled ones — transformers.js v3
+   has no real beam search) and the next distinct guess takes its place. After five
+   crossed-out guesses, or when the guesses run out, a text box opens under the word;
+   double-tapping a label opens it directly (iPadOS Scribble works in the box).
+   Every pair is stored (IndexedDB) with line-normalised strokes, the model's first
+   reading, per-word readings, every rejected guess, and the block's angle.
 
 Model weights are fetched from the Hugging Face hub on first use and cached by
 the browser. "TrOCR small" (~80 MB, q8) is the default; "TrOCR base" is better and

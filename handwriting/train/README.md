@@ -11,6 +11,10 @@
    ./export.sh model <your-hf-user>/trocr-yourname
    ```
 
+   `prepare.py` also cuts word crops out of lines that carry per-word corrections (from
+   the page's X gesture / word box) and adds them to the training split (`--words 0` to
+   skip). Rejected guesses are stored in the JSONL (`words[].rejected`) but not yet used.
+
    `finetune.py` prints validation CER/WER before and after. Use `--base microsoft/trocr-base-handwritten`
    for the stronger model once you have a few hundred lines (needs the T4's full memory: `--bs 4`).
 

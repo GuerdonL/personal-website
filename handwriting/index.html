@@ -53,6 +53,7 @@
   #prog i { display: block; height: 100%; width: 0; background: var(--sel); }
   #hint { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); color: var(--faint); font-size: 13px; text-align: center; pointer-events: none; max-width: 34em; line-height: 1.5; }
   #hint kbd { font: 11px 'JetBrains Mono', monospace; border: 1px solid var(--line-strong); border-radius: 4px; padding: 0 4px; }
+  #wordEdit { position: absolute; display: none; z-index: 5; font: 14px Inter, system-ui, sans-serif; color: var(--ink); background: var(--t0); border: 1.5px solid var(--sel); border-radius: 6px; padding: 3px 6px; outline: none; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
   .empty { color: var(--faint); font-size: 12.5px; line-height: 1.5; }
 </style>
 </head>
@@ -76,7 +77,7 @@
     <label class="tg"><input type="checkbox" id="sChunks" checked> chunks</label>
     <label class="tg"><input type="checkbox" id="sLines" checked> lines</label>
     <label class="tg"><input type="checkbox" id="sWords"> words</label>
-    <label class="tg"><input type="checkbox" id="sText"> text</label>
+    <label class="tg"><input type="checkbox" id="sLabels" checked> labels</label>
     <label class="tg"><input type="checkbox" id="sCrops" checked> crops</label>
     <label class="tg"><input type="checkbox" id="sPen" checked> pen only</label>
     <label class="tg"><input type="checkbox" id="sAuto"> auto</label>
@@ -90,7 +91,8 @@
 <div id="main">
   <div id="stage">
     <canvas id="cv"></canvas>
-    <div id="hint">Write anything, anywhere — several blocks, at angles, with labels and stray marks.<br>Then press <kbd>Recognize</kbd> (or <kbd>Enter</kbd>). The first run downloads the model.</div>
+    <input id="wordEdit" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div id="hint">Write anything, anywhere — several blocks, at angles, with labels and stray marks.<br>Then press <kbd>Recognize</kbd> (or <kbd>Enter</kbd>). The first run downloads the model.<br><span style="font-size:12px">Each word's reading appears under it. Draw an <b>X</b> over a wrong word to get the next guess; after five, a box opens to type it. Double-tap a label to type straight away.</span></div>
   </div>
   <div id="side"><div class="empty">Recognized text appears here, one box per text block, one field per line. Every recognized line, and every correction you make, is kept on this device automatically as training data (Export / Copy data gets it out).</div></div>
 </div>
@@ -130,7 +132,7 @@ const pct = (a, q) => { if (!a.length) return 0; const s = [...a].sort((x, y) =>
 const LS_SET = 'hw.v1.settings';
 const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
-const settings = Object.assign({ chunks: true, lines: true, words: false, text: false, crops: true, pen: true, auto: false, model: 'Xenova/trocr-small-handwritten' }, load(LS_SET, {}));
+const settings = Object.assign({ chunks: true, lines: true, words: false, labels: true, crops: true, pen: true, auto: false, model: 'Xenova/trocr-small-handwritten' }, load(LS_SET, {}));
 
 /* ---- storage for training pairs: IndexedDB, else localStorage ---- */
 const LS_PAIRS = 'hw.v1.pairs';
@@ -177,7 +179,7 @@ function isPalm(e) { if (e.pointerType !== 'touch') return false; if (settings.p
 cv.addEventListener('pointerdown', e => {
   if (e.pointerType === 'pen') lastPen = performance.now();
   if (e.button !== 0 && e.pointerType === 'mouse') return;
-  if (isPalm(e)) return;
+  if (isPalm(e)) { if (e.pointerType === 'touch') labelTap(pos(e), 'touch'); return; }   // a finger tap on a word label still works in pen-only mode
   if (live) { if (e.pointerType === 'pen' && live.type === 'touch') { try { cv.releasePointerCapture(live.id); } catch {} live = null; } else return; }
   if (e.pointerType === 'pen') { const cut = Date.now() - PALM_LOOKBACK; strokes = strokes.filter(s => !(s.src === 'touch' && s.t1 > cut)); }
   try { cv.setPointerCapture(e.pointerId); } catch {}
@@ -198,10 +200,15 @@ const endStroke = e => {
   const s = live; live = null;
   if (s.type === 'touch' && s.pts.length < 4) { render(); return; }
   if (s.pts.length === 1) s.pts.push({ ...s.pts[0], x: s.pts[0].x + 0.5 });
-  strokes.push({ pts: s.pts, t0: s.pts[0].t, t1: s.pts[s.pts.length - 1].t, src: s.type }); redo = [];
+  const st = { pts: s.pts, t0: s.pts[0].t, t1: s.pts[s.pts.length - 1].t, src: s.type };
+  if (handleGesture(st)) return;                                   // an X over a word, or a tap on its label, is feedback, not ink
+  addStroke(st);
+};
+function addStroke(st) {
+  strokes.push(st); redo = [];
   stat('stStrokes', strokes.length); layout = analyze(); render();
   if (settings.auto) { clearTimeout(autoTimer); autoTimer = setTimeout(() => recognizeAll(true), 1500); clearTimeout(idleTimer); idleTimer = setTimeout(() => autosaveAll(), 20000); }
-};
+}
 cv.addEventListener('pointerup', endStroke); cv.addEventListener('pointercancel', endStroke);
 cv.addEventListener('lostpointercapture', e => { if (live && e.pointerId === live.id) endStroke(e); });
 cv.addEventListener('contextmenu', e => e.preventDefault());
@@ -417,15 +424,61 @@ function buildChunk(members, gsize, forceDeg) {
 /* =========================================================================
    6. rasterize a line and recognize it
    ========================================================================= */
-function rasterizeLine(L, chunk) {
-  // IAM-style: dark ink on white, generous margins, pen width relative to line height
-  const h = L.y1 - L.y0, w = L.x1 - L.x0; const target = 128, pad = 18;
-  const sc = (target - 2 * pad) / Math.max(h, 1); const cw = Math.max(Math.round(target * 2.5), Math.round(w * sc + 2 * pad)), ch = target;
+// IAM-style: dark ink on white, generous margins, pen width relative to line height.
+// `members` are drawn; the frame is x0..x1 horizontally and the LINE's y0..y1 vertically, so a
+// word crop keeps the letter proportions the model learned from whole lines (prepare.py matches).
+function rasterize(members, x0, x1, y0, y1, minAspect = 2.5) {
+  const h = y1 - y0, w = x1 - x0; const target = 128, pad = 18;
+  const sc = (target - 2 * pad) / Math.max(h, 1); const cw = Math.max(Math.round(target * minAspect), Math.round(w * sc + 2 * pad)), ch = target;
   const c = document.createElement('canvas'); c.width = cw; c.height = ch; const g = c.getContext('2d');
   g.fillStyle = '#fff'; g.fillRect(0, 0, cw, ch); g.strokeStyle = '#000'; g.lineCap = 'round'; g.lineJoin = 'round';
   g.lineWidth = clamp(h * sc * 0.055, 2, 5);
-  for (const o of L.members) { g.beginPath(); o.rp.forEach((p, i) => { const x = pad + (p.x - L.x0) * sc, y = pad + (p.y - L.y0) * sc; i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); }
+  for (const o of members) { g.beginPath(); o.rp.forEach((p, i) => { const x = pad + (p.x - x0) * sc, y = pad + (p.y - y0) * sc; i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); }
   return c;
+}
+function rasterizeLine(L) { return rasterize(L.members, L.x0, L.x1, L.y0, L.y1); }
+function wordMembers(L, w) { return w.idx.flatMap(i => L.words[i] ? L.words[i].members : []); }
+function rasterizeWord(L, w) { const m = wordMembers(L, w); const b = bbox(m.flatMap(o => o.rp)); return rasterize(m, b.x0, b.x1, L.y0, L.y1, 1.2); }
+
+/* ---- words: the model reads a whole line; its text is distributed over the line's word boxes ---- */
+const splitWords = t => t.split(/\s+/).filter(Boolean);
+function alignWords(text, L) {
+  const toks = splitWords(text);
+  let boxes = L.words.map((w, i) => ({ x0: w.x0, x1: w.x1, y0: w.y0, y1: w.y1, idx: [i] }));
+  const mk = (b, t) => ({ ...b, text: t, model_text: t, rejected: [], alts: null, edited: false });
+  if (!toks.length || !boxes.length) return boxes.map(b => mk(b, ''));
+  while (boxes.length > toks.length) {        // more boxes than words: merge the two with the smallest gap
+    let bi = 1, bg = Infinity; for (let i = 1; i < boxes.length; i++) { const g = boxes[i].x0 - boxes[i - 1].x1; if (g < bg) { bg = g; bi = i; } }
+    const a = boxes[bi - 1], b = boxes[bi];
+    boxes.splice(bi - 1, 2, { x0: Math.min(a.x0, b.x0), x1: Math.max(a.x1, b.x1), y0: Math.min(a.y0, b.y0), y1: Math.max(a.y1, b.y1), idx: a.idx.concat(b.idx) });
+  }
+  const n = boxes.length, m = toks.length;
+  if (n === m) return boxes.map((b, i) => mk(b, toks[i]));
+  // more words than boxes: group consecutive words so cumulative text length tracks cumulative ink width
+  const lx0 = boxes[0].x0, lw = Math.max(1, boxes[n - 1].x1 - lx0);
+  const cum = [0]; for (const t of toks) cum.push(cum[cum.length - 1] + t.length + 1); const tot = cum[m];
+  const INF = 1e9, dp = Array.from({ length: n + 1 }, () => new Float64Array(m + 1).fill(INF)), bk = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+  dp[0][0] = 0;
+  for (let i = 1; i <= n; i++) for (let j = i; j <= m - (n - i); j++) {
+    const cost = Math.abs((boxes[i - 1].x1 - lx0) / lw - cum[j] / tot);
+    for (let k = i - 1; k < j; k++) { const v = dp[i - 1][k] + cost; if (v < dp[i][j]) { dp[i][j] = v; bk[i][j] = k; } }
+  }
+  const groups = []; let j = m; for (let i = n; i >= 1; i--) { const k = bk[i][j]; groups.unshift(toks.slice(k, j)); j = k; }
+  return boxes.map((b, i) => mk(b, groups[i].join(' ')));
+}
+const cleanText = t => (t || '').replace(/([^\w\s])\1{2,}/g, '$1').replace(/\s+/g, ' ').trim();   // collapse runs of a repeated symbol
+// transformers.js v3 has no real beam search (num_beams degrades to greedy and num_return_sequences
+// is ignored), so alternatives come from several sampled readings of the word crop alone.
+async function wordAlternatives(L, w, n = 6) {
+  const c = rasterizeWord(L, w);
+  if (window.HW_MOCK_ALTS) return window.HW_MOCK_ALTS(w, c);
+  const p = await ensureModel(); const url = c.toDataURL('image/png');
+  const count = new Map(), order = [];
+  const take = t => { t = cleanText(t); if (!t) return; if (!count.has(t)) { count.set(t, 0); order.push(t); } count.set(t, count.get(t) + 1); };
+  const one = async opts => { const out = await p(url, { max_new_tokens: 24, ...opts }); for (const o of (Array.isArray(out) ? out : [out]).flat()) take(o && o.generated_text); };
+  await one({ num_beams: 1 });                                                                   // the word read on its own (often differs from the in-line reading)
+  for (let i = 0; i < n; i++) await one({ do_sample: true, temperature: 0.9, top_k: 8 });
+  return order.sort((a, b) => count.get(b) - count.get(a));
 }
 
 let tjs = null, pipe = null, loadedModel = null, loading = false;
@@ -451,14 +504,23 @@ async function ensureModel() {
   finally { loading = false; }
 }
 async function recognizeLine(L, chunk) {
-  const c = rasterizeLine(L, chunk);
+  const c = rasterizeLine(L);
   if (window.HW_MOCK) return window.HW_MOCK(L, chunk, c);
   const p = await ensureModel();
   const url = c.toDataURL('image/png'); L.crop = url;
-  const out = await p(url, { max_new_tokens: 48, num_beams: 3, no_repeat_ngram_size: 3, repetition_penalty: 1.3, early_stopping: true });
-  let txt = (Array.isArray(out) ? out[0]?.generated_text : out?.generated_text) || '';
-  txt = txt.replace(/([^\w\s])\1{2,}/g, '$1').replace(/\s+/g, ' ').trim();   // collapse runs of a repeated symbol
-  return txt;
+  const out = await p(url, { max_new_tokens: 48, no_repeat_ngram_size: 3, repetition_penalty: 1.3 });
+  return cleanText(Array.isArray(out) ? out[0]?.generated_text : out?.generated_text);
+}
+function entryFor(text, L, prev) { return { text, edited: false, crop: L.crop || (prev && prev.crop), words: alignWords(text, L) }; }
+// the line's text follows its words (after an X or a typed word); a typed line re-aligns its words
+function setLineText(L, c, text, fromWords) {
+  const r = recog && recog.get(lineKey(L)); if (!r) return;
+  const orig = r.edited ? r.model : r.text;
+  if (!fromWords) { const old = r.words || []; r.words = alignWords(text, L); r.words.forEach((w, i) => { if (old[i] && old[i].idx.join() === w.idx.join()) { w.model_text = old[i].model_text; w.rejected = old[i].rejected; w.alts = old[i].alts; w.edited = w.text !== old[i].model_text; } }); }
+  r.text = text; r.edited = true; r.model = orig || null;
+  if (fromWords) renderSide(); else { const ta = sideFields.get(lineKey(L)); if (ta) ta.classList.add('edited'); }   // don't rebuild the panel under a textarea being typed in
+  render();
+  saveLine(L, c).then(async () => stat('stPairs', (await idb.count()) + ' · ' + idb.mode));
 }
 let busy = false;
 async function recognizeAll(auto = false) {
@@ -469,7 +531,7 @@ async function recognizeAll(auto = false) {
     for (const c of layout.chunks) for (const L of c.lines) {
       const key = lineKey(L); if (recog.has(key)) continue;
       stat('stMsg', `reading line ${++nl}…`); renderSide();
-      try { const text = await recognizeLine(L, c); recog.set(key, { text, edited: false, crop: L.crop }); if (!auto) { await saveLine(L, c); stat('stPairs', (await idb.count()) + ' · ' + idb.mode); } } catch (e) { recog.set(key, { text: '', error: String(e.message || e) }); stat('stMsg', 'recognition error: ' + (e.message || e)); break; }
+      try { const text = await recognizeLine(L, c); recog.set(key, entryFor(text, L)); if (!auto) { await saveLine(L, c); stat('stPairs', (await idb.count()) + ' · ' + idb.mode); } } catch (e) { recog.set(key, { text: '', error: String(e.message || e) }); stat('stMsg', 'recognition error: ' + (e.message || e)); break; }
       renderSide(); render();
     }
     stat('stMsg', nl ? `${nl} line${nl > 1 ? 's' : ''} in ${Math.round(performance.now() - t0)} ms` : 'nothing new to read');
@@ -477,6 +539,85 @@ async function recognizeAll(auto = false) {
 }
 // a line is identified by the strokes in it, so edits elsewhere don't invalidate it
 function lineKey(L) { return L.members.map(o => o.i + ':' + o.s.t0).join(','); }
+
+/* =========================================================================
+   feedback gestures: an X over a recognized word rejects the reading
+   ========================================================================= */
+let gest = null;        // first diagonal of an X, waiting for the second: { hit, st, timer }
+let fx = null;          // the finished X, fading out: { strokes, t0 }
+let labelRects = [];    // filled by render(): where each word label is, in its chunk's rotated frame
+let lastTap = null;     // for double-tap on a label
+function recognizedLines() { const out = []; if (!layout || !recog) return out; for (const c of layout.chunks) for (const L of c.lines) { const r = recog.get(lineKey(L)); if (r && r.words && r.words.length) out.push({ c, L, r }); } return out; }
+// A diagonal stroke lying over one recognized word, in that word's rotated frame.
+function diagonalHit(st) {
+  for (const { c, L, r } of recognizedLines()) {
+    const rp = st.pts.map(p => rot(p, -c.th)), rb = bbox(rp);
+    const dx = rp[rp.length - 1].x - rp[0].x, dy = rp[rp.length - 1].y - rp[0].y, chord = Math.hypot(dx, dy);
+    if (chord < 0.7 * L.xh || chord / Math.max(1e-6, pathLen(rp)) < 0.8) continue;      // too small or not straight
+    const slope = Math.abs(dy) / Math.max(1e-6, Math.abs(dx)); if (slope < 0.18 || slope > 5.5) continue;   // not diagonal (an X across a long word is quite flat)
+    if (rb.cy < L.y0 - 0.5 * L.xh || rb.cy > L.y1 + 0.5 * L.xh) continue;                 // not on this line
+    for (const w of r.words) {
+      if (!w.text) continue;
+      const m = 0.35 * L.xh;
+      if (rb.cx >= w.x0 - m && rb.cx <= w.x1 + m && rb.x0 >= w.x0 - 1.2 * L.xh && rb.x1 <= w.x1 + 1.2 * L.xh) return { c, L, r, w, key: lineKey(L), sign: Math.sign(dx * dy) || 1 };
+    }
+  }
+  return null;
+}
+function flushGesture() { if (!gest) return; clearTimeout(gest.timer); const st = gest.st; gest = null; addStroke(st); }
+function handleGesture(st) {
+  const dur = st.t1 - st.t0, b = bbox(st.pts);
+  if (Math.max(b.w, b.h) < 6 && dur < 350) { if (labelTap({ x: b.cx, y: b.cy }, st.src)) return true; }   // short tap: maybe a label
+  const hit = diagonalHit(st);
+  if (gest && hit && hit.key === gest.hit.key && hit.w === gest.hit.w && hit.sign !== gest.hit.sign) {    // second stroke of the X
+    clearTimeout(gest.timer); const first = gest.st; gest = null;
+    fx = { strokes: [first, st], t0: performance.now() }; render();
+    rejectWord(hit.L, hit.c, hit.w); return true;
+  }
+  flushGesture();                                                        // whatever was pending was ink after all
+  if (hit) { gest = { hit, st, timer: setTimeout(flushGesture, 1500) }; render(); return true; }
+  return false;
+}
+function labelTap(p, src) {
+  for (const h of labelRects) {
+    const q = rot(p, -h.th);
+    if (q.x >= h.x0 - 4 && q.x <= h.x1 + 4 && q.y >= h.y0 - 4 && q.y <= h.y1 + 4) {
+      const now = performance.now();
+      if (lastTap && lastTap.w === h.w && now - lastTap.t < 450) { lastTap = null; openWordEditor(h.L, h.c, h.w); return true; }
+      lastTap = { w: h.w, t: now };
+      return src === 'touch';                                             // a lone finger tap on a label is never ink; a lone pen tap might be a dot
+    }
+  }
+  return false;
+}
+async function rejectWord(L, c, w) {
+  w.rejected = w.rejected || []; w.rejected.push(w.text);
+  if (w.rejected.length >= 6) { openWordEditor(L, c, w); return; }           // five guesses crossed out: the sixth X opens the box
+  if (!w.alts) { stat('stMsg', 'reading the word again…'); try { w.alts = await wordAlternatives(L, w); } catch (e) { w.alts = []; stat('stMsg', 'alternatives failed: ' + (e.message || e)); } }
+  const next = w.alts.find(t => !w.rejected.includes(t));
+  if (next == null) { openWordEditor(L, c, w); return; }
+  w.text = next; w.edited = true;
+  const left = w.alts.filter(t => !w.rejected.includes(t) && t !== next).length;
+  stat('stMsg', `guess ${w.rejected.length + 1}: "${next}"` + (left ? ` · ${left} more` : ' · last one; next X opens the box'));
+  const r = recog.get(lineKey(L)); setLineText(L, c, r.words.map(x => x.text).join(' '), true);
+}
+const wordEdit = $('wordEdit'); let editing = null;
+function openWordEditor(L, c, w) {
+  const a = rot({ x: w.x0, y: L.y1 + 3 }, c.th), b = rot({ x: w.x1, y: L.y1 + 3 }, c.th);
+  const width = clamp(Math.hypot(b.x - a.x, b.y - a.y) + 30, 90, W - 8);
+  editing = { L, c, w };
+  wordEdit.style.width = width + 'px'; wordEdit.style.left = clamp(Math.min(a.x, b.x), 4, W - width - 4) + 'px'; wordEdit.style.top = clamp(Math.max(a.y, b.y) + 2, 4, H - 34) + 'px';
+  wordEdit.value = w.text; wordEdit.style.display = 'block'; wordEdit.focus(); wordEdit.select();
+  stat('stMsg', 'type the word, Enter to keep it');
+}
+function closeWordEditor(commit) {
+  if (!editing) return; const { L, c, w } = editing; editing = null; wordEdit.style.display = 'none';
+  const v = wordEdit.value.trim();
+  if (commit && v && v !== w.text) { w.text = v; w.edited = true; stat('stMsg', `kept "${v}"`); const r = recog.get(lineKey(L)); if (r) setLineText(L, c, r.words.map(x => x.text).join(' '), true); }
+  else { stat('stMsg', ''); render(); }
+}
+wordEdit.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); closeWordEditor(true); } else if (e.key === 'Escape') { e.preventDefault(); closeWordEditor(false); } e.stopPropagation(); });
+wordEdit.addEventListener('blur', () => closeWordEditor(true));
 
 /* =========================================================================
    rendering
@@ -495,6 +636,9 @@ function render() {
   ctx.clearRect(0, 0, W, H);
   const kinds = new Map(); if (layout) for (const o of layout.S) kinds.set(o.i, o.kind);
   strokes.forEach((s, i) => { const k = kinds.get(i); drawStroke(s, k === 'speck' ? 0.35 : 0.92, k === 'speck' ? css('--speck') : k === 'rule' ? css('--rule') : null); });
+  if (gest) drawStroke(gest.st, 0.55, css('--danger'));                       // half an X, waiting for the other half
+  if (fx) { const k = 1 - (performance.now() - fx.t0) / 450; if (k > 0) { for (const s of fx.strokes) drawStroke(s, 0.75 * k, css('--danger')); requestAnimationFrame(render); } else fx = null; }
+  labelRects = [];
   if (!layout) return;
   const pad = layout.size * 0.3;
   for (const c of layout.chunks) {
@@ -509,16 +653,25 @@ function render() {
       if (settings.lines) { ctx.save(); ctx.strokeStyle = css('--chunk'); ctx.lineWidth = 1; ctx.globalAlpha = 0.35; poly(rotRect(L.x0 - 3, L.y0 - 3, L.x1 + 3, L.y1 + 3, c.th)); ctx.stroke(); ctx.restore(); }
       if (settings.words) for (const w of L.words) { ctx.save(); ctx.strokeStyle = css('--word'); ctx.lineWidth = 1; ctx.globalAlpha = 0.6; poly(rotRect(w.x0 - 2, w.y0 - 2, w.x1 + 2, w.y1 + 2, c.th)); ctx.stroke(); ctx.restore(); }
       const r = recog && recog.get(lineKey(L));
-      if (settings.text && r && r.text) {
-        const a = rot({ x: L.x1 + 8, y: L.y0 + (L.y1 - L.y0) * 0.3 }, c.th);
-        ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(c.th); ctx.fillStyle = r.edited ? css('--ok') : css('--chunk'); ctx.font = `${clamp((L.y1 - L.y0) * 0.35, 10, 16)}px Inter, system-ui, sans-serif`; ctx.textBaseline = 'top'; ctx.globalAlpha = 0.9; ctx.fillText(r.text, 0, 0); ctx.restore();
+      if (settings.labels && r && r.words) {
+        // each word's reading sits right under its ink, in the line's own frame
+        const fs = clamp(L.xh * 0.95, 10, 15), y = L.y1 + 3;
+        ctx.save(); ctx.font = `${fs}px Inter, system-ui, sans-serif`; ctx.textBaseline = 'top'; ctx.globalAlpha = 0.92;
+        for (const w of r.words) {
+          if (!w.text) continue;
+          const a = rot({ x: w.x0, y }, c.th); const tw = ctx.measureText(w.text).width;
+          ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(c.th); ctx.fillStyle = w.edited ? css('--ok') : (w.rejected && w.rejected.length) ? css('--warn') : css('--chunk'); ctx.fillText(w.text, 0, 0); ctx.restore();
+          labelRects.push({ L, c, w, th: c.th, x0: w.x0, y0: y, x1: w.x0 + tw, y1: y + fs });
+        }
+        ctx.restore();
       }
     }
   }
 }
 function renderLive() { if (!live) return; render(); drawStroke(live, 0.92); }
+const sideFields = new Map();   // lineKey → textarea
 function renderSide() {
-  const side = $('side');
+  const side = $('side'); sideFields.clear();
   if (!layout || !layout.chunks.length) { side.innerHTML = '<div class="empty">Recognized text appears here, one box per text block, one field per line. Every recognized line, and every correction you make, is kept on this device automatically as training data (Export / Copy data gets it out).</div>'; return; }
   const frag = document.createDocumentFragment();
   for (const c of layout.chunks) {
@@ -532,8 +685,13 @@ function renderSide() {
       const ta = document.createElement('textarea'); ta.rows = 1; ta.value = r ? r.text : ''; ta.placeholder = r && r.error ? 'error' : busy ? '…' : 'not read yet';
       if (r && r.edited) ta.classList.add('edited');
       let deb = null; ta.addEventListener('input', () => { ta.classList.add('edited'); ta.rows = Math.max(1, Math.ceil(ta.value.length / 36)); clearTimeout(deb); deb = setTimeout(() => ta.dispatchEvent(new Event('change')), 800); });
-      ta.addEventListener('change', () => { const cur = recog && recog.get(lineKey(L)); if (cur && cur.text === ta.value.trim() && cur.edited) return; recog = recog || new Map(); recog.set(lineKey(L), { text: ta.value.trim(), edited: true, model: (r && (r.edited ? r.model : r.text)) || null, crop: r && r.crop }); render(); saveLine(L, c).then(async () => stat('stPairs', (await idb.count()) + ' · ' + idb.mode)); });
-      row.appendChild(ta); d.appendChild(row);
+      ta.addEventListener('change', () => {
+        const v = ta.value.trim(); const cur = recog && recog.get(lineKey(L));
+        if (cur && cur.text === v) return;
+        recog = recog || new Map(); if (!cur || !cur.words) recog.set(lineKey(L), entryFor(v, L, cur));
+        setLineText(L, c, v, false);
+      });
+      row.appendChild(ta); d.appendChild(row); sideFields.set(lineKey(L), ta);
       if (r && r.crop && settings.crops) { const im = document.createElement('img'); im.className = 'crop'; im.src = r.crop; im.title = 'what the model saw'; d.appendChild(im); }
     });
     const act = document.createElement('div'); act.className = 'act';
@@ -558,7 +716,9 @@ function supersededId(L) {
 function pairFor(L, c, r) {
   const sc = 1 / Math.max(1, L.y1 - L.y0);   // line-normalised coordinates: height 1, origin at the line's top-left
   const st = L.members.map(o => ({ t0: o.s.t0, pts: o.rp.map((p, i) => [+((p.x - L.x0) * sc).toFixed(4), +((p.y - L.y0) * sc).toFixed(4), +((o.s.pts[i] && o.s.pts[i].p) || 0.5).toFixed(2)]) }));
-  return { ts: Date.now(), text: r.text, model_text: r.edited ? (r.model || null) : r.text, model: loadedModel, edited: !!r.edited, deg: c.deg, device: navigator.userAgent.slice(0, 40), strokes: st };
+  // per word: its text, the model's first reading, every reading crossed out, and which strokes (by t0) it owns
+  const words = (r.words || []).filter(w => w.text).map(w => ({ text: w.text, model_text: w.model_text, rejected: w.rejected || [], edited: !!w.edited, strokes: wordMembers(L, w).map(o => o.s.t0) }));
+  return { ts: Date.now(), text: r.text, model_text: r.edited ? (r.model || null) : r.text, model: loadedModel, edited: !!r.edited, deg: c.deg, device: navigator.userAgent.slice(0, 40), strokes: st, words };
 }
 async function saveLine(L, c) {
   const r = recog && recog.get(lineKey(L)); if (!r || !r.text) return false;
@@ -601,7 +761,7 @@ $('bForget').onclick = async () => { if (confirm('Delete all saved training pair
    wiring
    ========================================================================= */
 $('bRec').onclick = async () => { await recognizeAll(false); await autosaveAll(); };
-$('bReread').onclick = () => { recog = null; renderSide(); render(); recognizeAll(); };
+$('bReread').onclick = () => { closeWordEditor(false); recog = null; renderSide(); render(); recognizeAll(); };
 $('bLoad').onclick = () => ensureModel().catch(() => {});
 function syncModelSelect() { const sel = $('model'); if (![...sel.options].some(o => o.value === settings.model)) { const o = document.createElement('option'); o.value = settings.model; o.textContent = settings.model + ' (custom)'; sel.insertBefore(o, sel.lastElementChild); } sel.value = settings.model; }
 syncModelSelect();
@@ -610,9 +770,9 @@ $('model').onchange = e => {
   if (v === '__custom') { v = prompt('Hugging Face model id (a fine-tuned TrOCR exported for transformers.js, see handwriting/train/README.md):', settings.model.startsWith('Xenova/') ? '' : settings.model); if (!v || !v.trim()) { syncModelSelect(); return; } v = v.trim(); }
   settings.model = v; save(LS_SET, settings); syncModelSelect(); recog = null; renderSide(); render();
 };
-$('bUndo').onclick = () => { if (strokes.length) { redo.push(strokes.pop()); stat('stStrokes', strokes.length); layout = analyze(); render(); renderSide(); } };
-$('bClear').onclick = async () => { await autosaveAll(); savedIds.clear(); savedStrokes.clear(); strokes = []; redo = []; layout = null; recog = null; stat('stStrokes', 0); stat('stLayout', '–'); hint.style.display = ''; render(); renderSide(); };
-for (const [id, k] of [['sChunks', 'chunks'], ['sLines', 'lines'], ['sWords', 'words'], ['sText', 'text'], ['sCrops', 'crops'], ['sPen', 'pen'], ['sAuto', 'auto']]) { $(id).checked = settings[k]; $(id).onchange = e => { settings[k] = e.target.checked; save(LS_SET, settings); render(); renderSide(); }; }
+$('bUndo').onclick = () => { if (gest) { clearTimeout(gest.timer); gest = null; render(); return; } if (strokes.length) { redo.push(strokes.pop()); stat('stStrokes', strokes.length); layout = analyze(); render(); renderSide(); } };
+$('bClear').onclick = async () => { closeWordEditor(true); if (gest) { clearTimeout(gest.timer); gest = null; } await autosaveAll(); savedIds.clear(); savedStrokes.clear(); strokes = []; redo = []; layout = null; recog = null; stat('stStrokes', 0); stat('stLayout', '–'); hint.style.display = ''; render(); renderSide(); };
+for (const [id, k] of [['sChunks', 'chunks'], ['sLines', 'lines'], ['sWords', 'words'], ['sLabels', 'labels'], ['sCrops', 'crops'], ['sPen', 'pen'], ['sAuto', 'auto']]) { $(id).checked = settings[k]; $(id).onchange = e => { settings[k] = e.target.checked; save(LS_SET, settings); render(); renderSide(); }; }
 addEventListener('keydown', e => {
   if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) { if (redo.length) { strokes.push(redo.pop()); layout = analyze(); render(); } } else $('bUndo').click(); }
@@ -622,7 +782,7 @@ const _analyze = analyze;
 analyze = function () { const t = performance.now(); const L = _analyze(); if (L) stat('stLayout', `${L.chunks.length} block${L.chunks.length === 1 ? '' : 's'} · ${L.chunks.reduce((a, c) => a + c.lines.length, 0)} lines · ${L.specks.length} specks · ${Math.round(performance.now() - t)} ms`); renderSide(); return L; };
 idb.open().then(async m => { stat('stPairs', (await idb.count()) + ' · ' + m); if (m === 'none') stat('stMsg', 'storage unavailable: ' + (idb.err && idb.err.message || 'blocked')); });
 resize();
-window.HW = { get strokes() { return strokes; }, set strokes(v) { strokes = v; stat('stStrokes', v.length); hint.style.display = v.length ? 'none' : ''; layout = analyze(); render(); }, get layout() { return layout; }, analyze: () => (layout = analyze()), recognizeAll, rasterizeLine, get recog() { return recog; } };
+window.HW = { get strokes() { return strokes; }, set strokes(v) { strokes = v; stat('stStrokes', v.length); hint.style.display = v.length ? 'none' : ''; layout = analyze(); render(); }, get layout() { return layout; }, analyze: () => (layout = analyze()), recognizeAll, rasterizeLine, rasterizeWord, alignWords, handleGesture, wordAlternatives, get recog() { return recog; } };
 </script>
 </body>
 </html>
