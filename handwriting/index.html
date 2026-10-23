@@ -82,6 +82,7 @@
   </div>
   <div class="grp">
     <button class="btn" id="bExport">Export</button>
+    <button class="btn" id="bCopy" title="Copy all saved pairs as JSONL">Copy data</button>
     <button class="btn" id="bForget">Forget data</button>
   </div>
 </div>
@@ -478,10 +479,20 @@ async function savePairs(c) {
   }
   stat('stPairs', await idb.count()); stat('stMsg', `saved ${n} line pair${n === 1 ? '' : 's'}`);
 }
+async function exportText() { const pairs = await idb.all(); return pairs.map(p => JSON.stringify(p)).join('\n'); }
 $('bExport').onclick = async () => {
-  const pairs = await idb.all();
-  const blob = new Blob([pairs.map(p => JSON.stringify(p)).join('\n')], { type: 'application/x-ndjson' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `handwriting-pairs-${new Date().toISOString().slice(0, 10)}.jsonl`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  const text = await exportText(); const name = `handwriting-pairs-${new Date().toISOString().slice(0, 10)}.jsonl`;
+  // iPad Safari's blob downloads often stall; prefer the share sheet (Files, AirDrop…) when it exists
+  try {
+    const file = new File([text], name, { type: 'text/plain' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); stat('stMsg', 'shared'); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+};
+$('bCopy').onclick = async () => {
+  const text = await exportText();
+  try { await navigator.clipboard.writeText(text); stat('stMsg', `copied ${text.length.toLocaleString()} characters · ${text.split('\n').filter(Boolean).length} lines`); }
+  catch { const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;left:8px;top:60px;width:90vw;height:60vh;z-index:9'; document.body.appendChild(ta); ta.select(); stat('stMsg', 'select all and copy, then tap elsewhere'); ta.onblur = () => ta.remove(); }
 };
 $('bForget').onclick = async () => { if (confirm('Delete all saved training pairs on this device?')) { await idb.clear(); stat('stPairs', 0); } };
 
