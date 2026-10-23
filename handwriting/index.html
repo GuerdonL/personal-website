@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<title>Handwriting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fafaf9; --t0: #ffffff; --t1: #f5f5f4; --line: #e7e5e4; --line-strong: #a8a29e;
+    --ink: #292524; --faint: #a8a29e; --accent: #57534e; --sel: #2563eb; --ok: #16a34a; --warn: #b45309; --danger: #dc2626;
+    --inkpen: #1c1917; --chunk: #2563eb; --word: #16a34a; --speck: #dc2626; --rule: #b45309;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1917; --t0: #292524; --t1: #221f1d; --line: #3a3532; --line-strong: #78716c;
+      --ink: #e7e5e4; --faint: #78716c; --accent: #d6d3d1; --sel: #60a5fa; --ok: #4ade80; --warn: #fbbf24; --danger: #f87171;
+      --inkpen: #f5f5f4; --chunk: #60a5fa; --word: #4ade80; --speck: #f87171; --rule: #fbbf24;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; touch-action: none; }
+  body { background: var(--bg); color: var(--ink); font: 14px/1.35 Inter, system-ui, sans-serif; display: flex; flex-direction: column; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  #top { flex: none; padding: calc(8px + env(safe-area-inset-top, 0px)) 14px 8px; border-bottom: 1px solid var(--line); background: var(--t0); display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12.5px; color: var(--accent); }
+  .grp { display: flex; gap: 6px; align-items: center; }
+  .btn { padding: 5px 10px; border-radius: 7px; border: 1px solid var(--line-strong); background: var(--t0); color: var(--ink); font-size: 12.5px; }
+  .btn.pri { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  label.tg { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; }
+  label.tg input { margin: 0; accent-color: var(--sel); }
+  select { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--t0); border: 1px solid var(--line-strong); border-radius: 7px; padding: 4px 6px; }
+  #main { flex: 1; display: flex; min-height: 0; }
+  #stage { flex: 1; position: relative; min-width: 0; }
+  #cv { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: crosshair; }
+  #side { flex: none; width: 320px; border-left: 1px solid var(--line); background: var(--t0); overflow: auto; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); font-size: 13px; }
+  @media (max-width: 800px) { #main { flex-direction: column; } #side { width: auto; max-height: 40%; border-left: 0; border-top: 1px solid var(--line); } }
+  .chunk { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+  .chunk h4 { margin: 0 0 6px; font: 500 11px 'JetBrains Mono', monospace; color: var(--faint); text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; }
+  .ln { display: flex; gap: 6px; align-items: flex-start; margin: 4px 0; }
+  .ln .n { flex: none; width: 18px; font: 11px 'JetBrains Mono', monospace; color: var(--faint); padding-top: 6px; }
+  .ln textarea { flex: 1; font: inherit; color: var(--ink); background: var(--t1); border: 1px solid transparent; border-radius: 6px; padding: 5px 7px; resize: none; min-height: 30px; }
+  .ln textarea:focus { outline: none; border-color: var(--sel); background: var(--t0); }
+  .ln textarea.edited { border-color: var(--ok); }
+  .ln img { display: none; }
+  .chunk .act { display: flex; gap: 6px; margin-top: 6px; }
+  .chunk .act .btn { font-size: 11.5px; padding: 3px 8px; }
+  #status { flex: none; display: flex; gap: 14px; flex-wrap: wrap; padding: 6px 14px calc(6px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); font: 11.5px 'JetBrains Mono', ui-monospace, monospace; color: var(--faint); background: var(--t0); }
+  #status b { color: var(--accent); font-weight: 500; }
+  #prog { width: 120px; height: 6px; background: var(--t1); border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; }
+  #prog i { display: block; height: 100%; width: 0; background: var(--sel); }
+  #hint { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); color: var(--faint); font-size: 13px; text-align: center; pointer-events: none; max-width: 34em; line-height: 1.5; }
+  #hint kbd { font: 11px 'JetBrains Mono', monospace; border: 1px solid var(--line-strong); border-radius: 4px; padding: 0 4px; }
+  .empty { color: var(--faint); font-size: 12.5px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div id="top">
+  <div class="grp">
+    <button class="btn pri" id="bRec">Recognize</button>
+    <button class="btn" id="bUndo">Undo</button>
+    <button class="btn" id="bClear">Clear</button>
+  </div>
+  <div class="grp">
+    model <select id="model">
+      <option value="Xenova/trocr-small-handwritten">TrOCR small (≈80 MB)</option>
+      <option value="Xenova/trocr-base-handwritten">TrOCR base (≈350 MB, better)</option>
+    </select>
+    <button class="btn" id="bLoad">Load</button>
+  </div>
+  <div class="grp">
+    <label class="tg"><input type="checkbox" id="sChunks" checked> chunks</label>
+    <label class="tg"><input type="checkbox" id="sLines" checked> lines</label>
+    <label class="tg"><input type="checkbox" id="sWords"> words</label>
+    <label class="tg"><input type="checkbox" id="sText" checked> text</label>
+    <label class="tg"><input type="checkbox" id="sPen" checked> pen only</label>
+    <label class="tg"><input type="checkbox" id="sAuto"> auto</label>
+  </div>
+  <div class="grp">
+    <button class="btn" id="bExport">Export</button>
+    <button class="btn" id="bForget">Forget data</button>
+  </div>
+</div>
+<div id="main">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="hint">Write anything, anywhere — several blocks, at angles, with labels and stray marks.<br>Then press <kbd>Recognize</kbd> (or <kbd>Enter</kbd>). The first run downloads the model.</div>
+  </div>
+  <div id="side"><div class="empty">Recognized text appears here, one box per text block, one field per line. Fix any line and press <b>Save</b>: the corrected pairs are kept on this device as training data (Export downloads them).</div></div>
+</div>
+<div id="status">
+  <span>strokes <b id="stStrokes">0</b></span>
+  <span>model <b id="stModel">not loaded</b> <span id="prog"><i></i></span></span>
+  <span>layout <b id="stLayout">–</b></span>
+  <span>saved pairs <b id="stPairs">0</b></span>
+  <span id="stMsg"></span>
+</div>
+
+<script type="module">
+/* =========================================================================
+   /handwriting — free-form ink → text.
+
+   Pipeline (HW.analyze → HW.recognize):
+     1. specks & rules   tiny isolated marks and long straight lines are not text
+     2. chunks           spatio-temporal clustering of strokes into text blocks
+     3. orientation      per chunk, snapped to 15°, from the sharpness of the
+                         line-projection profile (plus the principal axis)
+     4. lines            clustering along the rotated vertical axis
+     5. words            adaptive gap threshold within each line
+     6. recognition      each line is rasterized (black on white, IAM-style) and
+                         read by a TrOCR vision-encoder / text-decoder model. The
+                         decoder is a language model over the whole line, so it
+                         disambiguates l/I/1 etc. from context itself.
+     7. correction       you edit a line and Save; (strokes, text) pairs are kept
+                         in IndexedDB for fine-tuning the recognizer on your hand.
+   ========================================================================= */
+const $ = id => document.getElementById(id);
+const stat = (id, v) => { $(id).textContent = v; };
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const median = a => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length & 1 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const pct = (a, q) => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); return s[clamp(Math.floor(q * (s.length - 1)), 0, s.length - 1)]; };
+
+/* ---- settings ---- */
+const LS_SET = 'hw.v1.settings';
+const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const settings = Object.assign({ chunks: true, lines: true, words: false, text: false, pen: true, auto: false, model: 'Xenova/trocr-small-handwritten' }, load(LS_SET, {}));
+
+/* ---- IndexedDB for training pairs ---- */
+const idb = {
+  db: null,
+  open() { return new Promise((res, rej) => { const r = indexedDB.open('hw', 1); r.onupgradeneeded = () => r.result.createObjectStore('pairs', { keyPath: 'id', autoIncrement: true }); r.onsuccess = () => { this.db = r.result; res(); }; r.onerror = () => rej(r.error); }); },
+  tx(mode) { return this.db.transaction('pairs', mode).objectStore('pairs'); },
+  add(o) { return new Promise((res, rej) => { const r = this.tx('readwrite').add(o); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  all() { return new Promise((res, rej) => { const r = this.tx('readonly').getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  count() { return new Promise((res, rej) => { const r = this.tx('readonly').count(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  clear() { return new Promise((res, rej) => { const r = this.tx('readwrite').clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }); },
+};
+
+/* =========================================================================
+   ink capture (with palm rejection and timestamps)
+   ========================================================================= */
+const cv = $('cv'), ctx = cv.getContext('2d'), hint = $('hint');
+let W = 0, H = 0, DPR = 1;
+let strokes = [];          // {pts:[{x,y,p,t}], t0, t1, src}
+let redo = [];
+let live = null;
+let layout = null;         // output of analyze()
+let recog = null;          // chunkIndex → lines → text
+function resize() { const r = cv.getBoundingClientRect(); DPR = Math.min(3, devicePixelRatio || 1); W = r.width; H = r.height; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); render(); }
+addEventListener('resize', resize);
+const pos = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, p: e.pointerType === 'mouse' ? 0.5 : (e.pressure || 0.5), t: Date.now() }; };
+const PEN_GRACE = 1500, PALM_LOOKBACK = 700, PALM_SIZE = 22; let lastPen = -Infinity;
+for (const ev of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) document.addEventListener(ev, e => { if (e.target === cv || live || performance.now() - lastPen < PEN_GRACE) e.preventDefault(); }, { passive: false });
+cv.addEventListener('gesturestart', e => e.preventDefault());
+function isPalm(e) { if (e.pointerType !== 'touch') return false; if (settings.pen) return true; if (performance.now() - lastPen < PEN_GRACE) return true; return Math.max(e.width || 0, e.height || 0) > PALM_SIZE; }
+cv.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'pen') lastPen = performance.now();
+  if (e.button !== 0 && e.pointerType === 'mouse') return;
+  if (isPalm(e)) return;
+  if (live) { if (e.pointerType === 'pen' && live.type === 'touch') { try { cv.releasePointerCapture(live.id); } catch {} live = null; } else return; }
+  if (e.pointerType === 'pen') { const cut = Date.now() - PALM_LOOKBACK; strokes = strokes.filter(s => !(s.src === 'touch' && s.t1 > cut)); }
+  try { cv.setPointerCapture(e.pointerId); } catch {}
+  live = { pts: [pos(e)], id: e.pointerId, type: e.pointerType };
+  hint.style.display = 'none'; render();
+});
+cv.addEventListener('pointermove', e => {
+  if (e.pointerType === 'pen') lastPen = performance.now();
+  if (!live || e.pointerId !== live.id) return;
+  let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : null; if (!evs || !evs.length) evs = [e];
+  for (const ev of evs) { const p = pos(ev), q = live.pts[live.pts.length - 1]; if (Math.hypot(p.x - q.x, p.y - q.y) >= 0.7) live.pts.push(p); }
+  renderLive();
+});
+let autoTimer = null;
+const endStroke = e => {
+  if (e.pointerType === 'pen') lastPen = performance.now();
+  if (!live || e.pointerId !== live.id) return;
+  const s = live; live = null;
+  if (s.type === 'touch' && s.pts.length < 4) { render(); return; }
+  if (s.pts.length === 1) s.pts.push({ ...s.pts[0], x: s.pts[0].x + 0.5 });
+  strokes.push({ pts: s.pts, t0: s.pts[0].t, t1: s.pts[s.pts.length - 1].t, src: s.type }); redo = [];
+  stat('stStrokes', strokes.length); layout = analyze(); render();
+  if (settings.auto) { clearTimeout(autoTimer); autoTimer = setTimeout(() => recognizeAll(), 1500); }
+};
+cv.addEventListener('pointerup', endStroke); cv.addEventListener('pointercancel', endStroke);
+cv.addEventListener('lostpointercapture', e => { if (live && e.pointerId === live.id) endStroke(e); });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+
+/* =========================================================================
+   geometry
+   ========================================================================= */
+function bbox(pts) { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const p of pts) { if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y; } return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 }; }
+function boxGap(a, b) { const dx = Math.max(0, Math.max(a.x0, b.x0) - Math.min(a.x1, b.x1)), dy = Math.max(0, Math.max(a.y0, b.y0) - Math.min(a.y1, b.y1)); return Math.hypot(dx, dy); }
+function pathLen(pts) { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); return l; }
+function rot(p, th) { const c = Math.cos(th), s = Math.sin(th); return { x: c * p.x - s * p.y, y: s * p.x + c * p.y }; }
+class UF { constructor(n) { this.p = Array.from({ length: n }, (_, i) => i); } f(i) { while (this.p[i] !== i) { this.p[i] = this.p[this.p[i]]; i = this.p[i]; } return i; } u(a, b) { a = this.f(a); b = this.f(b); if (a !== b) this.p[a] = b; } }
+
+/* =========================================================================
+   1–5. layout analysis
+   ========================================================================= */
+function analyze() {
+  const n = strokes.length; if (!n) return null;
+  const S = strokes.map((s, i) => ({ i, s, b: bbox(s.pts), len: pathLen(s.pts) }));
+  // characteristic size: the typical height of a "real" stroke (80th percentile, so dots don't drag it down)
+  const hs = S.map(o => Math.max(o.b.w, o.b.h)); const size = Math.max(10, 0.8 * pct(hs, 0.8));
+
+  // 1. specks: tiny marks with nothing nearby. rules: very long, very straight strokes.
+  for (const o of S) {
+    const tiny = Math.max(o.b.w, o.b.h) < 0.12 * size;
+    if (tiny) { let near = false; for (const q of S) { if (q === o) continue; if (boxGap(o.b, q.b) < 1.2 * size) { near = true; break; } } o.kind = near ? 'ink' : 'speck'; continue; }
+    const chord = Math.hypot(o.b.w, o.b.h); const straight = chord / Math.max(1e-6, o.len);
+    o.kind = (chord > 5 * size && straight > 0.985) ? 'rule' : 'ink';
+  }
+  const ink = S.filter(o => o.kind === 'ink');
+
+  // 2. chunks: strokes join a chunk if they are near in space; a long pause makes the
+  //    spatial requirement stricter (edits touch the old text, new blocks tend not to).
+  const uf = new UF(n);
+  for (let a = 0; a < ink.length; a++) for (let b = a + 1; b < ink.length; b++) {
+    const A = ink[a], B = ink[b]; const g = boxGap(A.b, B.b);
+    const dt = Math.abs(A.s.t0 - B.s.t1) / 1000, dt2 = Math.abs(B.s.t0 - A.s.t1) / 1000; const pause = Math.min(dt, dt2);
+    const thr = pause > 600 ? 1.0 * size : pause > 120 ? 1.6 * size : 2.4 * size;
+    if (g < thr) uf.u(A.i, B.i);
+  }
+  const groups = new Map(); for (const o of ink) { const r = uf.f(o.i); (groups.get(r) || groups.set(r, []).get(r)).push(o); }
+  let chunks = [];
+  for (const members of groups.values()) {
+    const c = buildChunk(members, size); if (c) chunks.push(c);
+  }
+  // A few strokes alone ("Fig 2") cannot tell their own orientation. The page can:
+  // small chunks adopt the dominant angle of the big ones unless their own evidence
+  // clearly says otherwise.
+  const votes = {}; for (const c of chunks) if (c.members.length >= 12) votes[c.deg] = (votes[c.deg] || 0) + c.members.length;
+  const dom = Object.keys(votes).length ? +Object.entries(votes).sort((a, b) => b[1] - a[1])[0][0] : 0;
+  chunks = chunks.map(c => (c.members.length < 12 && c.deg !== dom && c.scores[dom] >= 0.7 * c.scores[c.deg]) ? buildChunk(c.members, size, dom) : c);
+  // reading order: top-left first (by the chunk's own rotated frame origin, then screen position)
+  chunks.sort((a, b) => (a.b.y0 - b.b.y0) || (a.b.x0 - b.b.x0));
+  chunks.forEach((c, i) => c.idx = i);
+  return { S, size, chunks, specks: S.filter(o => o.kind === 'speck'), rules: S.filter(o => o.kind === 'rule') };
+}
+
+function buildChunk(members, gsize, forceDeg) {
+  // chunk-local scale: a label can be far smaller than the body text
+  const size = Math.max(8, 0.8 * pct(members.map(o => Math.max(o.b.w, o.b.h)), 0.8));
+  const pts = []; for (const o of members) for (const p of o.s.pts) pts.push(p);
+  const b = bbox(pts);
+  // 3. orientation. Candidate angles every 15°; the text direction is the one whose
+  //    perpendicular projection is sharpest (text lines pile up into peaks). For a
+  //    single short line that is ambiguous, so the principal axis breaks ties.
+  let cx = 0, cy = 0; for (const p of pts) { cx += p.x; cy += p.y; } cx /= pts.length; cy /= pts.length;
+  let sxx = 0, sxy = 0, syy = 0; for (const p of pts) { const x = p.x - cx, y = p.y - cy; sxx += x * x; sxy += x * y; syy += y * y; }
+  const pca = 0.5 * Math.atan2(2 * sxy, sxx - syy);           // principal axis angle (radians, screen coords)
+  const elong = (sxx + syy) > 0 ? Math.abs(sxx - syy) / (sxx + syy) : 0;
+  let best = null; const scores = {};
+  const sub = pts.filter((_, i) => i % 3 === 0);
+  for (let deg = -75; deg <= 90; deg += 15) {
+    const th = deg * Math.PI / 180;                              // rotate by -th to make text horizontal
+    const ys = sub.map(p => rot(p, -th).y).sort((a, b) => a - b);
+    // scale-free peakiness: the largest share of ink that fits in a band 0.9·size tall.
+    // At the true angle one text line's x-height band holds most of its ink; off-angle
+    // the lines smear across each other.
+    let j = 0, bestFrac = 0; const win = 0.9 * size;
+    for (let i = 0; i < ys.length; i++) { while (ys[i] - ys[j] > win) j++; if (i - j + 1 > bestFrac) bestFrac = i - j + 1; }
+    let score = bestFrac / ys.length;
+    const dpca = Math.abs(Math.atan2(Math.sin(th - pca), Math.cos(th - pca)));   // distance to principal axis (mod π)
+    score *= 1 + 0.35 * elong * Math.cos(2 * dpca);              // elongated chunks prefer their long axis
+    if (deg === 0) score *= members.length < 12 ? 1.3 : 1.1;    // prior for horizontal, stronger when there is little evidence
+    scores[deg] = score;
+    if (!best || score > best.score) best = { deg, th, score };
+  }
+  if (forceDeg != null) best = { deg: forceDeg, th: forceDeg * Math.PI / 180, score: scores[forceDeg] };
+  const th = best.th;
+  // rotated frame
+  for (const o of members) { o.rp = o.s.pts.map(p => rot(p, -th)); o.rb = bbox(o.rp); }
+  // 4. lines: valleys of the vertical ink-density profile. Dots and bars carry little
+  //    ink, so they cannot chain neighbouring lines together the way centre-clustering does.
+  const rp = members.flatMap(o => o.rp); const ry0 = Math.min(...rp.map(p => p.y)), ry1 = Math.max(...rp.map(p => p.y));
+  const bin = Math.max(1.5, size / 10), nb = Math.ceil((ry1 - ry0) / bin) + 1; const hist = new Float32Array(nb);
+  for (const p of rp) hist[Math.floor((p.y - ry0) / bin)]++;
+  const R = Math.max(1, Math.round(size * 0.25 / bin)); const sm = new Float32Array(nb);
+  for (let i = 0; i < nb; i++) { let a = 0, k = 0; for (let d = -R; d <= R; d++) { const j = i + d; if (j >= 0 && j < nb) { a += hist[j]; k++; } } sm[i] = a / k; }
+  // peaks with a clear valley between them
+  const smax = Math.max(...sm);
+  const peaks = []; for (let i = 0; i < nb; i++) if (sm[i] > 0.3 * smax && (i === 0 || sm[i] >= sm[i - 1]) && (i === nb - 1 || sm[i] > sm[i + 1])) peaks.push(i);
+  const cuts = [];
+  for (let k = 1; k < peaks.length; k++) {
+    const a = peaks[k - 1], b = peaks[k]; let mi = a, mv = Infinity; for (let i = a; i <= b; i++) if (sm[i] < mv) { mv = sm[i]; mi = i; }
+    const lo = Math.min(sm[a], sm[b]);
+    if (mv < 0.55 * lo && (b - a) * bin > 0.8 * size) cuts.push(mi);
+  }
+  // a peak pair without a deep enough valley is one line; merge cuts closer than a line height
+  const edges = [-Infinity, ...cuts.map(i => ry0 + (i + 0.5) * bin), Infinity];
+  let lines = edges.slice(0, -1).map(() => ({ members: [] }));
+  for (const o of members) { let k = 0; while (o.rb.cy >= edges[k + 1]) k++; lines[k].members.push(o); }
+  lines = lines.filter(L => L.members.length);
+  for (const L of lines) { L.y0 = Math.min(...L.members.map(o => o.rb.y0)); L.y1 = Math.max(...L.members.map(o => o.rb.y1)); }
+  // small marks whose centre fell on the wrong side of a cut (an i-dot above its line) rejoin the nearer line
+  const Hl = median(lines.map(L => L.y1 - L.y0));
+  for (let i = 0; i < lines.length && lines.length > 1; i++) {
+    const L = lines[i]; if (L.y1 - L.y0 >= 0.45 * Hl) continue;
+    const cand = [lines[i - 1], lines[i + 1]].filter(Boolean).map(M => ({ M, d: Math.min(Math.abs(M.y0 - L.y1), Math.abs(L.y0 - M.y1)) })).sort((a, b) => a.d - b.d)[0];
+    if (cand && cand.d < 1.5 * (cand.M.y1 - cand.M.y0)) { cand.M.members.push(...L.members); cand.M.y0 = Math.min(cand.M.y0, L.y0); cand.M.y1 = Math.max(cand.M.y1, L.y1); lines.splice(i, 1); i--; }
+  }
+  // 5. words: sort strokes by rotated x; gaps between consecutive stroke boxes; threshold
+  //    adapts to the line (letter gaps vs word gaps are usually bimodal).
+  for (const L of lines) {
+    L.members.sort((a, b) => a.rb.x0 - b.rb.x0);
+    const xs = L.members.flatMap(o => o.rp.map(p => p.x)), ys = L.members.flatMap(o => o.rp.map(p => p.y));
+    L.x0 = Math.min(...xs); L.x1 = Math.max(...xs); L.y0 = Math.min(...ys); L.y1 = Math.max(...ys);
+    L.xh = Math.max(6, (L.y1 - L.y0) * 0.45);
+    const gaps = []; let reach = -Infinity;
+    for (const o of L.members) { if (reach > -Infinity) gaps.push(Math.max(0, o.rb.x0 - reach)); reach = Math.max(reach, o.rb.x1); }
+    let thr = 0.55 * (L.y1 - L.y0);
+    const pos = gaps.filter(g => g > 1).sort((a, b) => a - b);
+    if (pos.length >= 3) {                                        // largest relative jump in sorted gaps → threshold
+      let bi = -1, br = 1.8; for (let i = 1; i < pos.length; i++) { const r = pos[i] / Math.max(1, pos[i - 1]); if (r > br && pos[i] > 0.25 * (L.y1 - L.y0)) { br = r; bi = i; } }
+      if (bi > 0) thr = (pos[bi] + pos[bi - 1]) / 2;
+    }
+    L.words = []; let w = null; reach = -Infinity;
+    L.members.forEach((o, i) => {
+      const gap = i ? Math.max(0, o.rb.x0 - reach) : 0;
+      if (!w || gap > thr) { w = { members: [] }; L.words.push(w); }
+      w.members.push(o); reach = Math.max(reach, o.rb.x1);
+    });
+    for (const w of L.words) { const b2 = bbox(w.members.flatMap(o => o.rp)); Object.assign(w, b2); }
+    L.t0 = Math.min(...L.members.map(o => o.s.t0)); L.t1 = Math.max(...L.members.map(o => o.s.t1));
+  }
+  lines.sort((a, b) => a.y0 - b.y0);
+  const t0 = Math.min(...members.map(o => o.s.t0)), t1 = Math.max(...members.map(o => o.s.t1));
+  return { members, b, th, deg: best.deg, scores, lines, t0, t1, size };
+}
+
+/* =========================================================================
+   6. rasterize a line and recognize it
+   ========================================================================= */
+function rasterizeLine(L, chunk) {
+  // IAM-style: dark ink on white, generous margins, pen width relative to line height
+  const h = L.y1 - L.y0, w = L.x1 - L.x0; const target = 96, pad = 14;
+  const sc = (target - 2 * pad) / Math.max(h, 1); const cw = Math.max(64, Math.round(w * sc + 2 * pad)), ch = target;
+  const c = document.createElement('canvas'); c.width = cw; c.height = ch; const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, cw, ch); g.strokeStyle = '#000'; g.lineCap = 'round'; g.lineJoin = 'round';
+  g.lineWidth = clamp(h * sc * 0.055, 2, 5);
+  for (const o of L.members) { g.beginPath(); o.rp.forEach((p, i) => { const x = pad + (p.x - L.x0) * sc, y = pad + (p.y - L.y0) * sc; i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); }
+  return c;
+}
+
+let tjs = null, pipe = null, loadedModel = null, loading = false;
+async function ensureModel() {
+  if (pipe && loadedModel === settings.model) return pipe;
+  if (loading) throw new Error('model is still loading');
+  loading = true; stat('stModel', 'loading…'); $('prog').firstElementChild.style.width = '0';
+  try {
+    if (!tjs) tjs = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3');
+    const files = new Map();
+    const progress_callback = p => { if (p.status === 'progress' && p.file) { files.set(p.file, [p.loaded || 0, p.total || 0]); let l = 0, t = 0; for (const [a, b] of files.values()) { l += a; t += b; } if (t) $('prog').firstElementChild.style.width = Math.round(100 * l / t) + '%'; } };
+    let dev = 'wasm';
+    try { if (navigator.gpu && await navigator.gpu.requestAdapter()) dev = 'webgpu'; } catch {}
+    try { pipe = await tjs.pipeline('image-to-text', settings.model, { dtype: 'q8', device: dev, progress_callback }); }
+    catch (e) { if (dev === 'webgpu') { console.warn('webgpu failed, falling back to wasm', e); pipe = await tjs.pipeline('image-to-text', settings.model, { dtype: 'q8', device: 'wasm', progress_callback }); } else throw e; }
+    loadedModel = settings.model; stat('stModel', settings.model.split('/')[1] + ' · ' + (pipe.model?.sessions ? Object.values(pipe.model.sessions)[0]?.config?.executionProviders?.[0] || dev : dev));
+    $('prog').firstElementChild.style.width = '100%';
+    return pipe;
+  } catch (e) { stat('stModel', 'failed'); stat('stMsg', 'model load failed: ' + (e.message || e)); throw e; }
+  finally { loading = false; }
+}
+async function recognizeLine(L, chunk) {
+  const c = rasterizeLine(L, chunk);
+  if (window.HW_MOCK) return window.HW_MOCK(L, chunk, c);
+  const p = await ensureModel();
+  const out = await p(c.toDataURL('image/png'), { max_new_tokens: 64 });
+  const txt = (Array.isArray(out) ? out[0]?.generated_text : out?.generated_text) || '';
+  return txt.trim();
+}
+let busy = false;
+async function recognizeAll() {
+  if (busy || !layout) return; busy = true; $('bRec').disabled = true;
+  const t0 = performance.now(); let nl = 0;
+  recog = recog || new Map();
+  try {
+    for (const c of layout.chunks) for (const L of c.lines) {
+      const key = lineKey(L); if (recog.has(key)) continue;
+      stat('stMsg', `reading line ${++nl}…`); renderSide();
+      try { recog.set(key, { text: await recognizeLine(L, c), edited: false }); } catch (e) { recog.set(key, { text: '', error: String(e.message || e) }); stat('stMsg', 'recognition error: ' + (e.message || e)); break; }
+      renderSide(); render();
+    }
+    stat('stMsg', nl ? `${nl} line${nl > 1 ? 's' : ''} in ${Math.round(performance.now() - t0)} ms` : 'nothing new to read');
+  } finally { busy = false; $('bRec').disabled = false; renderSide(); render(); }
+}
+// a line is identified by the strokes in it, so edits elsewhere don't invalidate it
+function lineKey(L) { return L.members.map(o => o.i + ':' + o.s.t0).join(','); }
+
+/* =========================================================================
+   rendering
+   ========================================================================= */
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function drawStroke(s, alpha, color) {
+  ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = color || css('--inkpen'); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const P = s.pts; for (let i = 1; i < P.length; i++) { ctx.beginPath(); ctx.lineWidth = 1.1 + 2.4 * ((P[i - 1].p + P[i].p) / 2); ctx.moveTo(P[i - 1].x, P[i - 1].y); ctx.lineTo(P[i].x, P[i].y); ctx.stroke(); }
+  ctx.restore();
+}
+function rotRect(x0, y0, x1, y1, th) { // rect in rotated frame → screen polygon
+  return [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }].map(p => rot(p, th));
+}
+function poly(P) { ctx.beginPath(); P.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); }
+function render() {
+  ctx.clearRect(0, 0, W, H);
+  const kinds = new Map(); if (layout) for (const o of layout.S) kinds.set(o.i, o.kind);
+  strokes.forEach((s, i) => { const k = kinds.get(i); drawStroke(s, k === 'speck' ? 0.35 : 0.92, k === 'speck' ? css('--speck') : k === 'rule' ? css('--rule') : null); });
+  if (!layout) return;
+  const pad = layout.size * 0.3;
+  for (const c of layout.chunks) {
+    if (settings.chunks) {
+      const xs = c.members.flatMap(o => o.rp.map(p => p.x)), ys = c.members.flatMap(o => o.rp.map(p => p.y));
+      ctx.save(); ctx.strokeStyle = css('--chunk'); ctx.lineWidth = 1.2; ctx.setLineDash([5, 4]); ctx.globalAlpha = 0.7;
+      poly(rotRect(Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad, c.th)); ctx.stroke(); ctx.restore();
+      const tl = rot({ x: Math.min(...xs) - pad, y: Math.min(...ys) - pad }, c.th);
+      ctx.save(); ctx.fillStyle = css('--chunk'); ctx.font = '10px JetBrains Mono, monospace'; ctx.fillText(`#${c.idx + 1}${c.deg ? ' ' + c.deg + '°' : ''}`, tl.x, tl.y - 4); ctx.restore();
+    }
+    for (const L of c.lines) {
+      if (settings.lines) { ctx.save(); ctx.strokeStyle = css('--chunk'); ctx.lineWidth = 1; ctx.globalAlpha = 0.35; poly(rotRect(L.x0 - 3, L.y0 - 3, L.x1 + 3, L.y1 + 3, c.th)); ctx.stroke(); ctx.restore(); }
+      if (settings.words) for (const w of L.words) { ctx.save(); ctx.strokeStyle = css('--word'); ctx.lineWidth = 1; ctx.globalAlpha = 0.6; poly(rotRect(w.x0 - 2, w.y0 - 2, w.x1 + 2, w.y1 + 2, c.th)); ctx.stroke(); ctx.restore(); }
+      const r = recog && recog.get(lineKey(L));
+      if (settings.text && r && r.text) {
+        const a = rot({ x: L.x1 + 8, y: L.y0 + (L.y1 - L.y0) * 0.3 }, c.th);
+        ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(c.th); ctx.fillStyle = r.edited ? css('--ok') : css('--chunk'); ctx.font = `${clamp((L.y1 - L.y0) * 0.35, 10, 16)}px Inter, system-ui, sans-serif`; ctx.textBaseline = 'top'; ctx.globalAlpha = 0.9; ctx.fillText(r.text, 0, 0); ctx.restore();
+      }
+    }
+  }
+}
+function renderLive() { if (!live) return; render(); drawStroke(live, 0.92); }
+function renderSide() {
+  const side = $('side');
+  if (!layout || !layout.chunks.length) { side.innerHTML = '<div class="empty">Recognized text appears here, one box per text block, one field per line. Fix any line and press <b>Save</b>: the corrected pairs are kept on this device as training data (Export downloads them).</div>'; return; }
+  const frag = document.createDocumentFragment();
+  for (const c of layout.chunks) {
+    const d = document.createElement('div'); d.className = 'chunk';
+    const when = new Date(c.t0).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    d.innerHTML = `<h4><span>block ${c.idx + 1} · ${c.lines.length} line${c.lines.length > 1 ? 's' : ''}${c.deg ? ' · ' + c.deg + '°' : ''}</span><span>${when}</span></h4>`;
+    c.lines.forEach((L, li) => {
+      const r = recog && recog.get(lineKey(L));
+      const row = document.createElement('div'); row.className = 'ln';
+      row.innerHTML = `<span class="n">${li + 1}</span>`;
+      const ta = document.createElement('textarea'); ta.rows = 1; ta.value = r ? r.text : ''; ta.placeholder = r && r.error ? 'error' : busy ? '…' : 'not read yet';
+      if (r && r.edited) ta.classList.add('edited');
+      ta.addEventListener('input', () => { ta.classList.add('edited'); ta.rows = Math.max(1, Math.ceil(ta.value.length / 36)); });
+      ta.addEventListener('change', () => { recog = recog || new Map(); recog.set(lineKey(L), { text: ta.value.trim(), edited: true, model: r && r.text }); render(); });
+      row.appendChild(ta); d.appendChild(row);
+    });
+    const act = document.createElement('div'); act.className = 'act';
+    const bs = document.createElement('button'); bs.className = 'btn'; bs.textContent = 'Save as training data'; bs.onclick = () => savePairs(c);
+    const bc = document.createElement('button'); bc.className = 'btn'; bc.textContent = 'Copy text'; bc.onclick = () => { navigator.clipboard?.writeText(c.lines.map(L => (recog && recog.get(lineKey(L))?.text) || '').join('\n')); stat('stMsg', 'copied'); };
+    act.append(bs, bc); d.appendChild(act); frag.appendChild(d);
+  }
+  side.innerHTML = ''; side.appendChild(frag);
+}
+
+/* =========================================================================
+   7. training data
+   ========================================================================= */
+async function savePairs(c) {
+  let n = 0;
+  for (const L of c.lines) {
+    const r = recog && recog.get(lineKey(L)); if (!r || !r.text) continue;
+    const sc = 1 / Math.max(1, L.y1 - L.y0);   // line-normalised coordinates: height 1, origin at the line's top-left
+    const st = L.members.map(o => ({ t0: o.s.t0, pts: o.rp.map(p => [+((p.x - L.x0) * sc).toFixed(4), +((p.y - L.y0) * sc).toFixed(4), +p.p.toFixed(2)]) }));
+    await idb.add({ ts: Date.now(), text: r.text, model_text: r.edited ? (r.model || null) : r.text, edited: !!r.edited, deg: c.deg, device: navigator.userAgent.slice(0, 40), strokes: st });
+    n++;
+  }
+  stat('stPairs', await idb.count()); stat('stMsg', `saved ${n} line pair${n === 1 ? '' : 's'}`);
+}
+$('bExport').onclick = async () => {
+  const pairs = await idb.all();
+  const blob = new Blob([pairs.map(p => JSON.stringify(p)).join('\n')], { type: 'application/x-ndjson' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `handwriting-pairs-${new Date().toISOString().slice(0, 10)}.jsonl`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+$('bForget').onclick = async () => { if (confirm('Delete all saved training pairs on this device?')) { await idb.clear(); stat('stPairs', 0); } };
+
+/* =========================================================================
+   wiring
+   ========================================================================= */
+$('bRec').onclick = recognizeAll;
+$('bLoad').onclick = () => ensureModel().catch(() => {});
+$('model').value = settings.model; $('model').onchange = e => { settings.model = e.target.value; save(LS_SET, settings); };
+$('bUndo').onclick = () => { if (strokes.length) { redo.push(strokes.pop()); stat('stStrokes', strokes.length); layout = analyze(); render(); renderSide(); } };
+$('bClear').onclick = () => { strokes = []; redo = []; layout = null; recog = null; stat('stStrokes', 0); stat('stLayout', '–'); hint.style.display = ''; render(); renderSide(); };
+for (const [id, k] of [['sChunks', 'chunks'], ['sLines', 'lines'], ['sWords', 'words'], ['sText', 'text'], ['sPen', 'pen'], ['sAuto', 'auto']]) { $(id).checked = settings[k]; $(id).onchange = e => { settings[k] = e.target.checked; save(LS_SET, settings); render(); }; }
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) { if (redo.length) { strokes.push(redo.pop()); layout = analyze(); render(); } } else $('bUndo').click(); }
+  else if (e.key === 'Enter') { e.preventDefault(); recognizeAll(); }
+});
+const _analyze = analyze;
+analyze = function () { const t = performance.now(); const L = _analyze(); if (L) stat('stLayout', `${L.chunks.length} block${L.chunks.length === 1 ? '' : 's'} · ${L.chunks.reduce((a, c) => a + c.lines.length, 0)} lines · ${L.specks.length} specks · ${Math.round(performance.now() - t)} ms`); renderSide(); return L; };
+idb.open().then(async () => stat('stPairs', await idb.count())).catch(() => {});
+resize();
+window.HW = { get strokes() { return strokes; }, set strokes(v) { strokes = v; recog = null; stat('stStrokes', v.length); hint.style.display = v.length ? 'none' : ''; layout = analyze(); render(); }, get layout() { return layout; }, analyze: () => (layout = analyze()), recognizeAll, rasterizeLine, get recog() { return recog; } };
+</script>
+</body>
+</html>
