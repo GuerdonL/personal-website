@@ -20,6 +20,14 @@ def usable(r):
     if len(r.get('strokes', [])) < 3: return False                 # stray marks
     t = norm(r.get('text', ''))
     if len(t) < 2 or not any(c.isalpha() for c in t): return False  # no letters → not a real line
+    # A line whose strokes drift up or down along its length was two pieces of text at
+    # different angles merged by the layout stage; the crop is half-sideways. Skip it.
+    cs = [(sum(p[0] for p in s['pts']) / len(s['pts']), sum(p[1] for p in s['pts']) / len(s['pts'])) for s in r['strokes'] if s['pts']]
+    cs.sort(); n = len(cs)
+    if n >= 6:
+        a = sum(y for _, y in cs[: n // 3]) / (n // 3); b = sum(y for _, y in cs[-(n // 3):]) / (n // 3)
+        dx = cs[-1][0] - cs[0][0]
+        if dx > 0 and abs(b - a) / dx > 0.25: return False          # > ~14° of drift across the line (coords are height-normalised)
     return True
 
 def render(strokes, H=128, pad=18, slant=0.0, scale=1.0, rot=0.0, width=None, jitter=0.0, rng=None):
