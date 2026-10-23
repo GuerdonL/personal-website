@@ -25,7 +25,7 @@
     }
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
+  html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; touch-action: none; }
   body { background: var(--bg); color: var(--ink); font: 14px/1.35 Inter, system-ui, sans-serif; display: flex; flex-direction: column; }
   button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
@@ -154,17 +154,55 @@ function resize() {
 window.addEventListener('resize', resize);
 
 const pos = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, p: e.pointerType === 'mouse' ? 0.5 : (e.pressure || 0.5) }; };
+
+/* ---- palm rejection ----
+   1. The browser must never see a finger/palm as a gesture: touch events on the page
+      are swallowed (non-passive preventDefault), otherwise iPadOS/Android cancel the
+      pen pointer the moment the heel of your hand lands.
+   2. While a pen is down, or for PEN_GRACE ms after it lifts, touch pointers are ignored
+      outright (even with "pen only" off).
+   3. A touch contact with a big footprint (width/height) is a palm, never a pen tip.
+   4. If a pen stroke starts while a touch stroke is live, the touch stroke was the palm:
+      it is discarded and the pen takes over. Touch strokes committed in the last
+      PALM_LOOKBACK ms are also removed when the pen starts.
+   5. Only one pointer draws at a time; a second simultaneous contact never starts a stroke. */
+const PEN_GRACE = 1500, PALM_LOOKBACK = 700, PALM_SIZE = 22;
+let lastPen = -Infinity;          // time the pen was last seen
+for (const ev of ['touchstart', 'touchmove', 'touchend', 'touchcancel'])
+  document.addEventListener(ev, e => { if (e.target === cv || live || performance.now() - lastPen < PEN_GRACE) e.preventDefault(); }, { passive: false });
+cv.addEventListener('gesturestart', e => e.preventDefault());
+cv.addEventListener('gesturechange', e => e.preventDefault());
+
+function isPalm(e) {
+  if (e.pointerType !== 'touch') return false;
+  if (settings.pen) return true;
+  if (performance.now() - lastPen < PEN_GRACE) return true;
+  if (Math.max(e.width || 0, e.height || 0) > PALM_SIZE) return true;
+  return false;
+}
 cv.addEventListener('pointerdown', e => {
-  if (e.pointerType === 'touch' && settings.pen) return;
+  if (e.pointerType === 'pen') lastPen = performance.now();
   if (e.button !== 0 && e.pointerType === 'mouse') return;
-  cv.setPointerCapture(e.pointerId);
-  live = { pts: [pos(e)], id: e.pointerId };
+  if (isPalm(e)) return;
+  if (live) {
+    // a pen arriving on top of a live touch stroke means the touch was the palm
+    if (e.pointerType === 'pen' && live.type === 'touch') { try { cv.releasePointerCapture(live.id); } catch {} live = null; }
+    else return;                                   // never draw with two pointers at once
+  }
+  if (e.pointerType === 'pen') {
+    // palm contacts usually land a beat before the pen: drop very recent touch strokes
+    const cut = performance.now() - PALM_LOOKBACK; let n = strokes.length;
+    strokes = strokes.filter(s => !(s.src === 'touch' && s.t > cut)); if (strokes.length !== n) stat('stStrokes', strokes.length);
+  }
+  try { cv.setPointerCapture(e.pointerId); } catch {}
+  live = { pts: [pos(e)], id: e.pointerId, type: e.pointerType, t0: performance.now() };
   fitResult = null; hint.style.display = 'none';
   render();
 });
 cv.addEventListener('pointermove', e => {
+  if (e.pointerType === 'pen') lastPen = performance.now();
   if (!live || e.pointerId !== live.id) return;
-  const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+  let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : null; if (!evs || !evs.length) evs = [e];
   for (const ev of evs) {
     const p = pos(ev), q = live.pts[live.pts.length - 1];
     if (Math.hypot(p.x - q.x, p.y - q.y) >= 0.7) live.pts.push(p);
@@ -172,13 +210,18 @@ cv.addEventListener('pointermove', e => {
   renderLive();
 });
 const endStroke = e => {
+  if (e.pointerType === 'pen') lastPen = performance.now();
   if (!live || e.pointerId !== live.id) return;
-  if (live.pts.length === 1) live.pts.push({ ...live.pts[0], x: live.pts[0].x + 0.5 });
-  strokes.push({ pts: live.pts }); redo = []; live = null;
+  const s = live; live = null;
+  // a touch "stroke" that barely moved is a resting finger, not ink
+  if (s.type === 'touch' && s.pts.length < 4) { render(); return; }
+  if (s.pts.length === 1) s.pts.push({ ...s.pts[0], x: s.pts[0].x + 0.5 });
+  strokes.push({ pts: s.pts, src: s.type, t: performance.now() }); redo = [];
   stat('stStrokes', strokes.length); render();
 };
 cv.addEventListener('pointerup', endStroke);
 cv.addEventListener('pointercancel', endStroke);
+cv.addEventListener('lostpointercapture', e => { if (live && e.pointerId === live.id) endStroke(e); });
 cv.addEventListener('contextmenu', e => e.preventDefault());
 
 /* =========================================================================
