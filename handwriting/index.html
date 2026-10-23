@@ -44,7 +44,7 @@
   .ln textarea { flex: 1; font: inherit; color: var(--ink); background: var(--t1); border: 1px solid transparent; border-radius: 6px; padding: 5px 7px; resize: none; min-height: 30px; }
   .ln textarea:focus { outline: none; border-color: var(--sel); background: var(--t0); }
   .ln textarea.edited { border-color: var(--ok); }
-  .ln img { display: none; }
+  .ln .crop { display: block; max-width: 100%; height: 34px; margin: 2px 0 0 24px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
   .chunk .act { display: flex; gap: 6px; margin-top: 6px; }
   .chunk .act .btn { font-size: 11.5px; padding: 3px 8px; }
   #status { flex: none; display: flex; gap: 14px; flex-wrap: wrap; padding: 6px 14px calc(6px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); font: 11.5px 'JetBrains Mono', ui-monospace, monospace; color: var(--faint); background: var(--t0); }
@@ -60,6 +60,7 @@
 <div id="top">
   <div class="grp">
     <button class="btn pri" id="bRec">Recognize</button>
+    <button class="btn" id="bReread" title="Read every line again, ignoring previous results">Re-read</button>
     <button class="btn" id="bUndo">Undo</button>
     <button class="btn" id="bClear">Clear</button>
   </div>
@@ -74,7 +75,8 @@
     <label class="tg"><input type="checkbox" id="sChunks" checked> chunks</label>
     <label class="tg"><input type="checkbox" id="sLines" checked> lines</label>
     <label class="tg"><input type="checkbox" id="sWords"> words</label>
-    <label class="tg"><input type="checkbox" id="sText" checked> text</label>
+    <label class="tg"><input type="checkbox" id="sText"> text</label>
+    <label class="tg"><input type="checkbox" id="sCrops" checked> crops</label>
     <label class="tg"><input type="checkbox" id="sPen" checked> pen only</label>
     <label class="tg"><input type="checkbox" id="sAuto"> auto</label>
   </div>
@@ -126,7 +128,7 @@ const pct = (a, q) => { if (!a.length) return 0; const s = [...a].sort((x, y) =>
 const LS_SET = 'hw.v1.settings';
 const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
-const settings = Object.assign({ chunks: true, lines: true, words: false, text: false, pen: true, auto: false, model: 'Xenova/trocr-small-handwritten' }, load(LS_SET, {}));
+const settings = Object.assign({ chunks: true, lines: true, words: false, text: false, crops: true, pen: true, auto: false, model: 'Xenova/trocr-small-handwritten' }, load(LS_SET, {}));
 
 /* ---- IndexedDB for training pairs ---- */
 const idb = {
@@ -337,8 +339,8 @@ function buildChunk(members, gsize, forceDeg) {
    ========================================================================= */
 function rasterizeLine(L, chunk) {
   // IAM-style: dark ink on white, generous margins, pen width relative to line height
-  const h = L.y1 - L.y0, w = L.x1 - L.x0; const target = 96, pad = 14;
-  const sc = (target - 2 * pad) / Math.max(h, 1); const cw = Math.max(64, Math.round(w * sc + 2 * pad)), ch = target;
+  const h = L.y1 - L.y0, w = L.x1 - L.x0; const target = 128, pad = 18;
+  const sc = (target - 2 * pad) / Math.max(h, 1); const cw = Math.max(Math.round(target * 2.5), Math.round(w * sc + 2 * pad)), ch = target;
   const c = document.createElement('canvas'); c.width = cw; c.height = ch; const g = c.getContext('2d');
   g.fillStyle = '#fff'; g.fillRect(0, 0, cw, ch); g.strokeStyle = '#000'; g.lineCap = 'round'; g.lineJoin = 'round';
   g.lineWidth = clamp(h * sc * 0.055, 2, 5);
@@ -357,8 +359,11 @@ async function ensureModel() {
     const progress_callback = p => { if (p.status === 'progress' && p.file) { files.set(p.file, [p.loaded || 0, p.total || 0]); let l = 0, t = 0; for (const [a, b] of files.values()) { l += a; t += b; } if (t) $('prog').firstElementChild.style.width = Math.round(100 * l / t) + '%'; } };
     let dev = 'wasm';
     try { if (navigator.gpu && await navigator.gpu.requestAdapter()) dev = 'webgpu'; } catch {}
-    try { pipe = await tjs.pipeline('image-to-text', settings.model, { dtype: 'q8', device: dev, progress_callback }); }
-    catch (e) { if (dev === 'webgpu') { console.warn('webgpu failed, falling back to wasm', e); pipe = await tjs.pipeline('image-to-text', settings.model, { dtype: 'q8', device: 'wasm', progress_callback }); } else throw e; }
+    // The 8-bit decoder of TrOCR degenerates into runs of punctuation; keep the decoder in
+    // fp32 (small: ~80 MB). The encoder tolerates q8, which keeps the base model downloadable.
+    const dtype = settings.model.includes('small') ? { encoder_model: 'fp32', decoder_model_merged: 'fp32' } : { encoder_model: 'q8', decoder_model_merged: 'fp32' };
+    try { pipe = await tjs.pipeline('image-to-text', settings.model, { dtype, device: dev, progress_callback }); }
+    catch (e) { if (dev === 'webgpu') { console.warn('webgpu failed, falling back to wasm', e); dev = 'wasm'; pipe = await tjs.pipeline('image-to-text', settings.model, { dtype, device: 'wasm', progress_callback }); } else throw e; }
     loadedModel = settings.model; stat('stModel', settings.model.split('/')[1] + ' · ' + (pipe.model?.sessions ? Object.values(pipe.model.sessions)[0]?.config?.executionProviders?.[0] || dev : dev));
     $('prog').firstElementChild.style.width = '100%';
     return pipe;
@@ -369,9 +374,11 @@ async function recognizeLine(L, chunk) {
   const c = rasterizeLine(L, chunk);
   if (window.HW_MOCK) return window.HW_MOCK(L, chunk, c);
   const p = await ensureModel();
-  const out = await p(c.toDataURL('image/png'), { max_new_tokens: 64 });
-  const txt = (Array.isArray(out) ? out[0]?.generated_text : out?.generated_text) || '';
-  return txt.trim();
+  const url = c.toDataURL('image/png'); L.crop = url;
+  const out = await p(url, { max_new_tokens: 48, num_beams: 3, no_repeat_ngram_size: 3, repetition_penalty: 1.3, early_stopping: true });
+  let txt = (Array.isArray(out) ? out[0]?.generated_text : out?.generated_text) || '';
+  txt = txt.replace(/([^\w\s])\1{2,}/g, '$1').replace(/\s+/g, ' ').trim();   // collapse runs of a repeated symbol
+  return txt;
 }
 let busy = false;
 async function recognizeAll() {
@@ -382,7 +389,7 @@ async function recognizeAll() {
     for (const c of layout.chunks) for (const L of c.lines) {
       const key = lineKey(L); if (recog.has(key)) continue;
       stat('stMsg', `reading line ${++nl}…`); renderSide();
-      try { recog.set(key, { text: await recognizeLine(L, c), edited: false }); } catch (e) { recog.set(key, { text: '', error: String(e.message || e) }); stat('stMsg', 'recognition error: ' + (e.message || e)); break; }
+      try { const text = await recognizeLine(L, c); recog.set(key, { text, edited: false, crop: L.crop }); } catch (e) { recog.set(key, { text: '', error: String(e.message || e) }); stat('stMsg', 'recognition error: ' + (e.message || e)); break; }
       renderSide(); render();
     }
     stat('stMsg', nl ? `${nl} line${nl > 1 ? 's' : ''} in ${Math.round(performance.now() - t0)} ms` : 'nothing new to read');
@@ -445,8 +452,9 @@ function renderSide() {
       const ta = document.createElement('textarea'); ta.rows = 1; ta.value = r ? r.text : ''; ta.placeholder = r && r.error ? 'error' : busy ? '…' : 'not read yet';
       if (r && r.edited) ta.classList.add('edited');
       ta.addEventListener('input', () => { ta.classList.add('edited'); ta.rows = Math.max(1, Math.ceil(ta.value.length / 36)); });
-      ta.addEventListener('change', () => { recog = recog || new Map(); recog.set(lineKey(L), { text: ta.value.trim(), edited: true, model: r && r.text }); render(); });
+      ta.addEventListener('change', () => { recog = recog || new Map(); recog.set(lineKey(L), { text: ta.value.trim(), edited: true, model: r && r.text, crop: r && r.crop }); render(); });
       row.appendChild(ta); d.appendChild(row);
+      if (r && r.crop && settings.crops) { const im = document.createElement('img'); im.className = 'crop'; im.src = r.crop; im.title = 'what the model saw'; d.appendChild(im); }
     });
     const act = document.createElement('div'); act.className = 'act';
     const bs = document.createElement('button'); bs.className = 'btn'; bs.textContent = 'Save as training data'; bs.onclick = () => savePairs(c);
@@ -481,11 +489,12 @@ $('bForget').onclick = async () => { if (confirm('Delete all saved training pair
    wiring
    ========================================================================= */
 $('bRec').onclick = recognizeAll;
+$('bReread').onclick = () => { recog = null; renderSide(); render(); recognizeAll(); };
 $('bLoad').onclick = () => ensureModel().catch(() => {});
-$('model').value = settings.model; $('model').onchange = e => { settings.model = e.target.value; save(LS_SET, settings); };
+$('model').value = settings.model; $('model').onchange = e => { settings.model = e.target.value; save(LS_SET, settings); recog = null; renderSide(); render(); };
 $('bUndo').onclick = () => { if (strokes.length) { redo.push(strokes.pop()); stat('stStrokes', strokes.length); layout = analyze(); render(); renderSide(); } };
 $('bClear').onclick = () => { strokes = []; redo = []; layout = null; recog = null; stat('stStrokes', 0); stat('stLayout', '–'); hint.style.display = ''; render(); renderSide(); };
-for (const [id, k] of [['sChunks', 'chunks'], ['sLines', 'lines'], ['sWords', 'words'], ['sText', 'text'], ['sPen', 'pen'], ['sAuto', 'auto']]) { $(id).checked = settings[k]; $(id).onchange = e => { settings[k] = e.target.checked; save(LS_SET, settings); render(); }; }
+for (const [id, k] of [['sChunks', 'chunks'], ['sLines', 'lines'], ['sWords', 'words'], ['sText', 'text'], ['sCrops', 'crops'], ['sPen', 'pen'], ['sAuto', 'auto']]) { $(id).checked = settings[k]; $(id).onchange = e => { settings[k] = e.target.checked; save(LS_SET, settings); render(); renderSide(); }; }
 addEventListener('keydown', e => {
   if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) { if (redo.length) { strokes.push(redo.pop()); layout = analyze(); render(); } } else $('bUndo').click(); }
