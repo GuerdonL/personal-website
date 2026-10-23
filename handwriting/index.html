@@ -191,7 +191,7 @@ cv.addEventListener('pointermove', e => {
   for (const ev of evs) { const p = pos(ev), q = live.pts[live.pts.length - 1]; if (Math.hypot(p.x - q.x, p.y - q.y) >= 0.7) live.pts.push(p); }
   renderLive();
 });
-let autoTimer = null;
+let autoTimer = null, idleTimer = null;
 const endStroke = e => {
   if (e.pointerType === 'pen') lastPen = performance.now();
   if (!live || e.pointerId !== live.id) return;
@@ -200,7 +200,7 @@ const endStroke = e => {
   if (s.pts.length === 1) s.pts.push({ ...s.pts[0], x: s.pts[0].x + 0.5 });
   strokes.push({ pts: s.pts, t0: s.pts[0].t, t1: s.pts[s.pts.length - 1].t, src: s.type }); redo = [];
   stat('stStrokes', strokes.length); layout = analyze(); render();
-  if (settings.auto) { clearTimeout(autoTimer); autoTimer = setTimeout(() => recognizeAll(), 1500); }
+  if (settings.auto) { clearTimeout(autoTimer); autoTimer = setTimeout(() => recognizeAll(true), 1500); clearTimeout(idleTimer); idleTimer = setTimeout(() => autosaveAll(), 20000); }
 };
 cv.addEventListener('pointerup', endStroke); cv.addEventListener('pointercancel', endStroke);
 cv.addEventListener('lostpointercapture', e => { if (live && e.pointerId === live.id) endStroke(e); });
@@ -314,6 +314,23 @@ function buildChunk(members, gsize, forceDeg) {
   for (const o of members) { let k = 0; while (o.rb.cy >= edges[k + 1]) k++; lines[k].members.push(o); }
   lines = lines.filter(L => L.members.length);
   for (const L of lines) { L.y0 = Math.min(...L.members.map(o => o.rb.y0)); L.y1 = Math.max(...L.members.map(o => o.rb.y1)); }
+  // A line that has just been started under a finished one is too faint to make a
+  // density valley. Catch it geometrically: a horizontal cut that no stroke crosses,
+  // with real ink on both sides, is a line break.
+  for (let i = 0; i < lines.length; i++) {
+    const L = lines[i]; if (L.members.length < 5) continue;
+    const bxs = L.members.map(o => ({ o, y0: o.rb.y0, y1: o.rb.y1 })).sort((a, b) => a.y0 - b.y0);
+    let bestCut = null;
+    for (let k = 1; k < bxs.length; k++) {
+      const top = Math.max(...bxs.slice(0, k).map(b => b.y1)), bot = bxs[k].y0;
+      if (bot - top < 0.08 * size) continue;                                 // strokes overlap vertically → same line
+      const A = bxs.slice(0, k).map(b => b.o), B = bxs.slice(k).map(b => b.o);
+      const ext = g => Math.max(...g.map(o => o.rb.y1)) - Math.min(...g.map(o => o.rb.y0));
+      const inkLen = g => g.reduce((a, o) => a + o.len, 0);
+      if (A.length >= 3 && B.length >= 3 && ext(A) > 0.5 * size && ext(B) > 0.5 * size && inkLen(B) > 0.15 * inkLen(A) && (!bestCut || bot - top > bestCut.gap)) bestCut = { k, gap: bot - top, A, B };
+    }
+    if (bestCut) { const mk = g => ({ members: g, y0: Math.min(...g.map(o => o.rb.y0)), y1: Math.max(...g.map(o => o.rb.y1)) }); lines.splice(i, 1, mk(bestCut.A), mk(bestCut.B)); i--; }
+  }
   // small marks whose centre fell on the wrong side of a cut (an i-dot above its line) rejoin the nearer line
   const Hl = median(lines.map(L => L.y1 - L.y0));
   for (let i = 0; i < lines.length && lines.length > 1; i++) {
@@ -397,7 +414,7 @@ async function recognizeLine(L, chunk) {
   return txt;
 }
 let busy = false;
-async function recognizeAll() {
+async function recognizeAll(auto = false) {
   if (busy || !layout) return; busy = true; $('bRec').disabled = true;
   const t0 = performance.now(); let nl = 0;
   recog = recog || new Map();
@@ -405,7 +422,7 @@ async function recognizeAll() {
     for (const c of layout.chunks) for (const L of c.lines) {
       const key = lineKey(L); if (recog.has(key)) continue;
       stat('stMsg', `reading line ${++nl}…`); renderSide();
-      try { const text = await recognizeLine(L, c); recog.set(key, { text, edited: false, crop: L.crop }); await saveLine(L, c); stat('stPairs', (await idb.count()) + ' · ' + idb.mode); } catch (e) { recog.set(key, { text: '', error: String(e.message || e) }); stat('stMsg', 'recognition error: ' + (e.message || e)); break; }
+      try { const text = await recognizeLine(L, c); recog.set(key, { text, edited: false, crop: L.crop }); if (!auto) { await saveLine(L, c); stat('stPairs', (await idb.count()) + ' · ' + idb.mode); } } catch (e) { recog.set(key, { text: '', error: String(e.message || e) }); stat('stMsg', 'recognition error: ' + (e.message || e)); break; }
       renderSide(); render();
     }
     stat('stMsg', nl ? `${nl} line${nl > 1 ? 's' : ''} in ${Math.round(performance.now() - t0)} ms` : 'nothing new to read');
@@ -485,6 +502,12 @@ function renderSide() {
    7. training data
    ========================================================================= */
 const savedIds = new Map();   // lineKey → IndexedDB id, so an edit updates its pair instead of adding one
+const savedStrokes = new Map(); // id → Set of stroke t0s, so a line that grew (or absorbed a partial) replaces the old pair
+function supersededId(L) {
+  const S = new Set(L.members.map(o => o.s.t0));
+  for (const [id, T] of savedStrokes) { let n = 0; for (const t of T) if (S.has(t)) n++; if (n >= Math.max(2, 0.6 * T.size) || n >= 0.6 * S.size) return id; }
+  return null;
+}
 function pairFor(L, c, r) {
   const sc = 1 / Math.max(1, L.y1 - L.y0);   // line-normalised coordinates: height 1, origin at the line's top-left
   const st = L.members.map(o => ({ t0: o.s.t0, pts: o.rp.map((p, i) => [+((p.x - L.x0) * sc).toFixed(4), +((p.y - L.y0) * sc).toFixed(4), +((o.s.pts[i] && o.s.pts[i].p) || 0.5).toFixed(2)]) }));
@@ -494,8 +517,11 @@ async function saveLine(L, c) {
   const r = recog && recog.get(lineKey(L)); if (!r || !r.text) return false;
   if (idb.mode === 'none') { stat('stMsg', 'cannot save: no storage available in this browser (' + (idb.err && idb.err.message || 'blocked') + ')'); return false; }
   const k = lineKey(L), o = pairFor(L, c, r);
-  try { if (savedIds.has(k)) { o.id = savedIds.get(k); await idb.put(o); } else savedIds.set(k, await idb.add(o)); }
-  catch (e) { stat('stMsg', 'save failed: ' + (e && e.message || e)); return false; }
+  try {
+    let id = savedIds.has(k) ? savedIds.get(k) : supersededId(L);
+    if (id != null) { o.id = id; await idb.put(o); } else id = await idb.add(o);
+    savedIds.set(k, id); savedStrokes.set(id, new Set(L.members.map(m => m.s.t0)));
+  } catch (e) { stat('stMsg', 'save failed: ' + (e && e.message || e)); return false; }
   return true;
 }
 // Every line with text is kept automatically: after recognition, after an edit, and
@@ -527,7 +553,7 @@ $('bForget').onclick = async () => { if (confirm('Delete all saved training pair
 /* =========================================================================
    wiring
    ========================================================================= */
-$('bRec').onclick = recognizeAll;
+$('bRec').onclick = async () => { await recognizeAll(false); await autosaveAll(); };
 $('bReread').onclick = () => { recog = null; renderSide(); render(); recognizeAll(); };
 $('bLoad').onclick = () => ensureModel().catch(() => {});
 function syncModelSelect() { const sel = $('model'); if (![...sel.options].some(o => o.value === settings.model)) { const o = document.createElement('option'); o.value = settings.model; o.textContent = settings.model + ' (custom)'; sel.insertBefore(o, sel.lastElementChild); } sel.value = settings.model; }
@@ -538,7 +564,7 @@ $('model').onchange = e => {
   settings.model = v; save(LS_SET, settings); syncModelSelect(); recog = null; renderSide(); render();
 };
 $('bUndo').onclick = () => { if (strokes.length) { redo.push(strokes.pop()); stat('stStrokes', strokes.length); layout = analyze(); render(); renderSide(); } };
-$('bClear').onclick = async () => { await autosaveAll(); savedIds.clear(); strokes = []; redo = []; layout = null; recog = null; stat('stStrokes', 0); stat('stLayout', '–'); hint.style.display = ''; render(); renderSide(); };
+$('bClear').onclick = async () => { await autosaveAll(); savedIds.clear(); savedStrokes.clear(); strokes = []; redo = []; layout = null; recog = null; stat('stStrokes', 0); stat('stLayout', '–'); hint.style.display = ''; render(); renderSide(); };
 for (const [id, k] of [['sChunks', 'chunks'], ['sLines', 'lines'], ['sWords', 'words'], ['sText', 'text'], ['sCrops', 'crops'], ['sPen', 'pen'], ['sAuto', 'auto']]) { $(id).checked = settings[k]; $(id).onchange = e => { settings[k] = e.target.checked; save(LS_SET, settings); render(); renderSide(); }; }
 addEventListener('keydown', e => {
   if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
@@ -549,7 +575,7 @@ const _analyze = analyze;
 analyze = function () { const t = performance.now(); const L = _analyze(); if (L) stat('stLayout', `${L.chunks.length} block${L.chunks.length === 1 ? '' : 's'} · ${L.chunks.reduce((a, c) => a + c.lines.length, 0)} lines · ${L.specks.length} specks · ${Math.round(performance.now() - t)} ms`); renderSide(); return L; };
 idb.open().then(async m => { stat('stPairs', (await idb.count()) + ' · ' + m); if (m === 'none') stat('stMsg', 'storage unavailable: ' + (idb.err && idb.err.message || 'blocked')); });
 resize();
-window.HW = { get strokes() { return strokes; }, set strokes(v) { strokes = v; recog = null; stat('stStrokes', v.length); hint.style.display = v.length ? 'none' : ''; layout = analyze(); render(); }, get layout() { return layout; }, analyze: () => (layout = analyze()), recognizeAll, rasterizeLine, get recog() { return recog; } };
+window.HW = { get strokes() { return strokes; }, set strokes(v) { strokes = v; stat('stStrokes', v.length); hint.style.display = v.length ? 'none' : ''; layout = analyze(); render(); }, get layout() { return layout; }, analyze: () => (layout = analyze()), recognizeAll, rasterizeLine, get recog() { return recog; } };
 </script>
 </body>
 </html>
