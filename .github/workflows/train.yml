@@ -46,6 +46,7 @@ jobs:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN || secrets.KAGGLE_API_KEY }}
         run: |
           K="$KAGGLE_USERNAME/handwriting-trocr-train"
+          shopt -s nocasematch
           for i in $(seq 1 110); do
             S=$(kaggle kernels status "$K" 2>&1 || true); echo "$S"
             case "$S" in
@@ -55,5 +56,14 @@ jobs:
             sleep 60
           done
           mkdir -p out && kaggle kernels output "$K" -p out || true
-          echo "----- kernel log (tail) -----"; tail -n 80 out/*.log 2>/dev/null || ls -la out
+          echo "----- kernel log -----"
+          # the log is JSON: [{"stream_name":"stdout","data":"..."}, ...]
+          python3 - <<'PY' || ls -la out
+          import json, glob
+          for f in glob.glob('out/*.log'):
+              try: items = json.load(open(f))
+              except Exception: print(open(f).read()[-6000:]); continue
+              text = ''.join(i.get('data', '') for i in items if isinstance(i, dict))
+              print(text[-6000:])
+          PY
           [ -z "$FAIL" ]
