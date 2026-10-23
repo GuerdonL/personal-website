@@ -43,7 +43,7 @@ GitHub Actions (train.yml, Sundays or manual) ──kaggle kernels push──▶
 - **Kaggle**: the kernel is `kaggle/train.py`; the workflow fills `kernel-metadata.json` from the
   `KAGGLE_USERNAME` secret. The kernel reads `HF_TOKEN` from Kaggle *Secrets* (attach it to the
   notebook once, after the first push creates it).
-- **GitHub secrets**: `KAGGLE_USERNAME`, `KAGGLE_KEY`. Run it by hand from the Actions tab
+- **GitHub secrets**: `KAGGLE_USERNAME` (your Kaggle handle, used in the kernel id) and `KAGGLE_API_TOKEN` (Settings → API → new-style token). Run it by hand from the Actions tab
   ("Train handwriting model" → Run workflow; tick *force publish* for the very first model).
 - The published model carries its `report.json` (before/after CER, data size), so each run can
   compare against what is live.
