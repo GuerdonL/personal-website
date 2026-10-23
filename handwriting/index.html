@@ -244,9 +244,7 @@ function analyze() {
   }
   const groups = new Map(); for (const o of ink) { const r = uf.f(o.i); (groups.get(r) || groups.set(r, []).get(r)).push(o); }
   let chunks = [];
-  for (const members of groups.values()) {
-    const c = buildChunk(members, size); if (c) chunks.push(c);
-  }
+  for (const members of groups.values()) for (const part of splitByOrientation(members, size)) { const c = buildChunk(part, size); if (c) chunks.push(c); }
   // A few strokes alone ("Fig 2") cannot tell their own orientation. The page can:
   // small chunks adopt the dominant angle of the big ones unless their own evidence
   // clearly says otherwise.
@@ -259,6 +257,46 @@ function analyze() {
   return { S, size, chunks, specks: S.filter(o => o.kind === 'speck'), rules: S.filter(o => o.kind === 'rule') };
 }
 
+// Proximity joins strokes regardless of direction, so a slanted note next to a horizontal
+// one becomes one chunk. Give every stroke a local orientation from the strokes around it,
+// and if the chunk contains two clearly different populations, separate them.
+function localAngles(members, size) {
+  const R = 2.2 * size;
+  return members.map(o => {
+    const near = members.filter(q => boxGap(o.b, q.b) < R);
+    if (near.length < 4) return null;
+    const pts = near.flatMap(q => q.s.pts.filter((_, i) => i % 4 === 0));
+    let best = null;
+    for (let deg = -75; deg <= 90; deg += 15) {
+      const th = deg * Math.PI / 180; const ys = pts.map(p => rot(p, -th).y).sort((a, b) => a - b);
+      let j = 0, bf = 0; const win = 0.9 * size; for (let i = 0; i < ys.length; i++) { while (ys[i] - ys[j] > win) j++; if (i - j + 1 > bf) bf = i - j + 1; }
+      let sc = bf / ys.length; if (deg === 0) sc *= 1.1;
+      if (!best || sc > best.sc) best = { deg, sc };
+    }
+    return best.deg;
+  });
+}
+function splitByOrientation(members, size, depth = 0) {
+  if (members.length < 8 || depth > 2) return [members];
+  const ang = localAngles(members, size);
+  const hist = {}; ang.forEach(a => { if (a != null) hist[a] = (hist[a] || 0) + 1; });
+  const ks = Object.keys(hist).map(Number).sort((a, b) => hist[b] - hist[a]);
+  if (ks.length < 2) return [members];
+  const a0 = ks[0], a1 = ks.find(k => Math.min(Math.abs(k - a0), 180 - Math.abs(k - a0)) >= 30);
+  if (a1 == null || hist[a1] < 3 || hist[a1] < 0.15 * members.length) return [members];
+  // assign each stroke to the nearer of the two angles; undecided strokes follow their nearest decided neighbour
+  const dist = (a, b) => Math.min(Math.abs(a - b), 180 - Math.abs(a - b));
+  const lab = ang.map(a => a == null ? -1 : (dist(a, a0) <= dist(a, a1) ? 0 : 1));
+  for (let it = 0; it < 3; it++) members.forEach((o, i) => { if (lab[i] >= 0) return; let bd = Infinity, bl = -1; members.forEach((q, j) => { if (lab[j] < 0) return; const g = boxGap(o.b, q.b); if (g < bd) { bd = g; bl = lab[j]; } }); lab[i] = bl; });
+  const A = members.filter((_, i) => lab[i] !== 1), B = members.filter((_, i) => lab[i] === 1);
+  if (A.length < 3 || B.length < 3) return [members];
+  // both halves must be text blocks confident in distinct angles
+  const ca = buildChunk(A, size), cb = buildChunk(B, size); if (!ca || !cb) return [members];
+  const dd = dist(ca.deg, cb.deg);
+  const slender = c => c.lines.every(L => L.members.length < 3);
+  if (dd < 30 || slender(ca) || slender(cb)) return [members];
+  return [...splitByOrientation(A, size, depth + 1), ...splitByOrientation(B, size, depth + 1)];
+}
 function buildChunk(members, gsize, forceDeg) {
   // chunk-local scale: a label can be far smaller than the body text
   const size = Math.max(8, 0.8 * pct(members.map(o => Math.max(o.b.w, o.b.h)), 0.8));
@@ -327,7 +365,8 @@ function buildChunk(members, gsize, forceDeg) {
       const A = bxs.slice(0, k).map(b => b.o), B = bxs.slice(k).map(b => b.o);
       const ext = g => Math.max(...g.map(o => o.rb.y1)) - Math.min(...g.map(o => o.rb.y0));
       const inkLen = g => g.reduce((a, o) => a + o.len, 0);
-      if (A.length >= 3 && B.length >= 3 && ext(A) > 0.5 * size && ext(B) > 0.5 * size && inkLen(B) > 0.15 * inkLen(A) && (!bestCut || bot - top > bestCut.gap)) bestCut = { k, gap: bot - top, A, B };
+      const okA = A.length >= 3 && ext(A) > 0.5 * size, okB = (B.length >= 3 && ext(B) > 0.5 * size && inkLen(B) > 0.15 * inkLen(A)) || (B.length >= 1 && ext(B) > 0.35 * size && bot - top > 0.25 * size);
+      if (okA && okB && (!bestCut || bot - top > bestCut.gap)) bestCut = { k, gap: bot - top, A, B };
     }
     if (bestCut) { const mk = g => ({ members: g, y0: Math.min(...g.map(o => o.rb.y0)), y1: Math.max(...g.map(o => o.rb.y1)) }); lines.splice(i, 1, mk(bestCut.A), mk(bestCut.B)); i--; }
   }
@@ -344,14 +383,22 @@ function buildChunk(members, gsize, forceDeg) {
     L.members.sort((a, b) => a.rb.x0 - b.rb.x0);
     const xs = L.members.flatMap(o => o.rp.map(p => p.x)), ys = L.members.flatMap(o => o.rp.map(p => p.y));
     L.x0 = Math.min(...xs); L.x1 = Math.max(...xs); L.y0 = Math.min(...ys); L.y1 = Math.max(...ys);
-    L.xh = Math.max(6, (L.y1 - L.y0) * 0.45);
+    // x-height: the band holding most of the ink (ascenders/descenders are sparse)
+    { const yb = Math.floor(L.y0) - 1, ny = Math.ceil(L.y1) - yb + 2, h = new Float32Array(ny); for (const y of ys) h[Math.round(y) - yb]++;
+      let pk = 0; for (let i = 1; i < ny; i++) if (h[i] > h[pk]) pk = i; let lo = pk, hi = pk; const t = 0.35 * h[pk];
+      while (lo > 0 && h[lo - 1] > t) lo--; while (hi < ny - 1 && h[hi + 1] > t) hi++;
+      L.xh = Math.max(6, hi - lo, 0.3 * (L.y1 - L.y0)); }
     const gaps = []; let reach = -Infinity;
     for (const o of L.members) { if (reach > -Infinity) gaps.push(Math.max(0, o.rb.x0 - reach)); reach = Math.max(reach, o.rb.x1); }
-    let thr = 0.55 * (L.y1 - L.y0);
-    const pos = gaps.filter(g => g > 1).sort((a, b) => a - b);
-    if (pos.length >= 3) {                                        // largest relative jump in sorted gaps → threshold
-      let bi = -1, br = 1.8; for (let i = 1; i < pos.length; i++) { const r = pos[i] / Math.max(1, pos[i - 1]); if (r > br && pos[i] > 0.25 * (L.y1 - L.y0)) { br = r; bi = i; } }
-      if (bi > 0) thr = (pos[bi] + pos[bi - 1]) / 2;
+    // Word gap: clearly larger than the letter gaps on this line, and at least ~0.6 x-height.
+    const pos = gaps.filter(g => g > 1.5).sort((a, b) => a - b);  // overlapping strokes (dots, crosses) say nothing about spacing
+    const floor = Math.max(0.6 * L.xh, 0.25 * (L.y1 - L.y0));        // a word gap is never smaller than this
+    let thr = Math.max(floor, 0.8 * L.xh);
+    if (pos.length >= 3) {
+      const letter = pos[Math.floor(pos.length * 0.4)];             // a typical small gap on this line
+      thr = clamp(2.2 * letter + 0.15 * L.xh, floor, 1.6 * L.xh);
+      let bi = -1, br = 1.8; for (let i = 1; i < pos.length; i++) { const r = pos[i] / Math.max(1, pos[i - 1]); if (r > br && pos[i] > floor) { br = r; bi = i; } }
+      if (bi > 0) thr = Math.max(floor, Math.min(thr, (pos[bi] + pos[bi - 1]) / 2));  // a clear jump in the sorted gaps wins
     }
     L.words = []; let w = null; reach = -Infinity;
     L.members.forEach((o, i) => {
