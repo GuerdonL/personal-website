@@ -14,16 +14,17 @@ from transformers import TrOCRProcessor, VisionEncoderDecoderModel, Seq2SeqTrain
 import evaluate
 
 class Lines(Dataset):
-    def __init__(self, root, split, processor, max_len=64):
-        self.root = pathlib.Path(root) / split; self.p = processor; self.max_len = max_len
+    def __init__(self, root, split, processor, max_len=64, keep_bos=True):
+        self.root = pathlib.Path(root) / split; self.p = processor; self.max_len = max_len; self.keep_bos = keep_bos
         self.items = [x for x in (l.split('\t', 1) for l in (pathlib.Path(root) / f'{split}.tsv').read_text(encoding='utf-8').splitlines() if l.strip()) if len(x) == 2 and x[1].strip()]
     def __len__(self): return len(self.items)
     def __getitem__(self, i):
         name, text = self.items[i]
         img = Image.open(self.root / name).convert('RGB')
         pv = self.p(images=img, return_tensors='pt').pixel_values.squeeze(0)
-        ids = self.p.tokenizer(text, padding='max_length', max_length=self.max_len, truncation=True).input_ids
-        ids = [t if t != self.p.tokenizer.pad_token_id else -100 for t in ids]
+        ids = self.p.tokenizer(text, max_length=self.max_len, truncation=True).input_ids
+        if not self.keep_bos and ids and ids[0] == self.p.tokenizer.bos_token_id: ids = ids[1:]
+        ids = ids + [-100] * (self.max_len - len(ids))
         return {'pixel_values': pv, 'labels': torch.tensor(ids)}
 
 def main():
@@ -40,7 +41,13 @@ def main():
     gc.decoder_start_token_id = model.config.decoder_start_token_id; gc.pad_token_id = model.config.pad_token_id; gc.eos_token_id = model.config.eos_token_id
     gc.max_new_tokens = 64; gc.num_beams = 3; gc.no_repeat_ngram_size = 3; gc.early_stopping = True
     print('special tokens: start', model.config.decoder_start_token_id, 'eos', model.config.eos_token_id, 'pad', model.config.pad_token_id)
-    train, val = Lines(a.data, 'train', processor), Lines(a.data, 'val', processor)
+    # Probe what this checkpoint actually emits after its start token, and build labels the same way.
+    probe = Lines(a.data, 'val' if (pathlib.Path(a.data) / 'val.tsv').read_text().strip() else 'train', processor)
+    model.eval()
+    with torch.no_grad(): ids = model.generate(probe[0]['pixel_values'].unsqueeze(0), max_new_tokens=12, num_beams=1)[0].tolist()
+    keep_bos = len(ids) > 1 and ids[1] == processor.tokenizer.bos_token_id
+    print('probe ids:', ids, '→', repr(processor.tokenizer.decode(ids, skip_special_tokens=True)), '| labels', 'keep' if keep_bos else 'drop', '<s>')
+    train, val = Lines(a.data, 'train', processor, keep_bos=keep_bos), Lines(a.data, 'val', processor, keep_bos=keep_bos)
     cer = evaluate.load('cer'); wer = evaluate.load('wer')
     def metrics(pred):
         ids = pred.predictions; labels = pred.label_ids.copy(); labels[labels == -100] = processor.tokenizer.pad_token_id
