@@ -38,10 +38,16 @@ class Trainer(Seq2SeqTrainer):
         out = model(pixel_values=inputs['pixel_values'], decoder_input_ids=dec_in)
         loss = torch.nn.functional.cross_entropy(out.logits.reshape(-1, out.logits.size(-1)), labels.reshape(-1), ignore_index=-100)
         return (loss, out) if return_outputs else loss
+    def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None, **kw):
+        # generation + metrics as usual, but report our loss instead of the double-shifted one
+        loss, gen, labels = super().prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys, **kw)
+        with torch.no_grad(): loss = self.compute_loss(model, inputs).detach()
+        return loss, gen, labels
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('--data', default='data'); ap.add_argument('--base', default='microsoft/trocr-small-handwritten'); ap.add_argument('--out', default='model')
-    ap.add_argument('--epochs', type=float, default=20); ap.add_argument('--lr', type=float, default=3e-5); ap.add_argument('--bs', type=int, default=8)
+    ap.add_argument('--epochs', type=float, default=20); ap.add_argument('--lr', type=float, default=2e-5); ap.add_argument('--bs', type=int, default=8)
+    ap.add_argument('--train', default='encoder', choices=['encoder', 'all'], help='encoder: adapt the vision side only (default, best for small data); all: whole model')
     a = ap.parse_args()
     processor = TrOCRProcessor.from_pretrained(a.base); model = VisionEncoderDecoderModel.from_pretrained(a.base)
     # Keep the checkpoint's own special-token setup (TrOCR starts decoding from its EOS id, 2,
@@ -60,16 +66,19 @@ def main():
     keep_bos = len(ids) > 1 and ids[1] == processor.tokenizer.bos_token_id
     print('probe ids:', ids, '→', repr(processor.tokenizer.decode(ids, skip_special_tokens=True)), '| labels', 'keep' if keep_bos else 'drop', '<s>')
     train, val = Lines(a.data, 'train', processor, keep_bos=keep_bos), Lines(a.data, 'val', processor, keep_bos=keep_bos)
+    if a.train == 'encoder':   # the decoder is a language model; with little data it memorises your sentences
+        for prm in model.decoder.parameters(): prm.requires_grad = False
+    print('trainable parameters:', sum(x.numel() for x in model.parameters() if x.requires_grad) // 1_000_000, 'M of', sum(x.numel() for x in model.parameters()) // 1_000_000, 'M')
     cer = evaluate.load('cer'); wer = evaluate.load('wer')
     def metrics(pred):
         ids = pred.predictions; labels = pred.label_ids.copy(); labels[labels == -100] = processor.tokenizer.pad_token_id
         p = processor.batch_decode(ids, skip_special_tokens=True); t = processor.batch_decode(labels, skip_special_tokens=True)
         return {'cer': cer.compute(predictions=p, references=t), 'wer': wer.compute(predictions=p, references=t)}
     args = Seq2SeqTrainingArguments(output_dir=a.out + '_ckpt', per_device_train_batch_size=a.bs, per_device_eval_batch_size=a.bs, num_train_epochs=a.epochs, learning_rate=a.lr,
-        warmup_ratio=0.1, weight_decay=0.01, fp16=torch.cuda.is_available(), predict_with_generate=True, eval_strategy='epoch', save_strategy='epoch', save_total_limit=2,
+        warmup_ratio=0.1, weight_decay=0.01, fp16=torch.cuda.is_available(), predict_with_generate=True, eval_strategy='steps', eval_steps=max(10, len(train) // (2 * a.bs)), save_strategy='steps', save_steps=max(10, len(train) // (2 * a.bs)), save_total_limit=2,
         load_best_model_at_end=bool(len(val)), metric_for_best_model='cer', greater_is_better=False, logging_steps=10, report_to=[], remove_unused_columns=False)
     tr = Trainer(model=model, args=args, train_dataset=train, eval_dataset=val if len(val) else None, data_collator=default_data_collator, compute_metrics=metrics if len(val) else None, processing_class=processor,
-                        callbacks=[EarlyStoppingCallback(early_stopping_patience=4)] if len(val) else [])
+                        callbacks=[EarlyStoppingCallback(early_stopping_patience=6)] if len(val) else [])
     if len(val): print('before:', tr.evaluate())
     tr.train()
     if len(val): print('after:', tr.evaluate())
