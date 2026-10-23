@@ -131,16 +131,29 @@ const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); re
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const settings = Object.assign({ chunks: true, lines: true, words: false, text: false, crops: true, pen: true, auto: false, model: 'Xenova/trocr-small-handwritten' }, load(LS_SET, {}));
 
-/* ---- IndexedDB for training pairs ---- */
+/* ---- storage for training pairs: IndexedDB, else localStorage ---- */
+const LS_PAIRS = 'hw.v1.pairs';
 const idb = {
-  db: null,
-  open() { return new Promise((res, rej) => { const r = indexedDB.open('hw', 1); r.onupgradeneeded = () => r.result.createObjectStore('pairs', { keyPath: 'id', autoIncrement: true }); r.onsuccess = () => { this.db = r.result; res(); }; r.onerror = () => rej(r.error); }); },
+  db: null, mode: 'none', err: null,
+  async open() {
+    try {
+      await new Promise((res, rej) => { if (!indexedDB) return rej(new Error('no indexedDB')); const r = indexedDB.open('hw', 1); r.onupgradeneeded = () => r.result.createObjectStore('pairs', { keyPath: 'id', autoIncrement: true }); r.onsuccess = () => { this.db = r.result; res(); }; r.onerror = () => rej(r.error || new Error('open failed')); r.onblocked = () => rej(new Error('blocked')); });
+      await this.count(); this.mode = 'IndexedDB';                                      // a real round trip, not just an open
+    } catch (e) {
+      this.db = null; this.err = e;
+      try { localStorage.setItem('hw.probe', '1'); localStorage.removeItem('hw.probe'); this.mode = 'localStorage'; }
+      catch (e2) { this.mode = 'none'; this.err = e2; }
+    }
+    return this.mode;
+  },
   tx(mode) { return this.db.transaction('pairs', mode).objectStore('pairs'); },
-  add(o) { return new Promise((res, rej) => { const r = this.tx('readwrite').add(o); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
-  put(o) { return new Promise((res, rej) => { const r = this.tx('readwrite').put(o); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
-  all() { return new Promise((res, rej) => { const r = this.tx('readonly').getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
-  count() { return new Promise((res, rej) => { const r = this.tx('readonly').count(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
-  clear() { return new Promise((res, rej) => { const r = this.tx('readwrite').clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }); },
+  ls() { return load(LS_PAIRS, []); },
+  lsWrite(a) { try { localStorage.setItem(LS_PAIRS, JSON.stringify(a)); } catch (e) { throw new Error('localStorage full or blocked: ' + (e.message || e)); } },
+  add(o) { if (this.db) return new Promise((res, rej) => { const r = this.tx('readwrite').add(o); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); const a = this.ls(); o.id = (a.length ? a[a.length - 1].id : 0) + 1; a.push(o); this.lsWrite(a); return Promise.resolve(o.id); },
+  put(o) { if (this.db) return new Promise((res, rej) => { const r = this.tx('readwrite').put(o); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); const a = this.ls(); const i = a.findIndex(x => x.id === o.id); if (i >= 0) a[i] = o; else a.push(o); this.lsWrite(a); return Promise.resolve(o.id); },
+  all() { if (this.db) return new Promise((res, rej) => { const r = this.tx('readonly').getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); return Promise.resolve(this.ls()); },
+  count() { if (this.db) return new Promise((res, rej) => { const r = this.tx('readonly').count(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); return Promise.resolve(this.ls().length); },
+  clear() { if (this.db) return new Promise((res, rej) => { const r = this.tx('readwrite').clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }); this.lsWrite([]); return Promise.resolve(); },
 };
 
 /* =========================================================================
@@ -391,7 +404,7 @@ async function recognizeAll() {
     for (const c of layout.chunks) for (const L of c.lines) {
       const key = lineKey(L); if (recog.has(key)) continue;
       stat('stMsg', `reading line ${++nl}…`); renderSide();
-      try { const text = await recognizeLine(L, c); recog.set(key, { text, edited: false, crop: L.crop }); await saveLine(L, c); stat('stPairs', await idb.count()); } catch (e) { recog.set(key, { text: '', error: String(e.message || e) }); stat('stMsg', 'recognition error: ' + (e.message || e)); break; }
+      try { const text = await recognizeLine(L, c); recog.set(key, { text, edited: false, crop: L.crop }); await saveLine(L, c); stat('stPairs', (await idb.count()) + ' · ' + idb.mode); } catch (e) { recog.set(key, { text: '', error: String(e.message || e) }); stat('stMsg', 'recognition error: ' + (e.message || e)); break; }
       renderSide(); render();
     }
     stat('stMsg', nl ? `${nl} line${nl > 1 ? 's' : ''} in ${Math.round(performance.now() - t0)} ms` : 'nothing new to read');
@@ -453,14 +466,15 @@ function renderSide() {
       row.innerHTML = `<span class="n">${li + 1}</span>`;
       const ta = document.createElement('textarea'); ta.rows = 1; ta.value = r ? r.text : ''; ta.placeholder = r && r.error ? 'error' : busy ? '…' : 'not read yet';
       if (r && r.edited) ta.classList.add('edited');
-      ta.addEventListener('input', () => { ta.classList.add('edited'); ta.rows = Math.max(1, Math.ceil(ta.value.length / 36)); });
-      ta.addEventListener('change', () => { recog = recog || new Map(); recog.set(lineKey(L), { text: ta.value.trim(), edited: true, model: (r && (r.edited ? r.model : r.text)) || null, crop: r && r.crop }); render(); saveLine(L, c).then(async () => stat('stPairs', await idb.count())); });
+      let deb = null; ta.addEventListener('input', () => { ta.classList.add('edited'); ta.rows = Math.max(1, Math.ceil(ta.value.length / 36)); clearTimeout(deb); deb = setTimeout(() => ta.dispatchEvent(new Event('change')), 800); });
+      ta.addEventListener('change', () => { const cur = recog && recog.get(lineKey(L)); if (cur && cur.text === ta.value.trim() && cur.edited) return; recog = recog || new Map(); recog.set(lineKey(L), { text: ta.value.trim(), edited: true, model: (r && (r.edited ? r.model : r.text)) || null, crop: r && r.crop }); render(); saveLine(L, c).then(async () => stat('stPairs', (await idb.count()) + ' · ' + idb.mode)); });
       row.appendChild(ta); d.appendChild(row);
       if (r && r.crop && settings.crops) { const im = document.createElement('img'); im.className = 'crop'; im.src = r.crop; im.title = 'what the model saw'; d.appendChild(im); }
     });
     const act = document.createElement('div'); act.className = 'act';
-    const bs = document.createElement('button'); bs.className = 'btn'; bs.textContent = 'Saved automatically ✓'; bs.onclick = () => savePairs(c);
-    const bc = document.createElement('button'); bc.className = 'btn'; bc.textContent = 'Copy text'; bc.onclick = () => { navigator.clipboard?.writeText(c.lines.map(L => (recog && recog.get(lineKey(L))?.text) || '').join('\n')); stat('stMsg', 'copied'); };
+    const tap = (el, fn) => { let t = 0; const h = e => { if (e.type === 'click' && performance.now() - t < 700) return; t = performance.now(); e.preventDefault(); fn(); }; el.addEventListener('pointerdown', h); el.addEventListener('click', h); };
+    const bs = document.createElement('button'); bs.className = 'btn'; bs.textContent = 'Save block'; tap(bs, () => { for (const ta of d.querySelectorAll('textarea')) ta.dispatchEvent(new Event('change')); savePairs(c); });
+    const bc = document.createElement('button'); bc.className = 'btn'; bc.textContent = 'Copy text'; tap(bc, () => { navigator.clipboard?.writeText(c.lines.map(L => (recog && recog.get(lineKey(L))?.text) || '').join('\n')); stat('stMsg', 'copied'); });
     act.append(bs, bc); d.appendChild(act); frag.appendChild(d);
   }
   side.innerHTML = ''; side.appendChild(frag);
@@ -476,9 +490,11 @@ function pairFor(L, c, r) {
   return { ts: Date.now(), text: r.text, model_text: r.edited ? (r.model || null) : r.text, model: loadedModel, edited: !!r.edited, deg: c.deg, device: navigator.userAgent.slice(0, 40), strokes: st };
 }
 async function saveLine(L, c) {
-  const r = recog && recog.get(lineKey(L)); if (!r || !r.text || !idb.db) return false;
+  const r = recog && recog.get(lineKey(L)); if (!r || !r.text) return false;
+  if (idb.mode === 'none') { stat('stMsg', 'cannot save: no storage available in this browser (' + (idb.err && idb.err.message || 'blocked') + ')'); return false; }
   const k = lineKey(L), o = pairFor(L, c, r);
-  if (savedIds.has(k)) { o.id = savedIds.get(k); await idb.put(o); } else savedIds.set(k, await idb.add(o));
+  try { if (savedIds.has(k)) { o.id = savedIds.get(k); await idb.put(o); } else savedIds.set(k, await idb.add(o)); }
+  catch (e) { stat('stMsg', 'save failed: ' + (e && e.message || e)); return false; }
   return true;
 }
 // Every line with text is kept automatically: after recognition, after an edit, and
@@ -486,10 +502,10 @@ async function saveLine(L, c) {
 async function autosaveAll() {
   if (!layout) return 0; let n = 0;
   for (const c of layout.chunks) for (const L of c.lines) if (await saveLine(L, c)) n++;
-  if (n) stat('stPairs', await idb.count());
+  if (n) stat('stPairs', (await idb.count()) + ' · ' + idb.mode);
   return n;
 }
-async function savePairs(c) { let n = 0; for (const L of c.lines) if (await saveLine(L, c)) n++; stat('stPairs', await idb.count()); stat('stMsg', `saved ${n} line pair${n === 1 ? '' : 's'}`); }
+async function savePairs(c) { let n = 0; for (const L of c.lines) if (await saveLine(L, c)) n++; stat('stPairs', (await idb.count()) + ' · ' + idb.mode); stat('stMsg', `saved ${n} line pair${n === 1 ? '' : 's'}`); }
 async function exportText() { const pairs = await idb.all(); return pairs.map(p => JSON.stringify(p)).join('\n'); }
 $('bExport').onclick = async () => {
   const text = await exportText(); const name = `handwriting-pairs-${new Date().toISOString().slice(0, 10)}.jsonl`;
@@ -524,7 +540,7 @@ addEventListener('keydown', e => {
 });
 const _analyze = analyze;
 analyze = function () { const t = performance.now(); const L = _analyze(); if (L) stat('stLayout', `${L.chunks.length} block${L.chunks.length === 1 ? '' : 's'} · ${L.chunks.reduce((a, c) => a + c.lines.length, 0)} lines · ${L.specks.length} specks · ${Math.round(performance.now() - t)} ms`); renderSide(); return L; };
-idb.open().then(async () => stat('stPairs', await idb.count())).catch(() => {});
+idb.open().then(async m => { stat('stPairs', (await idb.count()) + ' · ' + m); if (m === 'none') stat('stMsg', 'storage unavailable: ' + (idb.err && idb.err.message || 'blocked')); });
 resize();
 window.HW = { get strokes() { return strokes; }, set strokes(v) { strokes = v; recog = null; stat('stStrokes', v.length); hint.style.display = v.length ? 'none' : ''; layout = analyze(); render(); }, get layout() { return layout; }, analyze: () => (layout = analyze()), recognizeAll, rasterizeLine, get recog() { return recog; } };
 </script>
