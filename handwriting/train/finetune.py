@@ -27,6 +27,18 @@ class Lines(Dataset):
         ids = ids + [-100] * (self.max_len - len(ids))
         return {'pixel_values': pv, 'labels': torch.tensor(ids)}
 
+class Trainer(Seq2SeqTrainer):
+    """Recent transformers versions route VisionEncoderDecoder through a causal-LM loss that
+    shifts the labels a second time, so the targets end up off by one. Compute the loss
+    ourselves: shift labels right for the decoder input, cross-entropy against the labels."""
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+        labels = inputs['labels']; cfg = model.config
+        dec_in = labels.new_full(labels.shape, cfg.pad_token_id); dec_in[:, 1:] = labels[:, :-1]; dec_in[:, 0] = cfg.decoder_start_token_id
+        dec_in = dec_in.masked_fill(dec_in == -100, cfg.pad_token_id)
+        out = model(pixel_values=inputs['pixel_values'], decoder_input_ids=dec_in)
+        loss = torch.nn.functional.cross_entropy(out.logits.reshape(-1, out.logits.size(-1)), labels.reshape(-1), ignore_index=-100)
+        return (loss, out) if return_outputs else loss
+
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('--data', default='data'); ap.add_argument('--base', default='microsoft/trocr-small-handwritten'); ap.add_argument('--out', default='model')
     ap.add_argument('--epochs', type=float, default=20); ap.add_argument('--lr', type=float, default=3e-5); ap.add_argument('--bs', type=int, default=8)
@@ -56,7 +68,7 @@ def main():
     args = Seq2SeqTrainingArguments(output_dir=a.out + '_ckpt', per_device_train_batch_size=a.bs, per_device_eval_batch_size=a.bs, num_train_epochs=a.epochs, learning_rate=a.lr,
         warmup_ratio=0.1, weight_decay=0.01, fp16=torch.cuda.is_available(), predict_with_generate=True, eval_strategy='epoch', save_strategy='epoch', save_total_limit=2,
         load_best_model_at_end=bool(len(val)), metric_for_best_model='cer', greater_is_better=False, logging_steps=10, report_to=[], remove_unused_columns=False)
-    tr = Seq2SeqTrainer(model=model, args=args, train_dataset=train, eval_dataset=val if len(val) else None, data_collator=default_data_collator, compute_metrics=metrics if len(val) else None, processing_class=processor,
+    tr = Trainer(model=model, args=args, train_dataset=train, eval_dataset=val if len(val) else None, data_collator=default_data_collator, compute_metrics=metrics if len(val) else None, processing_class=processor,
                         callbacks=[EarlyStoppingCallback(early_stopping_patience=4)] if len(val) else [])
     if len(val): print('before:', tr.evaluate())
     tr.train()
