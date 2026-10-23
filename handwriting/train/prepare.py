@@ -13,7 +13,8 @@ from PIL import Image, ImageDraw
 
 def norm(s):
     s = unicodedata.normalize('NFKC', s)
-    return s.replace('’', "'").replace('‘', "'").replace('“', '"').replace('”', '"').strip()
+    s = s.replace('’', "'").replace('‘', "'").replace('“', '"').replace('”', '"')
+    return ' '.join(s.split())            # no tabs/newlines: the labels go into a TSV, one line each
 
 def usable(r):
     if len(r.get('strokes', [])) < 3: return False                 # stray marks

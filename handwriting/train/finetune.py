@@ -16,7 +16,7 @@ import evaluate
 class Lines(Dataset):
     def __init__(self, root, split, processor, max_len=64):
         self.root = pathlib.Path(root) / split; self.p = processor; self.max_len = max_len
-        self.items = [l.split('\t', 1) for l in (pathlib.Path(root) / f'{split}.tsv').read_text(encoding='utf-8').splitlines() if l.strip()]
+        self.items = [x for x in (l.split('\t', 1) for l in (pathlib.Path(root) / f'{split}.tsv').read_text(encoding='utf-8').splitlines() if l.strip()) if len(x) == 2 and x[1].strip()]
     def __len__(self): return len(self.items)
     def __getitem__(self, i):
         name, text = self.items[i]
