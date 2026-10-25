@@ -543,6 +543,7 @@ async function ensureModel() {
     try { pipe = await tjs.pipeline('image-to-text', settings.model, { dtype, device: dev, progress_callback }); }
     catch (e) { if (dev === 'webgpu') { console.warn('webgpu failed, falling back to wasm', e); dev = 'wasm'; pipe = await tjs.pipeline('image-to-text', settings.model, { dtype, device: 'wasm', progress_callback }); } else throw e; }
     loadedModel = settings.model; stat('stModel', settings.model.split('/')[1] + ' · ' + (pipe.model?.sessions ? Object.values(pipe.model.sessions)[0]?.config?.executionProviders?.[0] || dev : dev));
+    modelInfo(settings.model);
     $('prog').firstElementChild.style.width = '100%';
     return pipe;
   } catch (e) { stat('stModel', 'failed'); stat('stMsg', 'model load failed: ' + (e.message || e)); throw e; }
@@ -566,6 +567,15 @@ function setLineText(L, c, text, fromWords) {
   if (fromWords) renderSide(); else { const ta = sideFields.get(lineKey(L)); if (ta) ta.classList.add('edited'); }   // don't rebuild the panel under a textarea being typed in
   render();
   saveLine(L, c).then(async () => stat('stPairs', (await idb.count()) + ' · ' + idb.mode));
+}
+// a fine-tuned model publishes report.json next to its weights: when it was trained, on how many lines, and its CER
+async function modelInfo(id) {
+  if (id.startsWith('Xenova/')) return;
+  try {
+    const r = await fetch(`https://huggingface.co/${id}/resolve/main/report.json`, { cache: 'no-store' }); if (!r.ok) return;
+    const j = await r.json(); const cer = j.after && j.after.eval_cer; const when = j.trained ? new Date(j.trained).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+    stat('stModel', $('stModel').textContent + ` · trained ${when || '?'} on ${j.lines ?? '?'} lines` + (cer != null ? ` · CER ${(100 * cer).toFixed(1)}%` : ''));
+  } catch {}
 }
 let busy = false;
 async function recognizeAll(auto = false) {

@@ -43,19 +43,26 @@ def main():
     data_dir = snapshot_download(C['DATASET'], repo_type='dataset', token=token, local_dir=str(work / 'pairs'))
     files = sorted(glob.glob(str(pathlib.Path(data_dir) / 'pairs' / '**' / '*.jsonl'), recursive=True))
     print(f'{len(files)} synced files')
-    if not files: sys.exit('no data yet')
+    if not files: print('no data yet — nothing to do'); return
 
     sh(f'python {train_dir}/prepare.py {" ".join(files)} --out data --aug {C["AUG"]}')
     nlines = sum(1 for _ in open('data/train.tsv')) ; nval = sum(1 for _ in open('data/val.tsv'))
     # prepare.py prints "N lines →"; recover N from the split sizes instead of parsing stdout
     ntotal = len({l.split('\t', 1)[0].split('_')[0] for f in ('data/train.tsv', 'data/val.tsv') for l in open(f) if l.strip()})
     print(f'{ntotal} distinct lines → {nlines} train images, {nval} val images')
-    if ntotal < C['MIN_LINES']: sys.exit(f'only {ntotal} lines; need {C["MIN_LINES"]} — skipping')
+    if ntotal < C['MIN_LINES']: print(f'only {ntotal} lines; need {C["MIN_LINES"]} — skipping'); return
 
+    # nothing new since the published model? then don't spend the GPU
+    try:
+        from huggingface_hub import hf_hub_download
+        prev = json.load(open(hf_hub_download(C['MODEL_REPO'], 'report.json', token=token)))
+        if prev.get('lines') == ntotal and not C['FORCE']: print(f'published model already trained on these {ntotal} lines — skipping'); return
+    except Exception as e: print('no published report yet:', type(e).__name__)
     base = C['BASE_BASE'] if ntotal >= C['BASE_SWITCH_LINES'] else C['BASE_SMALL']
     bs = 4 if 'base' in base else 8
     sh(f'python {train_dir}/finetune.py --data data --base {base} --out model --epochs {C["EPOCHS"]} --bs {bs} --report report.json')
-    rep = json.load(open('report.json')); print(json.dumps(rep, indent=1))
+    rep = json.load(open('report.json')); rep['trained'] = __import__('datetime').datetime.utcnow().isoformat(timespec='minutes') + 'Z'; rep['lines'] = ntotal
+    json.dump(rep, open('report.json', 'w'), indent=1); print(json.dumps(rep, indent=1))
     after = rep['after'].get('eval_cer'); before = rep['before'].get('eval_cer')
 
     # what is published right now? (its report.json travels with the weights)
