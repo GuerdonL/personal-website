@@ -174,9 +174,13 @@ let redo = [];
 let live = null;
 let layout = null;         // output of analyze()
 let recog = null;          // chunkIndex → lines → text
-function resize() { const r = cv.getBoundingClientRect(); DPR = Math.min(3, devicePixelRatio || 1); W = r.width; H = r.height; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); render(); }
+function resize() { const r = cv.getBoundingClientRect(); if (!r.width || !r.height) return; DPR = Math.min(3, devicePixelRatio || 1); W = r.width; H = r.height; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); render(); }
 addEventListener('resize', resize);
-const pos = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, p: e.pointerType === 'mouse' ? 0.5 : (e.pressure || 0.5), t: Date.now() }; };
+if (window.visualViewport) visualViewport.addEventListener('resize', resize);
+if (window.ResizeObserver) new ResizeObserver(() => resize()).observe(cv);        // the stage can change size without a window resize (top bar re-wrapping, Safari toolbars, keyboard)
+// the bitmap must match the box the canvas is shown in, or ink lands scaled and offset from the pen
+function checkSize() { const r = cv.getBoundingClientRect(); if (Math.abs(r.width - W) > 0.5 || Math.abs(r.height - H) > 0.5 || Math.min(3, devicePixelRatio || 1) !== DPR) resize(); return r; }
+const pos = e => { const r = checkSize(); return { x: e.clientX - r.left, y: e.clientY - r.top, p: e.pointerType === 'mouse' ? 0.5 : (e.pressure || 0.5), t: Date.now() }; };
 const PEN_GRACE = 1500, PALM_LOOKBACK = 700, PALM_SIZE = 22; let lastPen = -Infinity;
 for (const ev of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) document.addEventListener(ev, e => { if (e.target === cv || live || performance.now() - lastPen < PEN_GRACE) e.preventDefault(); }, { passive: false });
 cv.addEventListener('gesturestart', e => e.preventDefault());
