@@ -41,8 +41,10 @@ GitHub Actions (train.yml, Sundays or manual) ──kaggle kernels push──▶
 - **Worker**: `cd handwriting/sync && npx wrangler deploy`, then `npx wrangler secret put HF_TOKEN`
   and `npx wrangler secret put PASSPHRASE`. Set `DATASET_REPO` / `ALLOWED_ORIGIN` in `wrangler.toml`.
 - **Kaggle**: the kernel is `kaggle/train.py`; the workflow fills `kernel-metadata.json` from the
-  `KAGGLE_USERNAME` secret. The kernel reads `HF_TOKEN` from Kaggle *Secrets* (attach it to the
-  notebook once, after the first push creates it).
+  `KAGGLE_USERNAME` secret. The HF token travels as a **private Kaggle dataset** named `hf-token`
+  holding one file, `hf_token.txt` (kaggle.com → Datasets → New Dataset → upload the file → keep it
+  private). Notebook *Secrets* do not survive `kaggle kernels push`; dataset attachments do.
+
 - **GitHub secrets**: `KAGGLE_USERNAME` (your Kaggle handle, used in the kernel id) and `KAGGLE_API_TOKEN` (Settings → API → new-style token). Run it by hand from the Actions tab
   ("Train handwriting model" → Run workflow; tick *force publish* for the very first model).
 - The published model carries its `report.json` (before/after CER, data size), so each run can

@@ -32,7 +32,7 @@ class Trainer(Seq2SeqTrainer):
     shifts the labels a second time, so the targets end up off by one. Compute the loss
     ourselves: shift labels right for the decoder input, cross-entropy against the labels."""
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
-        labels = inputs['labels']; cfg = model.config
+        labels = inputs['labels']; cfg = (model.module if hasattr(model, 'module') else model).config   # DataParallel/DDP wrap the model
         dec_in = labels.new_full(labels.shape, cfg.pad_token_id); dec_in[:, 1:] = labels[:, :-1]; dec_in[:, 0] = cfg.decoder_start_token_id
         dec_in = dec_in.masked_fill(dec_in == -100, cfg.pad_token_id)
         out = model(pixel_values=inputs['pixel_values'], decoder_input_ids=dec_in)

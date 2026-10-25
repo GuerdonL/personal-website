@@ -3,10 +3,11 @@
 publish to the hub if validation CER improved on the currently published model.
 
 Runs headless on a free Kaggle GPU. Pushed by .github/workflows/train.yml (kaggle kernels push).
-Kaggle secrets used (Add-ons → Secrets, attached to this notebook): HF_TOKEN.
+HF token: a private Kaggle dataset `<you>/hf-token` containing hf_token.txt (attached via kernel-metadata).
 Everything else is in the CONFIG block below (edit here or override with env vars in kernel-metadata.json).
 """
 import os, sys, json, subprocess, pathlib, shutil, glob
+os.environ.setdefault('CUDA_VISIBLE_DEVICES', '0')   # one GPU is plenty; two makes Trainer use DataParallel
 
 CONFIG = dict(
     REPO_GIT   = os.environ.get('REPO_GIT',   'https://github.com/GuerdonL/personal-website'),
@@ -26,11 +27,16 @@ def sh(cmd, **kw):
 
 def main():
     C = CONFIG; work = pathlib.Path('/kaggle/working'); os.chdir(work)
-    try:
-        from kaggle_secrets import UserSecretsClient; token = UserSecretsClient().get_secret('HF_TOKEN')
-    except Exception as e:
-        token = os.environ.get('HF_TOKEN'); print('kaggle secret unavailable:', e)
-    if not token: sys.exit('no HF_TOKEN')
+    # The HF token comes from an attached private Kaggle dataset (survives `kaggle kernels push`, which
+    # drops notebook secrets), else from a Kaggle notebook secret, else from the environment.
+    token = os.environ.get('HF_TOKEN', '')
+    for f in glob.glob('/kaggle/input/**/hf_token*', recursive=True):
+        if not token: token = pathlib.Path(f).read_text().strip(); print('HF token from dataset file', f)
+    if not token:
+        try:
+            from kaggle_secrets import UserSecretsClient; token = UserSecretsClient().get_secret('HF_TOKEN')
+        except Exception as e: print('kaggle secret unavailable:', e)
+    if not token: sys.exit('no HF_TOKEN: attach the private dataset holding hf_token.txt (see train/README.md)')
     os.environ['HF_TOKEN'] = token; os.environ['HUGGINGFACE_HUB_TOKEN'] = token
 
     sh('pip install -q "transformers>=4.44" datasets accelerate evaluate jiwer pillow "optimum[onnxruntime]" huggingface_hub onnxruntime')
