@@ -493,9 +493,17 @@ async function wordAlternatives(L, w, n = 6) {
   const p = await ensureModel(); const url = c.toDataURL('image/png');
   const count = new Map(), order = [];
   const take = t => { t = cleanText(t); if (!t) return; if (!count.has(t)) { count.set(t, 0); order.push(t); } count.set(t, count.get(t) + 1); };
-  const one = async opts => { const out = await p(url, { max_new_tokens: 24, ...opts }); for (const o of (Array.isArray(out) ? out : [out]).flat()) take(o && o.generated_text); };
-  await one({ num_beams: 1 });                                                                   // the word read on its own (often differs from the in-line reading)
-  for (let i = 0; i < n; i++) await one({ do_sample: true, temperature: 0.9, top_k: 8 });
+  const withTimeout = (pr, ms) => Promise.race([pr, new Promise((_, rej) => setTimeout(() => rej(new Error('model call timed out')), ms))]);
+  const one = async (opts, label) => {
+    stat('stMsg', `re-reading "${w.text}" (${label})…`);
+    const out = await withTimeout(p(url, { max_new_tokens: 24, ...opts }), 20000);
+    for (const o of (Array.isArray(out) ? out : [out]).flat()) take(o && o.generated_text);
+  };
+  await one({ num_beams: 1 }, 'alone');                                                       // the word read on its own (often differs from the in-line reading)
+  for (let i = 0; i < n; i++) {
+    try { await one({ do_sample: true, temperature: 0.9, top_k: 8 }, `sample ${i + 1}/${n}`); }
+    catch (e) { console.warn('sampling failed', e); stat('stMsg', 'sampling not available: ' + (e.message || e)); break; }   // keep what we have
+  }
   return order.sort((a, b) => count.get(b) - count.get(a));
 }
 
@@ -567,13 +575,13 @@ let fx = null;          // the finished X, fading out: { strokes, t0 }
 let labelRects = [];    // filled by render(): where each word label is, in its chunk's rotated frame
 let lastTap = null;     // for double-tap on a label
 function recognizedLines() { const out = []; if (!layout || !recog) return out; for (const c of layout.chunks) for (const L of c.lines) { const r = recog.get(lineKey(L)); if (r && r.words && r.words.length) out.push({ c, L, r }); } return out; }
-// A diagonal stroke lying over one recognized word (its ink or the printed label under it), in the word's rotated frame.
+// A diagonal stroke lying over one recognized word's ink, in the word's rotated frame.
 let lastReject = '';
 function diagonalHit(st) {
   lastReject = '';
   for (const { c, L, r } of recognizedLines()) {
     const rp = st.pts.map(p => rot(p, -c.th)), rb = bbox(rp);
-    const fs = clamp(L.xh * 0.95, 10, 15), top = L.y0 - 0.8 * L.xh, bot = L.y1 + 3 + fs + 0.6 * L.xh;   // ink band plus the label under it
+    const top = L.y0 - 0.6 * L.xh, bot = L.y1 + 0.6 * L.xh;                                 // the line's ink band (not the label under it)
     if (rb.cy < top || rb.cy > bot) continue;                                              // not on this line
     const dx = rp[rp.length - 1].x - rp[0].x, dy = rp[rp.length - 1].y - rp[0].y, chord = Math.hypot(dx, dy);
     if (chord < 0.5 * L.xh) { lastReject = 'too small'; continue; }
@@ -623,9 +631,9 @@ function labelTap(p, src) {
 async function rejectWord(L, c, w) {
   w.rejected = w.rejected || []; w.rejected.push(w.text);
   if (w.rejected.length >= 6) { openWordEditor(L, c, w); return; }           // five guesses crossed out: the sixth X opens the box
-  if (!w.alts) { stat('stMsg', 'reading the word again…'); try { w.alts = await wordAlternatives(L, w); } catch (e) { w.alts = []; stat('stMsg', 'alternatives failed: ' + (e.message || e)); } }
+  if (!w.alts) { try { w.alts = await wordAlternatives(L, w); console.log('alternatives for', w.text, w.alts); } catch (e) { w.alts = []; stat('stMsg', 'alternatives failed: ' + (e.message || e)); } }
   const next = w.alts.find(t => !w.rejected.includes(t));
-  if (next == null) { openWordEditor(L, c, w); return; }
+  if (next == null) { stat('stMsg', w.alts.length ? 'no other reading — type it' : 'model gave no alternatives — type it'); openWordEditor(L, c, w); return; }
   w.text = next; w.edited = true;
   const left = w.alts.filter(t => !w.rejected.includes(t) && t !== next).length;
   stat('stMsg', `guess ${w.rejected.length + 1}: "${next}"` + (left ? ` · ${left} more` : ' · last one; next X opens the box'));
@@ -666,7 +674,10 @@ function render() {
   ctx.clearRect(0, 0, W, H);
   const kinds = new Map(); if (layout) for (const o of layout.S) kinds.set(o.i, o.kind);
   strokes.forEach((s, i) => { const k = kinds.get(i); drawStroke(s, k === 'speck' ? 0.35 : 0.92, k === 'speck' ? css('--speck') : k === 'rule' ? css('--rule') : null); });
-  if (gest) drawStroke(gest.st, 0.55, css('--danger'));                       // half an X, waiting for the other half
+  if (gest) {                                                                 // half an X, waiting for the other half
+    drawStroke(gest.st, 0.8, css('--danger'));
+    const { L, c, w } = gest.hit; ctx.save(); ctx.strokeStyle = css('--danger'); ctx.lineWidth = 2; ctx.globalAlpha = 0.8; poly(rotRect(w.x0 - 4, L.y0 - 4, w.x1 + 4, L.y1 + 4, c.th)); ctx.stroke(); ctx.restore();
+  }
   if (fx) { const k = 1 - (performance.now() - fx.t0) / 450; if (k > 0) { for (const s of fx.strokes) drawStroke(s, 0.75 * k, css('--danger')); requestAnimationFrame(render); } else fx = null; }
   labelRects = [];
   if (!layout) return;
