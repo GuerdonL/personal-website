@@ -23,7 +23,13 @@ CONFIG = dict(
 )
 
 def sh(cmd, **kw):
-    print('+', cmd, flush=True); subprocess.run(cmd, shell=True, check=True, **kw)
+    # stream the child's stdout AND stderr into our stdout: Kaggle's interactive console hides stderr,
+    # so a failing script otherwise looks like it just stopped
+    print('+', cmd, flush=True)
+    pr = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, **kw)
+    for line in pr.stdout: print(line, end='', flush=True)
+    rc = pr.wait()
+    if rc: raise SystemExit(f'command failed with exit code {rc}: {cmd.split()[0:2]}')
 
 def main():
     C = CONFIG; work = pathlib.Path('/kaggle/working'); os.chdir(work)
