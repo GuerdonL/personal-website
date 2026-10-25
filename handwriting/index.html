@@ -487,23 +487,42 @@ function alignWords(text, L) {
 const cleanText = t => (t || '').replace(/([^\w\s])\1{2,}/g, '$1').replace(/\s+/g, ' ').trim();   // collapse runs of a repeated symbol
 // transformers.js v3 has no real beam search (num_beams degrades to greedy and num_return_sequences
 // is ignored), so alternatives come from several sampled readings of the word crop alone.
-async function wordAlternatives(L, w, n = 6) {
+// Cheap variants of a reading that are often the actual fix: the model likes to append a period
+// to words that have none, and to miss or add a capital.
+function ruleVariants(t) {
+  const out = [];
+  const bare = t.replace(/[.,;:!?]+$/, ''); if (bare && bare !== t) out.push(bare);
+  if (/^[a-z]/.test(t)) out.push(t[0].toUpperCase() + t.slice(1)); else if (/^[A-Z][a-z]/.test(t)) out.push(t[0].toLowerCase() + t.slice(1));
+  if (/^[a-z]/.test(bare) && bare !== t) out.push(bare[0].toUpperCase() + bare.slice(1));
+  return out;
+}
+async function wordAlternatives(L, w, want = 5) {
   const c = rasterizeWord(L, w);
   if (window.HW_MOCK_ALTS) return window.HW_MOCK_ALTS(w, c);
-  const p = await ensureModel(); const url = c.toDataURL('image/png');
+  const cur = w.text;
   const count = new Map(), order = [];
-  const take = t => { t = cleanText(t); if (!t) return; if (!count.has(t)) { count.set(t, 0); order.push(t); } count.set(t, count.get(t) + 1); };
+  const take = (t, n = 1) => { t = cleanText(t); if (!t || t === cur) return; if (!count.has(t)) { count.set(t, 0); order.push(t); } count.set(t, count.get(t) + n); };
+  // the punctuation fix first when it applies: it is right far more often than any re-read
+  if (/[.,;:!?]$/.test(cur)) take(cur.replace(/[.,;:!?]+$/, ''), 1000);
+  const p = window.HW_PIPE || await ensureModel(); const url = c.toDataURL('image/png');   // HW_PIPE: test hook
   const withTimeout = (pr, ms) => Promise.race([pr, new Promise((_, rej) => setTimeout(() => rej(new Error('model call timed out')), ms))]);
   const one = async (opts, label) => {
-    stat('stMsg', `re-reading "${w.text}" (${label})…`);
+    stat('stMsg', `re-reading "${cur}" (${label})…`);
     const out = await withTimeout(p(url, { max_new_tokens: 24, ...opts }), 20000);
-    for (const o of (Array.isArray(out) ? out : [out]).flat()) take(o && o.generated_text);
+    for (const o of (Array.isArray(out) ? out : [out]).flat()) take(o && o.generated_text, 10);
   };
   await one({ num_beams: 1 }, 'alone');                                                       // the word read on its own (often differs from the in-line reading)
-  for (let i = 0; i < n; i++) {
-    try { await one({ do_sample: true, temperature: 0.9, top_k: 8 }, `sample ${i + 1}/${n}`); }
-    catch (e) { console.warn('sampling failed', e); stat('stMsg', 'sampling not available: ' + (e.message || e)); break; }   // keep what we have
+  // sampled re-reads, hotter each round, until there are enough distinct readings
+  const temps = [0.8, 1.0, 1.3, 1.7]; let k = 0;
+  for (const T of temps) {
+    for (let i = 0; i < 3; i++) {
+      try { await one({ do_sample: true, temperature: T, top_k: T < 1.2 ? 8 : 20 }, `sample ${++k}, T=${T}`); }
+      catch (e) { console.warn('sampling failed', e); stat('stMsg', 'sampling not available: ' + (e.message || e)); k = -1; break; }
+    }
+    if (k < 0 || order.length >= want) break;
   }
+  for (const v of ruleVariants(cur)) take(v, 0.5);                                              // after the model's own ideas
+  for (const t of order.slice()) for (const v of ruleVariants(t)) take(v, 0.1);                 // and de-punctuated versions of those
   return order.sort((a, b) => count.get(b) - count.get(a));
 }
 
