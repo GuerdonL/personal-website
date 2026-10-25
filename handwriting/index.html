@@ -562,27 +562,37 @@ function lineKey(L) { return L.members.map(o => o.i + ':' + o.s.t0).join(','); }
    feedback gestures: an X over a recognized word rejects the reading
    ========================================================================= */
 let gest = null;        // first diagonal of an X, waiting for the second: { hit, st, timer }
+let traceUI = load('hw.v1.trace', false);   // event/gesture trace in the status bar (tap the model name there)
 let fx = null;          // the finished X, fading out: { strokes, t0 }
 let labelRects = [];    // filled by render(): where each word label is, in its chunk's rotated frame
 let lastTap = null;     // for double-tap on a label
 function recognizedLines() { const out = []; if (!layout || !recog) return out; for (const c of layout.chunks) for (const L of c.lines) { const r = recog.get(lineKey(L)); if (r && r.words && r.words.length) out.push({ c, L, r }); } return out; }
-// A diagonal stroke lying over one recognized word, in that word's rotated frame.
+// A diagonal stroke lying over one recognized word (its ink or the printed label under it), in the word's rotated frame.
+let lastReject = '';
 function diagonalHit(st) {
+  lastReject = '';
   for (const { c, L, r } of recognizedLines()) {
     const rp = st.pts.map(p => rot(p, -c.th)), rb = bbox(rp);
+    const fs = clamp(L.xh * 0.95, 10, 15), top = L.y0 - 0.8 * L.xh, bot = L.y1 + 3 + fs + 0.6 * L.xh;   // ink band plus the label under it
+    if (rb.cy < top || rb.cy > bot) continue;                                              // not on this line
     const dx = rp[rp.length - 1].x - rp[0].x, dy = rp[rp.length - 1].y - rp[0].y, chord = Math.hypot(dx, dy);
-    if (chord < 0.7 * L.xh || chord / Math.max(1e-6, pathLen(rp)) < 0.8) continue;      // too small or not straight
-    const slope = Math.abs(dy) / Math.max(1e-6, Math.abs(dx)); if (slope < 0.18 || slope > 5.5) continue;   // not diagonal (an X across a long word is quite flat)
-    if (rb.cy < L.y0 - 0.5 * L.xh || rb.cy > L.y1 + 0.5 * L.xh) continue;                 // not on this line
+    if (chord < 0.5 * L.xh) { lastReject = 'too small'; continue; }
+    const straight = chord / Math.max(1e-6, pathLen(rp)); if (straight < 0.7) { lastReject = `not straight (${straight.toFixed(2)})`; continue; }
+    const slope = Math.abs(dy) / Math.max(1e-6, Math.abs(dx)); if (slope < 0.12 || slope > 8) { lastReject = `not diagonal (slope ${slope.toFixed(2)})`; continue; }
+    // the word whose box holds the stroke's centre; the stroke may overhang the word by up to its own width
+    let best = null;
     for (const w of r.words) {
       if (!w.text) continue;
-      const m = 0.35 * L.xh;
-      if (rb.cx >= w.x0 - m && rb.cx <= w.x1 + m && rb.x0 >= w.x0 - 1.2 * L.xh && rb.x1 <= w.x1 + 1.2 * L.xh) return { c, L, r, w, key: lineKey(L), sign: Math.sign(dx * dy) || 1 };
+      const m = 0.5 * L.xh; if (rb.cx < w.x0 - m || rb.cx > w.x1 + m) continue;
+      const over = Math.max(0, w.x0 - rb.x0) + Math.max(0, rb.x1 - w.x1); if (over > Math.max(1.5 * L.xh, 0.8 * (w.x1 - w.x0))) { lastReject = 'overhangs the word too far'; continue; }
+      const d = Math.abs(rb.cx - (w.x0 + w.x1) / 2); if (!best || d < best.d) best = { w, d };
     }
+    if (best) return { c, L, r, w: best.w, key: lineKey(L), sign: Math.sign(dx * dy) || 1 };
+    if (!lastReject) lastReject = 'centre not over a word';
   }
   return null;
 }
-function flushGesture() { if (!gest) return; clearTimeout(gest.timer); const st = gest.st; gest = null; addStroke(st); }
+function flushGesture() { if (!gest) return; clearTimeout(gest.timer); const st = gest.st; gest = null; stat('stMsg', 'no second stroke — kept as ink'); addStroke(st); }
 function handleGesture(st) {
   const dur = st.t1 - st.t0, b = bbox(st.pts);
   if (Math.max(b.w, b.h) < 6 && dur < 350) { if (labelTap({ x: b.cx, y: b.cy }, st.src)) return true; }   // short tap: maybe a label
@@ -592,8 +602,10 @@ function handleGesture(st) {
     fx = { strokes: [first, st], t0: performance.now() }; render();
     rejectWord(hit.L, hit.c, hit.w); return true;
   }
+  if (gest && hit && traceUI) stat('stMsg', hit.key !== gest.hit.key || hit.w !== gest.hit.w ? 'second stroke is over a different word' : 'second stroke goes the same way as the first');
   flushGesture();                                                        // whatever was pending was ink after all
-  if (hit) { gest = { hit, st, timer: setTimeout(flushGesture, 1500) }; render(); return true; }
+  if (hit) { gest = { hit, st, timer: setTimeout(flushGesture, 2500) }; stat('stMsg', `half an X over "${hit.w.text}" — now cross it`); render(); return true; }
+  if (traceUI && lastReject) stat('stMsg', 'not an X stroke: ' + lastReject);
   return false;
 }
 function labelTap(p, src) {
@@ -830,7 +842,6 @@ addEventListener('keydown', e => {
 // iPad Safari sometimes swallows the click after a pen or finger tap on the top-bar buttons
 // (the document-level touch handler that keeps the page from scrolling is involved), so each
 // button also fires on pointerup, deduped against the click that may follow.
-let traceUI = load('hw.v1.trace', false);
 $('status').addEventListener('click', e => { if (e.target.closest('#stModel')) { traceUI = !traceUI; save('hw.v1.trace', traceUI); stat('stMsg', traceUI ? 'toolbar event trace ON (tap the model name again to turn off)' : 'trace off'); } });
 for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'click']) $('top').addEventListener(ev, e => { if (traceUI && e.target.closest('button')) stat('stMsg', `${e.type} ${e.pointerType || ''} on ${e.target.closest('button').id} ${e.defaultPrevented ? '(prevented)' : ''}`); }, true);
 for (const el of document.querySelectorAll('#top button')) {
