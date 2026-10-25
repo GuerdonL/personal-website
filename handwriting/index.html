@@ -577,16 +577,28 @@ let lastTap = null;     // for double-tap on a label
 function recognizedLines() { const out = []; if (!layout || !recog) return out; for (const c of layout.chunks) for (const L of c.lines) { const r = recog.get(lineKey(L)); if (r && r.words && r.words.length) out.push({ c, L, r }); } return out; }
 // A diagonal stroke lying over one recognized word's ink, in the word's rotated frame.
 let lastReject = '';
+// principal axis of a point set: angle, extent along it, and max perpendicular spread as a fraction of that extent
+function fitLine(P) {
+  let cx = 0, cy = 0; for (const q of P) { cx += q.x; cy += q.y; } cx /= P.length; cy /= P.length;
+  let sxx = 0, sxy = 0, syy = 0; for (const q of P) { const x = q.x - cx, y = q.y - cy; sxx += x * x; sxy += x * y; syy += y * y; }
+  const ang = 0.5 * Math.atan2(2 * sxy, sxx - syy), ux = Math.cos(ang), uy = Math.sin(ang);
+  let a0 = Infinity, a1 = -Infinity, perp = 0;
+  for (const q of P) { const x = q.x - cx, y = q.y - cy; const a = x * ux + y * uy, b = Math.abs(-x * uy + y * ux); if (a < a0) a0 = a; if (a > a1) a1 = a; if (b > perp) perp = b; }
+  const len = a1 - a0; return { ang, len, spread: perp / Math.max(1e-6, len), cx, cy };
+}
 function diagonalHit(st) {
   lastReject = '';
   for (const { c, L, r } of recognizedLines()) {
     const rp = st.pts.map(p => rot(p, -c.th)), rb = bbox(rp);
     const top = L.y0 - 0.6 * L.xh, bot = L.y1 + 0.6 * L.xh;                                 // the line's ink band (not the label under it)
     if (rb.cy < top || rb.cy > bot) continue;                                              // not on this line
-    const dx = rp[rp.length - 1].x - rp[0].x, dy = rp[rp.length - 1].y - rp[0].y, chord = Math.hypot(dx, dy);
-    if (chord < 0.5 * L.xh) { lastReject = 'too small'; continue; }
-    const straight = chord / Math.max(1e-6, pathLen(rp)); if (straight < 0.7) { lastReject = `not straight (${straight.toFixed(2)})`; continue; }
-    const slope = Math.abs(dy) / Math.max(1e-6, Math.abs(dx)); if (slope < 0.12 || slope > 8) { lastReject = `not diagonal (slope ${slope.toFixed(2)})`; continue; }
+    // Shape from the best-fit line through the points (principal axis), so hooks and tails at the
+    // ends of a quick pen stroke don't count against it: length along the axis, spread across it.
+    const f = fitLine(rp);
+    if (f.len < 0.5 * L.xh) { lastReject = 'too small'; continue; }
+    if (f.spread > 0.22) { lastReject = `not straight (spread ${f.spread.toFixed(2)})`; continue; }
+    const slope = Math.abs(Math.tan(f.ang)); if (slope < 0.12 || slope > 8) { lastReject = `not diagonal (slope ${slope.toFixed(2)})`; continue; }
+    const dx = Math.cos(f.ang), dy = Math.sin(f.ang);
     // the word whose box holds the stroke's centre; the stroke may overhang the word by up to its own width
     let best = null;
     for (const w of r.words) {
@@ -595,22 +607,23 @@ function diagonalHit(st) {
       const over = Math.max(0, w.x0 - rb.x0) + Math.max(0, rb.x1 - w.x1); if (over > Math.max(1.5 * L.xh, 0.8 * (w.x1 - w.x0))) { lastReject = 'overhangs the word too far'; continue; }
       const d = Math.abs(rb.cx - (w.x0 + w.x1) / 2); if (!best || d < best.d) best = { w, d };
     }
-    if (best) return { c, L, r, w: best.w, key: lineKey(L), sign: Math.sign(dx * dy) || 1 };
+    if (best) return { c, L, r, w: best.w, key: lineKey(L), ang: f.ang * 180 / Math.PI };
     if (!lastReject) lastReject = 'centre not over a word';
   }
   return null;
 }
+const angleDiff = (a, b) => { let d = Math.abs(a - b) % 180; return Math.min(d, 180 - d); };
 function flushGesture() { if (!gest) return; clearTimeout(gest.timer); const st = gest.st; gest = null; stat('stMsg', 'no second stroke — kept as ink'); addStroke(st); }
 function handleGesture(st) {
   const dur = st.t1 - st.t0, b = bbox(st.pts);
   if (Math.max(b.w, b.h) < 6 && dur < 350) { if (labelTap({ x: b.cx, y: b.cy }, st.src)) return true; }   // short tap: maybe a label
   const hit = diagonalHit(st);
-  if (gest && hit && hit.key === gest.hit.key && hit.w === gest.hit.w && hit.sign !== gest.hit.sign) {    // second stroke of the X
+  if (gest && hit && hit.key === gest.hit.key && hit.w === gest.hit.w && angleDiff(hit.ang, gest.hit.ang) > 30) {    // second stroke of the X
     clearTimeout(gest.timer); const first = gest.st; gest = null;
     fx = { strokes: [first, st], t0: performance.now() }; render();
     rejectWord(hit.L, hit.c, hit.w); return true;
   }
-  if (gest && hit && traceUI) stat('stMsg', hit.key !== gest.hit.key || hit.w !== gest.hit.w ? 'second stroke is over a different word' : 'second stroke goes the same way as the first');
+  if (gest && hit && traceUI) stat('stMsg', hit.key !== gest.hit.key || hit.w !== gest.hit.w ? 'second stroke is over a different word' : 'second stroke runs the same way as the first (needs to cross it)');
   flushGesture();                                                        // whatever was pending was ink after all
   if (hit) { gest = { hit, st, timer: setTimeout(flushGesture, 2500) }; stat('stMsg', `half an X over "${hit.w.text}" — now cross it`); render(); return true; }
   if (traceUI && lastReject) stat('stMsg', 'not an X stroke: ' + lastReject);
