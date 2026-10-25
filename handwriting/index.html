@@ -187,8 +187,12 @@ const PEN_GRACE = 1500, PALM_LOOKBACK = 700, PALM_SIZE = 22; let lastPen = -Infi
 // zooms under the pen. The toolbar and panels are exempt: cancelling a touchstart there also cancels
 // the button's click on Safari, which made the top row dead for 1.5 s after every stroke.
 const inUI = t => t && t.closest && t.closest('#top, #side, #status, #wordEdit');
-for (const ev of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) document.addEventListener(ev, e => { if (inUI(e.target)) return; if (e.target === cv || live || performance.now() - lastPen < PEN_GRACE) e.preventDefault(); }, { passive: false });
-cv.addEventListener('gesturestart', e => e.preventDefault());
+for (const ev of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) document.addEventListener(ev, e => { if (inUI(e.target)) return; if (e.touches && e.touches.length > 1 && zoomed()) return; if (e.target === cv || live || performance.now() - lastPen < PEN_GRACE) e.preventDefault(); }, { passive: false });
+// Pinch-zoom: Safari ignores user-scalable=no, and once zoomed the canvas swallowed the pinch
+// that would undo it. Block pinches while the page is at 1×; when it is already zoomed, let them
+// through anywhere so the page can always be zoomed back out.
+const zoomed = () => window.visualViewport && visualViewport.scale > 1.02;
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => { if (!zoomed()) e.preventDefault(); }, { passive: false });
 function isPalm(e) { if (e.pointerType !== 'touch') return false; if (settings.pen) return true; if (performance.now() - lastPen < PEN_GRACE) return true; return Math.max(e.width || 0, e.height || 0) > PALM_SIZE; }
 cv.addEventListener('pointerdown', e => {
   if (e.pointerType === 'pen') lastPen = performance.now();
@@ -787,8 +791,8 @@ async function syncPairs(quiet = false) {
     const pairs = (await idb.all()).filter(p => p.text && synced[p.id] !== fingerprint(p));
     if (!pairs.length) { stat('stSync', 'up to date'); if (!quiet) stat('stMsg', 'nothing new to sync'); return; }
     stat('stSync', `sending ${pairs.length}…`);
-    const r = await fetch(syncCfg.url.replace(/\/$/, '') + '/pairs', { method: 'POST', headers: { 'Content-Type': 'text/plain', 'X-Passphrase': syncCfg.pass }, body: pairs.map(p => JSON.stringify(p)).join('\n') });
-    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.status);
+    const r = await fetch(syncCfg.url.replace(/\/+$/, '').replace(/\/pairs$/, '') + '/pairs', { method: 'POST', headers: { 'Content-Type': 'text/plain', 'X-Passphrase': syncCfg.pass }, body: pairs.map(p => JSON.stringify(p)).join('\n') });
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error((j.error || r.status) + (r.status === 405 || r.status === 404 ? ' — is that the Worker URL (https://handwriting-sync.<you>.workers.dev)? Check /health in a browser' : ''));
     for (const p of pairs) synced[p.id] = fingerprint(p); save(LS_SYNCED, synced);
     stat('stSync', `${pairs.length} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`); if (!quiet) stat('stMsg', `synced ${j.lines} pairs`);
   } catch (e) { stat('stSync', 'failed'); stat('stMsg', 'sync failed: ' + (e.message || e)); }
