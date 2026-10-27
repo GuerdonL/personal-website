@@ -46,9 +46,9 @@ def edit(a, b):
 def evaluate(model, dl, dev, show=0):
     model.eval(); ce = cn = we = wn = 0; shown = 0
     for X, xl, Y, yl, ts in dl:
-        lp = model(X.to(dev), xl.to(dev)).argmax(-1).cpu()
+        lp = model(X.to(dev), xl.to(dev)).argmax(-1).cpu(); ol = model.out_lengths(xl)
         for k, t in enumerate(ts):
-            h = decode_greedy(lp[k, :xl[k]].tolist())
+            h = decode_greedy(lp[k, :ol[k]].tolist())
             ce += edit(h, t); cn += len(t); we += edit(h.split(), t.split()); wn += len(t.split())
             if shown < show: print(f'   {t!r} → {h!r}'); shown += 1
     return ce / max(1, cn), we / max(1, wn)
@@ -76,7 +76,7 @@ def main():
         model.train(); tot = 0; t0 = time.time()
         for X, xl, Y, yl, _ in dtr:
             lp = model(X.to(dev), xl.to(dev))                      # [B,T,V]
-            loss = ctc(lp.transpose(0, 1), Y.to(dev), xl.to(dev), yl.to(dev))
+            loss = ctc(lp.transpose(0, 1), Y.to(dev), model.out_lengths(xl).clamp(max=lp.shape[1]).to(dev), yl.to(dev))
             opt.zero_grad(); loss.backward(); nn.utils.clip_grad_norm_(model.parameters(), 5.0); opt.step(); sched.step(); tot += loss.item()
         msg = f'epoch {ep:3d} loss {tot / len(dtr):.3f} {time.time() - t0:.0f}s'
         if dva:
