@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Panels</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:#E3E6E9;
+  --panel:#F2F4F6;
+  --ink:#10151B;
+  --ink-2:#4B5560;
+  --ink-3:#8D97A1;
+  --rule:#AFB8C1;
+  --rule-soft:#C8CFD6;
+  --accent:#2C3FA6;
+  --accent-soft:#C3CAEA;
+  --warn:#8A3324;
+  --chrome:#EDEFF2;
+  --shadow:rgba(16,21,27,.10);
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0D1116; --panel:#171C23; --ink:#E6EAEE; --ink-2:#A2ACB6; --ink-3:#6C7783;
+    --rule:#333C47; --rule-soft:#262E38; --accent:#8496FF; --accent-soft:#2C3660;
+    --warn:#E0806C; --chrome:#12171D; --shadow:rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0D1116; --panel:#171C23; --ink:#E6EAEE; --ink-2:#A2ACB6; --ink-3:#6C7783;
+  --rule:#333C47; --rule-soft:#262E38; --accent:#8496FF; --accent-soft:#2C3660;
+  --warn:#E0806C; --chrome:#12171D; --shadow:rgba(0,0,0,.45);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--sans); font-size:14px; line-height:1.45;
+  display:flex; flex-direction:column; overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ---- top bar ---- */
+.bar{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:10px 16px; background:var(--chrome);
+  border-bottom:1px solid var(--rule); flex:0 0 auto;
+}
+.mark{text-decoration:none; color:inherit; font-family:var(--mono); font-weight:700; font-size:15px; letter-spacing:-.02em; margin-right:2px}
+.mark span{color:var(--accent)}
+.bar .hint{color:var(--ink-3); font-size:12.5px; margin-right:auto}
+button, select{
+  font-family:var(--sans); font-size:12.5px; color:var(--ink);
+  background:var(--panel); border:1px solid var(--rule);
+  border-radius:3px; padding:5px 10px; cursor:pointer;
+}
+button:hover,select:hover{border-color:var(--accent)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+button.on{background:var(--accent); border-color:var(--accent); color:#fff}
+
+/* ---- stage ---- */
+main{flex:1 1 auto; display:flex; min-height:0}
+#stage{flex:1 1 auto; position:relative; overflow:hidden; cursor:grab}
+#stage.dragging{cursor:grabbing}
+svg{display:block; width:100%; height:100%; touch-action:none}
+.pname{font-family:var(--mono); font-weight:500; font-size:12.5px; fill:var(--ink)}
+.pkind{font-family:var(--sans); font-size:9.5px; fill:var(--ink-3); letter-spacing:.04em}
+.pcount{font-family:var(--mono); font-size:10px; fill:var(--ink-3)}
+
+/* ---- inspector ---- */
+aside{
+  flex:0 0 288px; background:var(--chrome); border-left:1px solid var(--rule);
+  padding:16px; overflow-y:auto;
+}
+aside h2{font-size:12px; font-weight:600; color:var(--ink-2); margin:0 0 10px}
+.field{margin-bottom:14px}
+.field label{display:block; font-size:11.5px; color:var(--ink-3); margin-bottom:4px}
+input[type=text]{
+  width:100%; font-family:var(--mono); font-size:13px; color:var(--ink);
+  background:var(--panel); border:1px solid var(--rule); border-radius:3px; padding:6px 8px;
+}
+select{width:100%}
+.deps{list-style:none; margin:0; padding:0}
+.deps li{
+  display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:12px;
+  padding:4px 0; border-bottom:1px solid var(--rule-soft);
+}
+.deps li span{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.deps li button{padding:1px 6px; font-size:11px; line-height:1.3}
+.empty{color:var(--ink-3); font-size:12px; font-style:italic}
+.row{display:flex; gap:8px}
+.row button{flex:1}
+.danger{color:var(--warn); border-color:var(--rule)}
+.danger:hover{border-color:var(--warn)}
+.where{
+  font-family:var(--mono); font-size:11.5px; color:var(--ink-2);
+  background:var(--panel); border:1px solid var(--rule-soft); border-radius:3px;
+  padding:7px 8px; word-break:break-word;
+}
+.note{font-size:11.5px; color:var(--ink-3); line-height:1.5; border-top:1px solid var(--rule-soft); padding-top:12px; margin-top:16px}
+.note b{color:var(--ink-2); font-weight:500}
+#flash{
+  position:absolute; left:50%; bottom:20px; transform:translateX(-50%);
+  background:var(--ink); color:var(--ground); font-size:12.5px;
+  padding:7px 13px; border-radius:3px; opacity:0; pointer-events:none;
+  transition:opacity .2s;
+}
+#flash.show{opacity:1}
+@media (max-width:860px){
+  main{flex-direction:column}
+  aside{flex:0 0 auto; max-height:44%; border-left:none; border-top:1px solid var(--rule)}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <a class="mark" href="/" title="home">panels<span>{}</span></a>
+  <div class="hint" id="hint">Click a panel to inspect. Shift-click another to make it a dependency.</div>
+  <button id="addBtn">New panel</button>
+  <button id="edgeBtn" class="on">Dependencies</button>
+  <button id="fitBtn">Fit</button>
+  <button id="exportBtn">Export</button>
+  <button id="importBtn">Import</button>
+  <button id="resetBtn">Reset</button>
+  <input type="file" id="importFile" accept="application/json" hidden>
+  <button id="themeBtn">Dark</button>
+</div>
+
+<main>
+  <div id="stage">
+    <svg id="svg"><g id="world"></g></svg>
+    <div id="flash"></div>
+  </div>
+  <aside id="inspector"></aside>
+</main>
+
+<script>
+"use strict";
+const SVGNS="http://www.w3.org/2000/svg";
+const ROOT="@root";
+
+/* ─────────────────────────── model ─────────────────────────── */
+
+const KINDS=["space","set","map","relation","value"];
+
+const N=new Map();
+let uid=0;
+function add(id,name,kind,deps){
+  N.set(id,{id,name,kind,deps:new Set(deps),collapsed:false});
+  uid++;
+}
+
+const SEED=[
+ ["reals","ℝ","space",[]],
+ ["r2","ℝ²","space",["reals"]],
+ ["points","Points","set",["r2"]],
+ ["mean","mean","map",["points","reals"]],
+ ["centroid","centroid","value",["mean","r2"]],
+ ["line","Line(a,b)","space",["r2","reals"]],
+ ["fit","leastSquares","map",["points","centroid","line"]],
+ ["resid","residuals","map",["fit","points","reals"]],
+ ["rsq","R²","value",["resid","mean"]],
+ ["hist","histogram","map",["points","reals"]],
+];
+const STORE="panels.program.v1";
+
+function serialize(){
+  return JSON.stringify({v:1,panels:[...N.values()].map(n=>({id:n.id,name:n.name,kind:n.kind,deps:[...n.deps],collapsed:!!n.collapsed}))});
+}
+function loadProgram(json){
+  const data=typeof json==="string"?JSON.parse(json):json;
+  if(!data||!Array.isArray(data.panels)) throw new Error("not a panels program");
+  const ids=new Set(data.panels.map(p=>p.id));
+  N.clear(); uid=0;
+  for(const p of data.panels){
+    if(typeof p.id!=="string"||!p.id||p.id===ROOT) continue;
+    add(p.id,String(p.name||"unnamed"),KINDS.includes(p.kind)?p.kind:"space",
+        (p.deps||[]).filter(d=>ids.has(d)&&d!==p.id));
+    N.get(p.id).collapsed=!!p.collapsed;
+  }
+  // refuse any cycle that slipped in through the file
+  for(const n of N.values()) for(const d of [...n.deps]) if(reaches(d,n.id)) n.deps.delete(d);
+}
+function seed(){ N.clear(); uid=0; SEED.forEach(a=>add(...a)); }
+function save(){ try{ localStorage.setItem(STORE,serialize()); }catch(e){} }
+
+(function boot(){
+  let saved=null;
+  try{ saved=localStorage.getItem(STORE); }catch(e){}
+  if(saved){ try{ loadProgram(saved); return; }catch(e){} }
+  seed();
+})();
+
+const UI={selected:null, showEdges:true, scale:1, tx:0, ty:0};
+
+/* ───────────────────── dominators → nesting ───────────────────── */
+
+let parent=new Map(), kidsOf=new Map(), edgesOf=new Map(), depth=new Map();
+
+function computeTree(){
+  const ids=[...N.keys()];
+  const used=new Set();
+  for(const n of N.values()) for(const d of n.deps) used.add(d);
+
+  // edges point from dependent to dependency; ROOT feeds every sink.
+  const succ=new Map([[ROOT, ids.filter(i=>!used.has(i))]]);
+  for(const n of N.values()) succ.set(n.id,[...n.deps]);
+  const preds=new Map(); for(const k of succ.keys()) preds.set(k,[]);
+  for(const [u,vs] of succ) for(const v of vs) preds.get(v).push(u);
+
+  // reverse postorder from ROOT
+  const post=[], seen=new Set();
+  (function dfs(u){
+    seen.add(u);
+    for(const v of succ.get(u)||[]) if(!seen.has(v)) dfs(v);
+    post.push(u);
+  })(ROOT);
+  const rpo=post.slice().reverse();
+  const num=new Map(rpo.map((k,i)=>[k,i]));
+
+  const idom=new Map([[ROOT,ROOT]]);
+  let changed=true, guard=0;
+  const meet=(a,b)=>{
+    while(a!==b){
+      while(num.get(a)>num.get(b)) a=idom.get(a);
+      while(num.get(b)>num.get(a)) b=idom.get(b);
+    }
+    return a;
+  };
+  while(changed && guard++<400){
+    changed=false;
+    for(const n of rpo){
+      if(n===ROOT) continue;
+      let nd=null;
+      for(const p of preds.get(n)||[]){
+        if(!idom.has(p)) continue;
+        nd = nd===null ? p : meet(p,nd);
+      }
+      if(nd!==null && idom.get(n)!==nd){ idom.set(n,nd); changed=true; }
+    }
+  }
+
+  parent=new Map(); kidsOf=new Map([[ROOT,[]]]);
+  for(const id of ids){
+    const p=idom.get(id)??ROOT;
+    parent.set(id,p);
+    if(!kidsOf.has(p)) kidsOf.set(p,[]);
+    kidsOf.get(p).push(id);
+  }
+  for(const id of ids) if(!kidsOf.has(id)) kidsOf.set(id,[]);
+
+  depth=new Map([[ROOT,0]]);
+  (function walk(id,d){
+    for(const k of kidsOf.get(id)||[]){ depth.set(k,d+1); walk(k,d+1); }
+  })(ROOT,0);
+
+  // Every dependency of n is a sibling of n, or of one of n's ancestors.
+  // Draw it at the level where it becomes a sibling relation.
+  edgesOf=new Map(); const seenE=new Set();
+  for(const n of N.values()){
+    for(const d of n.deps){
+      const owner=parent.get(d);
+      let s=n.id, hop=0;
+      while(parent.get(s)!==owner && hop++<200) s=parent.get(s);
+      if(s===undefined||s===d) continue;
+      const key=owner+"|"+s+"|"+d;
+      if(seenE.has(key)) continue;
+      seenE.add(key);
+      if(!edgesOf.has(owner)) edgesOf.set(owner,[]);
+      edgesOf.get(owner).push({from:s,to:d,direct:s===n.id});
+    }
+  }
+}
+
+function reaches(a,b){ // does a transitively depend on b?
+  const st=[a], seen=new Set();
+  while(st.length){
+    const x=st.pop();
+    if(x===b) return true;
+    if(seen.has(x)) continue; seen.add(x);
+    for(const d of N.get(x).deps) st.push(d);
+  }
+  return false;
+}
+
+/* ─────────────────────────── layout ─────────────────────────── */
+
+const K={PAD:18, HEAD:26, GAPX:46, GAPY:16, MINW:126, MINH:40, ROOTPAD:28};
+const SIZE=new Map(), POS=new Map();
+const ctx=document.createElement("canvas").getContext("2d");
+function tw(s,px,fam){ ctx.font=px+"px "+fam; return ctx.measureText(s).width; }
+
+function measure(id){
+  const isRoot=id===ROOT;
+  const node=isRoot?null:N.get(id);
+  const kids=kidsOf.get(id)||[];
+  const leaf=!isRoot && (node.collapsed || kids.length===0);
+
+  if(leaf){
+    const w=Math.max(K.MINW, tw(node.name,12.5,'"JetBrains Mono",monospace')
+                             + tw(node.kind,9.5,'Archivo,sans-serif') + 44);
+    SIZE.set(id,{w,h:K.MINH});
+    return;
+  }
+  for(const k of kids) measure(k);
+
+  const E=(edgesOf.get(id)||[]).filter(e=>kids.includes(e.from)&&kids.includes(e.to));
+  const rank=new Map(kids.map(k=>[k,0]));
+  let ch=true, g=0;
+  while(ch&&g++<300){ ch=false;
+    for(const e of E){ const r=rank.get(e.to)+1; if(r>rank.get(e.from)){ rank.set(e.from,r); ch=true; } }
+  }
+  const maxR=kids.reduce((m,k)=>Math.max(m,rank.get(k)),0);
+  const cols=Array.from({length:maxR+1},()=>[]);
+  for(const k of kids) cols[rank.get(k)].push(k);
+  orderColumns(cols,E);
+
+  const colW=cols.map(c=>c.reduce((m,k)=>Math.max(m,SIZE.get(k).w),0));
+  const colH=cols.map(c=>c.reduce((a,k)=>a+SIZE.get(k).h,0)+Math.max(0,c.length-1)*K.GAPY);
+  const H=Math.max(K.MINH,...colH);
+
+  const pad=isRoot?K.ROOTPAD:K.PAD;
+  const head=isRoot?0:K.HEAD;
+  let x=pad;
+  for(let i=0;i<cols.length;i++){
+    let y=head+pad+(H-colH[i])/2;
+    for(const k of cols[i]){
+      const s=SIZE.get(k);
+      POS.set(k,{x:x+(colW[i]-s.w)/2, y});
+      y+=s.h+K.GAPY;
+    }
+    x+=colW[i]+K.GAPX;
+  }
+  let W=x-(cols.length?K.GAPX:0)+pad;
+  if(!isRoot) W=Math.max(W, tw(node.name,12.5,'"JetBrains Mono",monospace')+
+                            tw(node.kind,9.5,'Archivo,sans-serif')+48);
+  SIZE.set(id,{w:W,h:head+pad+H+pad});
+}
+
+function orderColumns(cols,E){
+  const out=new Map(), inn=new Map();
+  for(const e of E){
+    (out.get(e.from)||out.set(e.from,[]).get(e.from)).push(e.to);
+    (inn.get(e.to)||inn.set(e.to,[]).get(e.to)).push(e.from);
+  }
+  for(let pass=0;pass<4;pass++){
+    const idx=new Map(); cols.forEach(c=>c.forEach((k,i)=>idx.set(k,i)));
+    const rel=pass%2===0?out:inn;
+    for(const col of cols){
+      col.sort((a,b)=>bary(a)-bary(b));
+    }
+    function bary(k){
+      const r=rel.get(k)||[];
+      if(!r.length) return idx.get(k);
+      return r.reduce((s,v)=>s+(idx.get(v)??0),0)/r.length;
+    }
+  }
+}
+
+/* ─────────────────────────── render ─────────────────────────── */
+
+const svg=document.getElementById("svg");
+const world=document.getElementById("world");
+
+function el(t,a={}){ const e=document.createElementNS(SVGNS,t); for(const k in a) e.setAttribute(k,a[k]); return e; }
+
+function relatives(){
+  if(!UI.selected) return {dep:new Set(),use:new Set()};
+  const dep=new Set(), use=new Set();
+  (function down(x){ for(const d of N.get(x).deps){ if(!dep.has(d)){ dep.add(d); down(d);} } })(UI.selected);
+  (function up(x){ for(const n of N.values()) if(n.deps.has(x)&&!use.has(n.id)){ use.add(n.id); up(n.id);} })(UI.selected);
+  return {dep,use};
+}
+
+function render(){
+  computeTree();
+  SIZE.clear(); POS.clear();
+  measure(ROOT);
+  world.textContent="";
+  const rel=relatives();
+  world.appendChild(drawPanel(ROOT,rel));
+  world.setAttribute("transform",`translate(${UI.tx},${UI.ty}) scale(${UI.scale})`);
+  drawInspector();
+  save();
+}
+
+function drawPanel(id,rel){
+  const isRoot=id===ROOT;
+  const s=SIZE.get(id);
+  const p=isRoot?{x:0,y:0}:POS.get(id);
+  const g=el("g",{transform:`translate(${p.x},${p.y})`});
+  const d=depth.get(id)||0;
+  const node=isRoot?null:N.get(id);
+  const kids=kidsOf.get(id)||[];
+  const open=isRoot||(!node.collapsed&&kids.length>0);
+
+  if(!isRoot){
+    const sel=UI.selected===id;
+    const tint=Math.min(d*0.055,0.28);
+    const r=el("rect",{x:0,y:0,width:s.w,height:s.h,rx:3,
+      fill:"var(--panel)", "fill-opacity":String(0.55+tint),
+      stroke: sel?"var(--accent)":(rel.dep.has(id)||rel.use.has(id))?"var(--accent-soft)":"var(--rule)",
+      "stroke-width": sel?2:1});
+    r.style.cursor="pointer";
+    r.addEventListener("pointerdown",ev=>{ev.stopPropagation();});
+    r.addEventListener("click",ev=>{ev.stopPropagation(); onPanelClick(id,ev);});
+    r.addEventListener("dblclick",ev=>{ev.stopPropagation(); toggleCollapse(id);});
+    g.appendChild(r);
+
+    const t=el("text",{x:11,y:open?18:s.h/2+4.5,class:"pname"});
+    t.textContent=node.name; t.style.pointerEvents="none";
+    g.appendChild(t);
+
+    const kt=el("text",{x:s.w-11,y:open?18:s.h/2+4.5,class:"pkind","text-anchor":"end"});
+    kt.textContent=node.kind; kt.style.pointerEvents="none";
+    g.appendChild(kt);
+
+    if(open) g.appendChild(el("line",{x1:0,y1:K.HEAD-4,x2:s.w,y2:K.HEAD-4,
+      stroke:"var(--rule-soft)","stroke-width":1}));
+
+    if(node.collapsed&&kids.length){
+      const c=el("text",{x:11,y:s.h-8,class:"pcount"});
+      c.textContent="⊞ "+countInside(id); c.style.pointerEvents="none";
+      g.appendChild(c);
+    }
+  }
+
+  if(open&&UI.showEdges){
+    for(const e of edgesOf.get(id)||[]){
+      if(!POS.has(e.from)||!POS.has(e.to)) continue;
+      g.appendChild(drawEdge(e,rel));
+    }
+  }
+  if(open) for(const k of kids) g.appendChild(drawPanel(k,rel));
+  return g;
+}
+
+function countInside(id){
+  let n=0;
+  (function w(x){ for(const k of kidsOf.get(x)||[]){ n++; w(k); } })(id);
+  return n;
+}
+
+function drawEdge(e,rel){
+  const a=POS.get(e.from), sa=SIZE.get(e.from);
+  const b=POS.get(e.to), sb=SIZE.get(e.to);
+  const x1=a.x, y1=a.y+sa.h/2;
+  const x2=b.x+sb.w, y2=b.y+sb.h/2;
+  const dx=Math.max(22,(x1-x2)*0.45);
+  const g=el("g");
+  const hot=UI.selected&&(e.from===UI.selected||e.to===UI.selected||
+            ((rel.dep.has(e.from)||e.from===UI.selected)&&rel.dep.has(e.to)));
+  const col=hot?"var(--accent)":"var(--rule)";
+  g.appendChild(el("path",{
+    d:`M${x1},${y1} C${x1-dx},${y1} ${x2+dx},${y2} ${x2},${y2}`,
+    fill:"none", stroke:col, "stroke-width":hot?1.6:1,
+    "stroke-opacity":hot?1:0.65,
+    "stroke-dasharray":e.direct?"":"1 3"
+  }));
+  for(const [px,py] of [[x1,y1],[x2,y2]]){
+    g.appendChild(el("rect",{x:px-1.5,y:py-5,width:3,height:10,fill:col,
+      "fill-opacity":hot?1:0.8}));
+  }
+  return g;
+}
+
+/* ─────────────────────────── inspector ─────────────────────────── */
+
+const insp=document.getElementById("inspector");
+
+function drawInspector(){
+  if(!UI.selected){
+    insp.innerHTML=`<h2>Nothing selected</h2>
+      <p class="empty">Pick a panel to edit it, or add a new one.</p>
+      <div class="note">
+        <b>How placement works.</b> A panel sits inside the innermost panel that
+        every path to it must pass through. Give something a second, unrelated
+        user and it moves outward on its own — you never place a panel by hand.
+        <br><br>
+        <b>Edges.</b> Solid means this panel depends on that one directly.
+        Dotted means something nested inside does, shown at the level where the
+        two become siblings. Ports mark where a dependency leaves a wall.
+        <br><br>
+        <b>Keys.</b> Double-click folds a panel. Scroll or pinch to zoom, drag to pan.
+        <br><br>
+        <b>Saving.</b> The program is kept in this browser as you edit. Export writes it to a JSON file; Import reads one back.
+      </div>`;
+    return;
+  }
+  const n=N.get(UI.selected);
+  const home=parent.get(n.id)===ROOT?"the root space":N.get(parent.get(n.id)).name;
+  const users=[...N.values()].filter(m=>m.deps.has(n.id));
+
+  insp.innerHTML=`
+    <h2>Panel</h2>
+    <div class="field"><label for="nm">Name</label>
+      <input type="text" id="nm" value="${esc(n.name)}"></div>
+    <div class="field"><label for="kd">Kind</label>
+      <select id="kd">${KINDS.map(k=>`<option ${k===n.kind?"selected":""}>${k}</option>`).join("")}</select></div>
+    <div class="field"><label>Lives in</label>
+      <div class="where">${esc(home)}</div></div>
+    <div class="field"><label>Depends on</label>
+      ${n.deps.size?`<ul class="deps">${[...n.deps].map(d=>
+        `<li><span>${esc(N.get(d).name)}</span><button data-un="${d}">unlink</button></li>`).join("")}</ul>`
+        :`<p class="empty">Nothing. This is a primitive.</p>`}
+    </div>
+    <div class="field"><label for="ad">Add a dependency</label>
+      <select id="ad"><option value="">choose a panel…</option>
+      ${[...N.values()].filter(m=>m.id!==n.id&&!n.deps.has(m.id)&&!reaches(m.id,n.id))
+        .map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Used by</label>
+      <div class="where">${users.length?users.map(u=>esc(u.name)).join(", "):"nothing yet — it's a top-level result"}</div></div>
+    <div class="row">
+      <button id="fold">${n.collapsed?"Unfold":"Fold"}</button>
+      <button id="del" class="danger">Delete</button>
+    </div>`;
+
+  insp.querySelector("#nm").addEventListener("input",ev=>{ n.name=ev.target.value||"unnamed"; render(); insp.querySelector("#nm").focus(); });
+  insp.querySelector("#kd").addEventListener("change",ev=>{ n.kind=ev.target.value; render(); });
+  insp.querySelectorAll("[data-un]").forEach(b=>b.addEventListener("click",()=>{ n.deps.delete(b.dataset.un); render(); }));
+  insp.querySelector("#ad").addEventListener("change",ev=>{ if(ev.target.value){ link(n.id,ev.target.value); } });
+  insp.querySelector("#fold").addEventListener("click",()=>toggleCollapse(n.id));
+  insp.querySelector("#del").addEventListener("click",()=>{
+    N.delete(n.id); for(const m of N.values()) m.deps.delete(n.id);
+    UI.selected=null; render();
+  });
+}
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ─────────────────────────── interaction ─────────────────────────── */
+
+function onPanelClick(id,ev){
+  if(ev.shiftKey&&UI.selected&&UI.selected!==id){ link(UI.selected,id); return; }
+  UI.selected=id; render();
+}
+function link(from,to){
+  if(reaches(to,from)){ flash(`${N.get(from).name} already feeds ${N.get(to).name} — that would close a loop.`); render(); return; }
+  N.get(from).deps.add(to);
+  render();
+}
+function toggleCollapse(id){ N.get(id).collapsed=!N.get(id).collapsed; render(); }
+
+let flashT;
+function flash(msg){
+  const f=document.getElementById("flash");
+  f.textContent=msg; f.classList.add("show");
+  clearTimeout(flashT); flashT=setTimeout(()=>f.classList.remove("show"),2600);
+}
+
+document.getElementById("addBtn").addEventListener("click",()=>{
+  const id="p"+(++uid)+"_"+Math.random().toString(36).slice(2,6);
+  add(id,"panel"+uid,"space",[]);
+  UI.selected=id; render();
+  const nm=insp.querySelector("#nm"); if(nm){ nm.focus(); nm.select(); }
+});
+document.getElementById("edgeBtn").addEventListener("click",ev=>{
+  UI.showEdges=!UI.showEdges; ev.target.classList.toggle("on",UI.showEdges); render();
+});
+document.getElementById("fitBtn").addEventListener("click",fit);
+document.getElementById("resetBtn").addEventListener("click",()=>{
+  if(!confirm("Replace the current program with the example?")) return;
+  seed(); UI.selected=null; render(); fit();
+});
+document.getElementById("exportBtn").addEventListener("click",()=>{
+  const blob=new Blob([serialize()],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="panels.json"; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+});
+const importFile=document.getElementById("importFile");
+document.getElementById("importBtn").addEventListener("click",()=>importFile.click());
+importFile.addEventListener("change",()=>{
+  const f=importFile.files[0]; if(!f) return;
+  f.text().then(t=>{ loadProgram(t); UI.selected=null; render(); fit(); })
+          .catch(()=>flash("That file isn't a panels program."));
+  importFile.value="";
+});
+document.getElementById("themeBtn").addEventListener("click",ev=>{
+  const cur=document.documentElement.getAttribute("data-theme");
+  const dark=cur? cur==="dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.setAttribute("data-theme",dark?"light":"dark");
+  ev.target.textContent=dark?"Dark":"Light";
+});
+
+const stage=document.getElementById("stage");
+stage.addEventListener("click",()=>{ if(stageMoved){ stageMoved=false; return; } if(UI.selected){ UI.selected=null; render(); } });
+let stageMoved=false;
+
+let drag=null, pinch=null;
+const pointers=new Map();
+function applyView(){ world.setAttribute("transform",`translate(${UI.tx},${UI.ty}) scale(${UI.scale})`); }
+function zoomAt(mx,my,f){
+  const ns=Math.min(3,Math.max(0.12,UI.scale*f));
+  UI.tx=mx-(mx-UI.tx)*(ns/UI.scale);
+  UI.ty=my-(my-UI.ty)*(ns/UI.scale);
+  UI.scale=ns; applyView();
+}
+stage.addEventListener("pointerdown",ev=>{
+  pointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
+  stage.setPointerCapture(ev.pointerId);
+  if(pointers.size===2){
+    const [a,b]=[...pointers.values()];
+    pinch={d:Math.hypot(a.x-b.x,a.y-b.y)}; drag=null; return;
+  }
+  drag={x:ev.clientX,y:ev.clientY,tx:UI.tx,ty:UI.ty,moved:false};
+  stage.classList.add("dragging");
+});
+stage.addEventListener("pointermove",ev=>{
+  if(!pointers.has(ev.pointerId)) return;
+  pointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
+  if(pinch&&pointers.size===2){
+    const [a,b]=[...pointers.values()];
+    const d=Math.hypot(a.x-b.x,a.y-b.y);
+    const r=stage.getBoundingClientRect();
+    zoomAt((a.x+b.x)/2-r.left,(a.y+b.y)/2-r.top,d/pinch.d);
+    pinch.d=d; return;
+  }
+  if(!drag) return;
+  UI.tx=drag.tx+(ev.clientX-drag.x); UI.ty=drag.ty+(ev.clientY-drag.y);
+  if(Math.abs(ev.clientX-drag.x)+Math.abs(ev.clientY-drag.y)>3) drag.moved=true;
+  applyView();
+});
+function endPointer(ev){
+  pointers.delete(ev.pointerId);
+  if(pointers.size<2) pinch=null;
+  if(pointers.size===0){ stageMoved=!!(drag&&drag.moved); drag=null; stage.classList.remove("dragging"); }
+}
+stage.addEventListener("pointerup",endPointer);
+stage.addEventListener("pointercancel",endPointer);
+stage.addEventListener("wheel",ev=>{
+  ev.preventDefault();
+  const r=stage.getBoundingClientRect();
+  const mx=ev.clientX-r.left, my=ev.clientY-r.top;
+  zoomAt(mx,my,Math.exp(-ev.deltaY*0.0016));
+},{passive:false});
+
+function fit(){
+  const s=SIZE.get(ROOT); if(!s) return;
+  const r=stage.getBoundingClientRect();
+  UI.scale=Math.min((r.width-40)/s.w,(r.height-40)/s.h,1.6);
+  UI.tx=(r.width-s.w*UI.scale)/2;
+  UI.ty=(r.height-s.h*UI.scale)/2;
+  world.setAttribute("transform",`translate(${UI.tx},${UI.ty}) scale(${UI.scale})`);
+}
+
+document.addEventListener("keydown",ev=>{
+  if(ev.target.tagName==="INPUT"||ev.target.tagName==="SELECT") return;
+  if(ev.key==="Escape"){ UI.selected=null; render(); }
+  if(ev.key==="Backspace"&&UI.selected){
+    const n=N.get(UI.selected); N.delete(n.id);
+    for(const m of N.values()) m.deps.delete(n.id);
+    UI.selected=null; render();
+  }
+});
+
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>{render();fit();});
+render(); fit();
+</script>
+</body>
+</html>
