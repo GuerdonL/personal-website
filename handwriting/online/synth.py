@@ -10,12 +10,11 @@ import argparse, json, math, random
 def glyph(ch, rng):
     """A deterministic polyline per character, as a list of strokes in a 1×1 box."""
     r = random.Random(ord(ch) * 7919)        # deterministic across processes (hash() is not)
-    n_strokes = 1 + (ord(ch) % 2)
-    strokes = []
-    for s in range(n_strokes):
-        k = 4 + (ord(ch) * (s + 3)) % 5
-        pts = [[r.random(), r.random()] for _ in range(k)]
-        strokes.append(pts)
+    # one stroke of 3–5 points on a 3×3 grid (distinct, letter-like shapes); a second short stroke for some
+    grid = [(x / 2, y / 2) for y in range(3) for x in range(3)]
+    k = 3 + ord(ch) % 3
+    strokes = [[list(p) for p in r.sample(grid, k)]]
+    if ord(ch) % 3 == 0: strokes.append([list(p) for p in r.sample(grid, 2)])
     return strokes
 
 def line(text, rng):
@@ -24,7 +23,7 @@ def line(text, rng):
         if ch == ' ': x += 0.7; continue
         w = 0.5 + 0.2 * rng.random()
         for st in glyph(ch, rng):
-            pts = [[x + px * w + rng.gauss(0, 0.01), py + rng.gauss(0, 0.01), 0.5] for px, py in st]
+            pts = [[x + px * w + rng.gauss(0, 0.02), py * 0.8 + 0.1 + rng.gauss(0, 0.02), 0.5] for px, py in st]
             strokes.append({'t0': t, 'pts': pts}); t += 100
         x += w + 0.12
     return {'text': text, 'strokes': strokes}

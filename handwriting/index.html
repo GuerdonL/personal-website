@@ -70,6 +70,8 @@
       <option value="Xenova/trocr-small-handwritten">TrOCR small (≈80 MB)</option>
       <option value="Xenova/trocr-base-handwritten">TrOCR base (≈350 MB, better)</option>
       <option value="GuerdonL/trocr-guerdon">mine (fine-tuned, from the hub)</option>
+      <option value="online:GuerdonL/trocr-guerdon/online/personal">online · mine (stroke model, ≈7 MB)</option>
+      <option value="online:GuerdonL/trocr-guerdon/online/general">online · general (IAM-OnDB)</option>
       <option value="__custom">custom…</option>
     </select>
     <button class="btn" id="bLoad">Load</button>
@@ -504,6 +506,11 @@ async function wordAlternatives(L, w, want = 5) {
   const take = (t, n = 1) => { t = cleanText(t); if (!t || t === cur) return; if (!count.has(t)) { count.set(t, 0); order.push(t); } count.set(t, count.get(t) + n); };
   // the punctuation fix first when it applies: it is right far more often than any re-read
   if (/[.,;:!?]$/.test(cur)) take(cur.replace(/[.,;:!?]+$/, ''), 1000);
+  if (isOnline()) {                                                                        // stroke model: read the word's ink alone (greedy); sampling comes with the beam search phase
+    try { const m = wordMembers(L, w).slice().sort((a, b) => a.s.t0 - b.s.t0).map(o => ({ pts: o.rp.map(p => ({ x: p.x, y: p.y })) })); const r = await onlineRecognize(m); take(r.text, 10); } catch (e) { stat('stMsg', 'online re-read failed: ' + (e.message || e)); }
+    for (const v of ruleVariants(cur)) take(v, 0.5);
+    return order.sort((a, b) => count.get(b) - count.get(a));
+  }
   const p = window.HW_PIPE || await ensureModel(); const url = c.toDataURL('image/png');   // HW_PIPE: test hook
   const withTimeout = (pr, ms) => Promise.race([pr, new Promise((_, rej) => setTimeout(() => rej(new Error('model call timed out')), ms))]);
   const one = async (opts, label) => {
@@ -549,9 +556,37 @@ async function ensureModel() {
   } catch (e) { stat('stModel', 'failed'); stat('stMsg', 'model load failed: ' + (e.message || e)); throw e; }
   finally { loading = false; }
 }
+/* ---- the online (stroke) recognizer: online/worker.js + online/ink.js, model from the hub ---- */
+const isOnline = () => settings.model.startsWith('online:');
+let onlineWorker = null, onlineLoaded = null, onlineLoading = null, onlineSeq = 0; const onlinePending = new Map();
+function ensureOnline() {
+  if (onlineLoaded === settings.model) return Promise.resolve();
+  if (onlineLoading && onlineLoading.model === settings.model) return onlineLoading.p;
+  const base = 'https://huggingface.co/' + settings.model.slice(7).replace(/\/online\/(\w+)$/, '/resolve/main/online/$1');
+  stat('stModel', 'loading…'); $('prog').firstElementChild.style.width = '30%';
+  if (!onlineWorker) {
+    onlineWorker = new Worker('online/worker.js', { type: 'module' });
+    onlineWorker.onmessage = e => { const m = e.data; const h = onlinePending.get(m.id); if (m.type === 'loaded') onlinePending.get('load')?.res(m); else if (h) { onlinePending.delete(m.id); m.type === 'error' ? h.rej(new Error(m.error)) : h.res(m); } else if (m.type === 'error') onlinePending.get('load')?.rej(new Error(m.error)); };
+    onlineWorker.onerror = e => { stat('stMsg', 'worker error: ' + e.message); onlinePending.get('load')?.rej(new Error(e.message)); };
+  }
+  const model = settings.model;
+  const p = new Promise((res, rej) => { onlinePending.set('load', { res, rej }); onlineWorker.postMessage({ type: 'load', url: base + '.onnx', vocabUrl: base + '.onnx.json' }); })
+    .then(m => { onlineLoaded = model; loadedModel = model; stat('stModel', model.split('/').pop() + ' · online · wasm · ' + Math.round(m.ms) + ' ms'); $('prog').firstElementChild.style.width = '100%'; onlinePending.delete('load'); modelInfoOnline(base); })
+    .catch(e => { stat('stModel', 'failed'); stat('stMsg', 'online model load failed: ' + (e.message || e)); onlinePending.delete('load'); throw e; })
+    .finally(() => { onlineLoading = null; });
+  onlineLoading = { model, p }; return p;
+}
+async function modelInfoOnline(base) { try { const r = await fetch(base + '.report.json', { cache: 'no-store' }); if (!r.ok) return; const j = await r.json(); const cer = j.after && j.after.eval_cer; stat('stModel', $('stModel').textContent + (j.trained ? ' · trained ' + new Date(j.trained).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '') + (cer != null ? ` · CER ${(100 * cer).toFixed(1)}%` : '')); } catch {} }
+function onlineRecognize(strokes, logprobs = false) {
+  return ensureOnline().then(() => new Promise((res, rej) => { const id = ++onlineSeq; onlinePending.set(id, { res, rej }); onlineWorker.postMessage({ type: 'recognize', id, strokes, logprobs }); }));
+}
+// the ink of one line, in writing order, in the line's rotated frame
+const lineInk = L => L.members.slice().sort((a, b) => a.s.t0 - b.s.t0).map(o => ({ pts: o.rp.map(p => ({ x: p.x, y: p.y })) }));
+
 async function recognizeLine(L, chunk) {
   const c = rasterizeLine(L);
   if (window.HW_MOCK) return window.HW_MOCK(L, chunk, c);
+  if (isOnline()) { L.crop = c.toDataURL('image/png'); const r = await onlineRecognize(lineInk(L)); stat('stMsg', `online: ${Math.round(r.ms)} ms`); return cleanText(r.text); }
   const p = await ensureModel();
   const url = c.toDataURL('image/png'); L.crop = url;
   const out = await p(url, { max_new_tokens: 48, no_repeat_ngram_size: 3, repetition_penalty: 1.3 });
@@ -876,7 +911,7 @@ if (syncCfg.url) stat('stSync', 'configured');
    ========================================================================= */
 $('bRec').onclick = async () => { await recognizeAll(false); await autosaveAll(); };
 $('bReread').onclick = () => { closeWordEditor(false); recog = null; renderSide(); render(); recognizeAll(); };
-$('bLoad').onclick = () => ensureModel().catch(() => {});
+$('bLoad').onclick = () => (isOnline() ? ensureOnline() : ensureModel()).catch(() => {});
 function syncModelSelect() { const sel = $('model'); if (![...sel.options].some(o => o.value === settings.model)) { const o = document.createElement('option'); o.value = settings.model; o.textContent = settings.model + ' (custom)'; sel.insertBefore(o, sel.lastElementChild); } sel.value = settings.model; }
 syncModelSelect();
 $('model').onchange = e => {
