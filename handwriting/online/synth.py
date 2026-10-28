@@ -9,7 +9,7 @@ import argparse, json, math, random
 
 def glyph(ch, rng):
     """A deterministic polyline per character, as a list of strokes in a 1×1 box."""
-    r = random.Random(hash(ch) & 0xffff)
+    r = random.Random(ord(ch) * 7919)        # deterministic across processes (hash() is not)
     n_strokes = 1 + (ord(ch) % 2)
     strokes = []
     for s in range(n_strokes):
