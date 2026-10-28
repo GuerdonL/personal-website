@@ -1,2 +1,5 @@
 /index.html
 __pycache__/
+panels/target/
+panels/pkg/
+panels/web/pkg/
