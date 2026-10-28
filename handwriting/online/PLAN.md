@@ -39,10 +39,10 @@ readings. Every phase ends with a number (CER / latency) before the next starts.
 
 ## Status
 
-- [ ] 0 feasibility scripts
+- [x] 0 feasibility scripts — synthetic alphabet: 0.2 % CER by epoch 20; ONNX matches torch to 1e-5; browser path 129 ms/line on CPU
 - [ ] 1 IAM-OnDB → general model
 - [ ] 2 personal model
-- [ ] 3 browser
+- [~] 3 browser — worker + menu entry done; latency on the iPad still to measure
 - [ ] 4 context
 - [ ] 5 symbols
 - [ ] 6 loop & /notes
