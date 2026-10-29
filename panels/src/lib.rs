@@ -25,7 +25,7 @@ pub fn greeting() -> String {
     ] {
         let line = match m.load(&p, root).map(|_| m.run(1_000)) {
             Ok(Progress::Done) => format!(
-                "{{••• ••}} = {}  ({name}, {} steps)",
+                "{{••• ••}} = {} ({name}, {} steps)",
                 m.result().expect("done"),
                 m.view().steps
             ),
