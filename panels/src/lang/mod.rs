@@ -9,9 +9,11 @@
 pub mod chemistry;
 pub mod conformance;
 pub mod machine;
+pub mod machines;
 pub mod term;
 pub mod value;
 
 pub use machine::{LoadError, Machine, MachineView, Progress, RunError};
+pub use machines::{Cek, Walker};
 pub use term::{Node, NodeId, Program};
 pub use value::Value;
