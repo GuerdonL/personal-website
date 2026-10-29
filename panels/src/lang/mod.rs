@@ -13,7 +13,8 @@ pub mod machines;
 pub mod term;
 pub mod value;
 
+pub use chemistry::{Reaction, Settled};
 pub use machine::{LoadError, Machine, MachineView, Progress, RunError};
 pub use machines::{Cek, Walker};
 pub use term::{Node, NodeId, Program};
-pub use value::Value;
+pub use value::{Closure, Value};

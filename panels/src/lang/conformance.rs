@@ -5,7 +5,7 @@
 //! Every case is a plain function so it can also be run outside the test
 //! harness (for example from the page, against a machine compiled to wasm).
 
-use super::chemistry;
+use super::chemistry::{self, Settled};
 use super::machine::{LoadError, Machine, Progress};
 use super::term::{NodeId, Program};
 use super::value::Value;
@@ -172,7 +172,10 @@ pub fn machine_agrees_with_chemistry<M: Machine + Default>() {
         .iter()
         .map(|c| view.settled.get(c).expect("every child settled").clone())
         .collect();
-    assert_eq!(m.result(), Some(&chemistry::settle(kids)));
+    assert_eq!(
+        chemistry::settle(kids),
+        Settled::Value(m.result().unwrap().clone())
+    );
 }
 
 // ───────────────────────────────── sharing ──────────────────────────────────
@@ -317,6 +320,179 @@ pub fn reload_resets<M: Machine + Default>() {
     assert_eq!(m.result(), Some(&Value::Add(1)));
 }
 
+// ───────────────────────────────── binders ──────────────────────────────────
+
+/// `λ{x̂}` — the identity.
+pub fn identity(p: &mut Program) -> NodeId {
+    let x = p.hole(0);
+    p.binder([x])
+}
+
+/// `λ{• x̂}` — increment, written by hand.
+pub fn increment(p: &mut Program) -> NodeId {
+    let x = p.hole(0);
+    let d = p.dot();
+    p.binder([x, d])
+}
+
+/// `λ{λ{ŷ {x̂}}}` — the curried pair constructor.
+pub fn pair(p: &mut Program) -> NodeId {
+    let x = p.hole(0);
+    let inner_panel = p.panel([x]);
+    let y = p.hole(1);
+    let inner = p.binder([y, inner_panel]);
+    p.binder([inner])
+}
+
+pub fn closure_is_a_value<M: Machine + Default>() {
+    let mut p = Program::new();
+    let root = identity(&mut p);
+    let v = eval::<M>(&p, root);
+    assert!(matches!(v, Value::Closure(_)), "{v}");
+    assert!(v.is_transformer());
+}
+
+pub fn identity_applies<M: Machine + Default>() {
+    let mut p = Program::new();
+    let id = identity(&mut p);
+    let five = p.num(5);
+    let root = p.panel([five, id]);
+    assert_eq!(eval::<M>(&p, root), Value::Num(5));
+}
+
+pub fn increment_by_hand<M: Machine + Default>() {
+    let mut p = Program::new();
+    let inc = increment(&mut p);
+    let five = p.num(5);
+    let root = p.panel([five, inc]);
+    assert_eq!(eval::<M>(&p, root), Value::Num(6));
+}
+
+pub fn argument_used_twice<M: Machine + Default>() {
+    let mut p = Program::new();
+    let x1 = p.hole(0);
+    let x2 = p.hole(0);
+    let dup = p.binder([x1, x2]);
+    let five = p.num(5);
+    let root = p.panel([five, dup]);
+    assert_eq!(
+        eval::<M>(&p, root),
+        Value::bag(vec![Value::Num(5), Value::Num(5)])
+    );
+}
+
+pub fn curried_pair<M: Machine + Default>() {
+    // {4 {3 pair}} = Bag[3, 4]: the outer binder takes 3, the inner takes 4.
+    let mut p = Program::new();
+    let pr = pair(&mut p);
+    let three = p.num(3);
+    let partial = p.panel([three, pr]);
+    let four = p.num(4);
+    let root = p.panel([four, partial]);
+    assert_eq!(
+        eval::<M>(&p, root),
+        Value::bag(vec![Value::Num(3), Value::Num(4)])
+    );
+}
+
+pub fn partial_application_is_a_closure<M: Machine + Default>() {
+    let mut p = Program::new();
+    let pr = pair(&mut p);
+    let three = p.num(3);
+    let root = p.panel([three, pr]);
+    match eval::<M>(&p, root) {
+        Value::Closure(c) => assert_eq!(c.env, vec![Value::Num(3)]),
+        v => panic!("expected closure, got {v}"),
+    }
+}
+
+pub fn closure_takes_a_bag<M: Machine + Default>() {
+    let mut p = Program::new();
+    let id = identity(&mut p);
+    let list = list_108(&mut p);
+    let root = p.panel([id, list]);
+    assert_eq!(
+        eval::<M>(&p, root),
+        Value::bag(vec![
+            Value::Num(1),
+            Value::bag(vec![Value::Num(0), Value::Num(8)]),
+        ])
+    );
+}
+
+pub fn closures_do_not_meet<M: Machine + Default>() {
+    let mut p = Program::new();
+    let a = identity(&mut p);
+    let b = identity(&mut p);
+    let root = p.panel([a, b]);
+    match eval::<M>(&p, root) {
+        Value::Bag(items) => {
+            assert_eq!(items.len(), 2);
+            assert!(items.iter().all(|v| matches!(v, Value::Closure(_))));
+        }
+        v => panic!("expected a bag of two closures, got {v}"),
+    }
+}
+
+pub fn shared_binder_applied_twice<M: Machine + Default>() {
+    let mut p = Program::new();
+    let inc = increment(&mut p);
+    let five = p.num(5);
+    let seven = p.num(7);
+    let a = p.panel([five, inc]);
+    let b = p.panel([seven, inc]);
+    let root = p.panel([a, b]);
+    assert_eq!(
+        eval::<M>(&p, root),
+        Value::bag(vec![Value::Num(6), Value::Num(8)])
+    );
+}
+
+pub fn closed_subnode_of_open_body_is_memoised<M: Machine + Default>() {
+    // λ{x̂ {•••}}: the {•••} inside the body is closed and must be settled
+    // and reported, while the body itself (open) must not be.
+    let mut p = Program::new();
+    let x = p.hole(0);
+    let three = p.dots(3);
+    let body_panel = p.panel([x, three]);
+    let f = p.binder([body_panel]);
+    let two = p.num(2);
+    let root = p.panel([two, f]);
+    let mut m = M::default();
+    m.load(&p, root).unwrap();
+    assert_eq!(m.run(FUEL), Progress::Done);
+    assert_eq!(m.result(), Some(&Value::Num(5)));
+    let view = m.view();
+    assert_eq!(view.settled.get(&three), Some(&Value::Add(3)));
+    assert!(
+        !view.settled.contains_key(&body_panel),
+        "open node must not be settled"
+    );
+    assert!(!view.settled.contains_key(&x), "a hole must not be settled");
+}
+
+pub fn binder_order_is_not_meaning<M: Machine + Default>() {
+    let mut p = Program::new();
+    let pr = pair(&mut p);
+    let inc = increment(&mut p);
+    let three = p.num(3);
+    let partial = p.panel([three, pr]);
+    let four = p.num(4);
+    let pr_applied = p.panel([four, partial]);
+    let five = p.num(5);
+    let inc_applied = p.panel([five, inc, inc]); // two closures + datum: stuck
+    let root = p.panel([pr_applied, inc_applied]);
+    let expected = eval::<M>(&p, root);
+    let reversed = p.shuffled(|k| k.reverse());
+    assert_eq!(eval::<M>(&reversed, root), expected);
+    let rotated = p.shuffled(|k| {
+        if !k.is_empty() {
+            k.rotate_left(1)
+        }
+    });
+    assert_eq!(eval::<M>(&rotated, root), expected);
+}
+
 // ──────────────────────────────── rejection ─────────────────────────────────
 
 pub fn rejects_cycle<M: Machine + Default>() {
@@ -346,6 +522,19 @@ pub fn rejects_dangling<M: Machine + Default>() {
     let root = p.panel([NodeId(99)]);
     let mut m = M::default();
     assert!(matches!(m.load(&p, root), Err(LoadError::Dangling(_, _))));
+}
+
+pub fn rejects_unbound_hole<M: Machine + Default>() {
+    let mut p = Program::new();
+    let x = p.hole(0);
+    let root = p.panel([x]);
+    let mut m = M::default();
+    assert_eq!(m.load(&p, root), Err(LoadError::UnboundHole(1)));
+    // Escaping by two: a hole at depth 1 under a single binder.
+    let mut q = Program::new();
+    let y = q.hole(1);
+    let f = q.binder([y]);
+    assert_eq!(m.load(&q, f), Err(LoadError::UnboundHole(1)));
 }
 
 pub fn rejects_missing_root<M: Machine + Default>() {
@@ -392,7 +581,20 @@ macro_rules! conformance_tests {
             // determinism
             case!(deterministic);
             case!(reload_resets);
+            // binders
+            case!(closure_is_a_value);
+            case!(identity_applies);
+            case!(increment_by_hand);
+            case!(argument_used_twice);
+            case!(curried_pair);
+            case!(partial_application_is_a_closure);
+            case!(closure_takes_a_bag);
+            case!(closures_do_not_meet);
+            case!(shared_binder_applied_twice);
+            case!(closed_subnode_of_open_body_is_memoised);
+            case!(binder_order_is_not_meaning);
             // rejection
+            case!(rejects_unbound_hole);
             case!(rejects_cycle);
             case!(rejects_self_loop);
             case!(rejects_dangling);

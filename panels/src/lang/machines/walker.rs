@@ -1,22 +1,25 @@
 //! Bottom-up evaluation in a precomputed post-order.
 //!
-//! `load` lists every node reachable from the root with children before
-//! parents; each `step` settles the next node in that list by looking up its
-//! children's already-settled values. A shared node is settled once. This is
-//! the simplest strategy that honours the contract, and it is deliberately
-//! unlike [`super::Cek`]: no stack, no demand, nothing to animate.
+//! `load` lists every **closed** node reachable from the root with children
+//! before parents; each `step` settles the next one. A closed node's closed
+//! children are already settled and are looked up; its open children (binder
+//! bodies with holes) are evaluated on the spot, recursively, under an
+//! environment. A shared node is settled once. This is the simplest strategy
+//! that honours the contract, and it is deliberately unlike [`super::Cek`]:
+//! no stack, no demand, nothing to animate.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
-use crate::lang::chemistry::settle;
+use crate::lang::chemistry::{settle, Settled};
 use crate::lang::machine::{LoadError, Machine, MachineView, Progress, RunError};
 use crate::lang::term::{Node, NodeId, Program};
-use crate::lang::value::Value;
+use crate::lang::value::{Closure, Value};
 
 #[derive(Debug, Default)]
 pub struct Walker {
     program: Option<Program>,
     root: Option<NodeId>,
+    free: HashMap<NodeId, u32>,
     order: Vec<NodeId>,
     next: usize,
     settled: BTreeMap<NodeId, Value>,
@@ -24,7 +27,10 @@ pub struct Walker {
 }
 
 impl Walker {
-    fn post_order(program: &Program, root: NodeId) -> Vec<NodeId> {
+    /// Post-order over every node reachable from `root`, emitting only the
+    /// closed ones. Open nodes are walked through — a closed node inside a
+    /// binder body still has a value of its own — but never listed.
+    fn post_order(program: &Program, root: NodeId, free: &HashMap<NodeId, u32>) -> Vec<NodeId> {
         let mut out = Vec::new();
         let mut done: HashSet<NodeId> = HashSet::new();
         let mut stack: Vec<(NodeId, usize)> = vec![(root, 0)];
@@ -41,7 +47,9 @@ impl Walker {
                 stack.pop();
                 open.remove(&id);
                 done.insert(id);
-                out.push(id);
+                if free.get(&id).copied().unwrap_or(0) == 0 {
+                    out.push(id);
+                }
             }
         }
         out
@@ -56,12 +64,62 @@ impl Walker {
             Progress::Running
         }
     }
+
+    /// Evaluate `id` under `env` (innermost binder last). Closed nodes come
+    /// from the memo when present; everything else is computed here.
+    fn eval(&self, id: NodeId, env: &[Value]) -> Result<Value, RunError> {
+        if let Some(v) = self.settled.get(&id) {
+            return Ok(v.clone());
+        }
+        let program = self.program.as_ref().ok_or(RunError::NotLoaded)?;
+        match program.get(id) {
+            Some(Node::Dot) => Ok(Value::Add(1)),
+            Some(Node::Num(n)) => Ok(Value::Num(*n)),
+            Some(Node::Hole(d)) => env
+                .iter()
+                .rev()
+                .nth(*d as usize)
+                .cloned()
+                .ok_or_else(|| RunError::Internal(format!("unbound hole {d} at {id}"))),
+            Some(Node::Binder(_)) => Ok(Value::Closure(Closure::capture(
+                id,
+                env,
+                self.free.get(&id).copied().unwrap_or(0),
+            ))),
+            Some(Node::Panel(kids)) => {
+                let vals = kids
+                    .iter()
+                    .map(|&k| self.eval(k, env))
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.finish(settle(vals))
+            }
+            None => Err(RunError::Internal(format!("missing node {id}"))),
+        }
+    }
+
+    /// Run whatever `settle` asked for, to a value.
+    fn finish(&self, s: Settled) -> Result<Value, RunError> {
+        match s {
+            Settled::Value(v) => Ok(v),
+            Settled::Apply { closure, arg } => {
+                let env = closure.extended(arg);
+                let program = self.program.as_ref().ok_or(RunError::NotLoaded)?;
+                let vals = program
+                    .children(closure.body)
+                    .iter()
+                    .map(|&k| self.eval(k, &env))
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.finish(settle(vals))
+            }
+        }
+    }
 }
 
 impl Machine for Walker {
     fn load(&mut self, program: &Program, root: NodeId) -> Result<(), LoadError> {
         Self::validate(program, root)?;
-        self.order = Self::post_order(program, root);
+        self.free = program.free_depths(root);
+        self.order = Self::post_order(program, root, &self.free);
         self.program = Some(program.clone());
         self.root = Some(root);
         self.next = 0;
@@ -71,24 +129,19 @@ impl Machine for Walker {
     }
 
     fn step(&mut self) -> Progress {
-        let Some(program) = &self.program else {
+        if self.program.is_none() {
             return Progress::Failed(RunError::NotLoaded);
-        };
+        }
         let Some(&id) = self.order.get(self.next) else {
             return Progress::Done;
         };
         self.steps += 1;
-        let value = match program.get(id) {
-            Some(Node::Dot) => Value::Add(1),
-            Some(Node::Num(n)) => Value::Num(*n),
-            Some(Node::Panel(kids)) => settle(
-                kids.iter()
-                    .map(|c| self.settled[c].clone()) // post-order guarantees presence
-                    .collect(),
-            ),
-            None => return Progress::Failed(RunError::Internal(format!("missing node {id}"))),
-        };
-        self.settled.insert(id, value);
+        match self.eval(id, &[]) {
+            Ok(v) => {
+                self.settled.insert(id, v);
+            }
+            Err(e) => return Progress::Failed(e),
+        }
         self.next += 1;
         self.status()
     }

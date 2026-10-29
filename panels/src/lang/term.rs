@@ -1,6 +1,6 @@
 //! Terms: the program graph (SPEC §2).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 /// Index into a [`Program`]'s arena.
@@ -19,6 +19,12 @@ pub enum Node {
     /// A membrane holding a multiset of children. The `Vec` order is **not**
     /// observable (SPEC §1); use [`Program::children`] and treat it as a bag.
     Panel(Vec<NodeId>),
+    /// A membrane with a port: a function of one argument (SPEC §2). Its
+    /// children are evaluated only when it meets an argument.
+    Binder(Vec<NodeId>),
+    /// A use of a bound value: the `depth`-th enclosing binder, innermost
+    /// first (a de Bruijn index).
+    Hole(u32),
     /// The additive unit: the curried function `+1`.
     Dot,
     /// A numeral literal (sugar for a right-nested chain of digits; SPEC §6.1).
@@ -63,6 +69,14 @@ impl Program {
         self.push(Node::Panel(children.into_iter().collect()))
     }
 
+    pub fn binder(&mut self, children: impl IntoIterator<Item = NodeId>) -> NodeId {
+        self.push(Node::Binder(children.into_iter().collect()))
+    }
+
+    pub fn hole(&mut self, depth: u32) -> NodeId {
+        self.push(Node::Hole(depth))
+    }
+
     /// Convenience: a panel of `n` dots.
     pub fn dots(&mut self, n: usize) -> NodeId {
         let kids: Vec<NodeId> = (0..n).map(|_| self.dot()).collect();
@@ -77,12 +91,53 @@ impl Program {
         self.nodes.get_mut(id.0 as usize)
     }
 
-    /// The children of a panel as a bag; empty for leaves.
+    /// The children of a panel or binder as a bag; empty for leaves.
     pub fn children(&self, id: NodeId) -> &[NodeId] {
         match self.get(id) {
-            Some(Node::Panel(kids)) => kids,
+            Some(Node::Panel(kids)) | Some(Node::Binder(kids)) => kids,
             _ => &[],
         }
+    }
+
+    /// How many enclosing binders a node needs: 0 means the node is
+    /// **closed** and has a value independent of context (SPEC §2).
+    /// Path-independent, so it is well defined on a DAG. Panics on cycles;
+    /// call [`Program::find_cycle`] first.
+    pub fn free_depth(&self, id: NodeId) -> u32 {
+        let mut memo: HashMap<NodeId, u32> = HashMap::new();
+        self.free_depth_memo(id, &mut memo)
+    }
+
+    fn free_depth_memo(&self, id: NodeId, memo: &mut HashMap<NodeId, u32>) -> u32 {
+        if let Some(&d) = memo.get(&id) {
+            return d;
+        }
+        let d = match self.get(id) {
+            Some(Node::Hole(d)) => d + 1,
+            Some(Node::Panel(kids)) => kids
+                .iter()
+                .map(|&k| self.free_depth_memo(k, memo))
+                .max()
+                .unwrap_or(0),
+            Some(Node::Binder(kids)) => kids
+                .iter()
+                .map(|&k| self.free_depth_memo(k, memo))
+                .max()
+                .unwrap_or(0)
+                .saturating_sub(1),
+            _ => 0,
+        };
+        memo.insert(id, d);
+        d
+    }
+
+    /// `free_depth` for every node reachable from `root`, in one pass.
+    pub fn free_depths(&self, root: NodeId) -> HashMap<NodeId, u32> {
+        let mut memo = HashMap::new();
+        for id in self.reachable(root) {
+            self.free_depth_memo(id, &mut memo);
+        }
+        memo
     }
 
     pub fn ids(&self) -> impl Iterator<Item = NodeId> {
@@ -161,7 +216,7 @@ impl Program {
     pub fn shuffled(&self, mut perm: impl FnMut(&mut Vec<NodeId>)) -> Program {
         let mut p = self.clone();
         for node in &mut p.nodes {
-            if let Node::Panel(kids) = node {
+            if let Node::Panel(kids) | Node::Binder(kids) = node {
                 perm(kids);
             }
         }

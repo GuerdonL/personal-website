@@ -41,14 +41,19 @@ mod agreement {
     fn random_program(rng: &mut Lcg, size: usize) -> (Program, NodeId) {
         let mut p = Program::new();
         for i in 0..size {
-            let node = match rng.below(10) {
+            let kids = |rng: &mut Lcg| -> Vec<NodeId> {
+                if i == 0 {
+                    return Vec::new();
+                }
+                let n = rng.below(4) as usize;
+                (0..n).map(|_| NodeId(rng.below(i as u64) as u32)).collect()
+            };
+            let node = match rng.below(12) {
                 0..=3 => Node::Dot,
                 4..=5 => Node::Num(rng.below(20) as i64 - 5),
-                _ => {
-                    let n = rng.below(4) as usize;
-                    let kids = (0..n).map(|_| NodeId(rng.below(i as u64) as u32)).collect();
-                    Node::Panel(if i == 0 { Vec::new() } else { kids })
-                }
+                6 => Node::Hole(rng.below(2) as u32),
+                7..=8 => Node::Binder(kids(rng)),
+                _ => Node::Panel(kids(rng)),
             };
             p.push(node);
         }
@@ -56,23 +61,57 @@ mod agreement {
         (p, last)
     }
 
-    fn run<M: Machine + Default>(p: &Program, root: NodeId) -> Option<(crate::lang::Value, usize)> {
+    type Settled = std::collections::BTreeMap<NodeId, crate::lang::Value>;
+
+    fn run<M: Machine + Default>(
+        p: &Program,
+        root: NodeId,
+    ) -> Option<(crate::lang::Value, Settled)> {
         let mut m = M::default();
         m.load(p, root).ok()?;
         assert_eq!(m.run(FUEL), Progress::Done);
-        Some((m.result().unwrap().clone(), m.view().settled.len()))
+        Some((m.result().unwrap().clone(), m.view().settled))
     }
 
     #[test]
     fn walker_and_cek_agree_on_random_programs() {
         let mut rng = Lcg(42);
-        for case in 0..400 {
+        let (mut loadable, mut applied) = (0, 0);
+        for case in 0..1500 {
             let size = 1 + rng.below(30) as usize;
             let (p, root) = random_program(&mut rng, size);
             let w = run::<Walker>(&p, root);
             let c = run::<Cek>(&p, root);
-            assert_eq!(w, c, "case {case}: {p:?}");
+            assert_eq!(w.is_some(), c.is_some(), "case {case}: {p:?}");
+            if let (Some((wv, ws)), Some((cv, cs))) = (&w, &c) {
+                assert_eq!(wv, cv, "case {case}: {p:?}");
+                // The walker settles every closed node; CEK settles those it
+                // touched. They must agree wherever both have an answer, and
+                // CEK must never know something the walker does not.
+                for (id, v) in cs {
+                    assert_eq!(ws.get(id), Some(v), "case {case}: node {id} in {p:?}");
+                }
+                let free = p.free_depths(root);
+                for id in ws.keys() {
+                    assert_eq!(
+                        free.get(id).copied().unwrap_or(0),
+                        0,
+                        "case {case}: open node settled"
+                    );
+                }
+            }
+            if w.is_some() {
+                loadable += 1;
+                if p.ids().any(|i| matches!(p.get(i), Some(Node::Binder(_)))) {
+                    applied += 1;
+                }
+            }
         }
+        assert!(loadable > 300, "only {loadable} loadable programs");
+        assert!(
+            applied > 100,
+            "only {applied} loadable programs with binders"
+        );
     }
 
     #[test]

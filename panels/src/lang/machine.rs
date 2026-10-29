@@ -16,6 +16,8 @@ pub enum LoadError {
     Dangling(NodeId, NodeId),
     /// The graph reachable from `root` contains a cycle through this node.
     Cycle(NodeId),
+    /// A hole escapes the root: `root` needs this many enclosing binders.
+    UnboundHole(u32),
 }
 
 impl fmt::Display for LoadError {
@@ -24,6 +26,7 @@ impl fmt::Display for LoadError {
             LoadError::NoSuchRoot(n) => write!(f, "root {n} does not exist"),
             LoadError::Dangling(p, c) => write!(f, "panel {p} refers to missing node {c}"),
             LoadError::Cycle(n) => write!(f, "cycle through {n}"),
+            LoadError::UnboundHole(d) => write!(f, "a hole escapes the root by {d}"),
         }
     }
 }
@@ -62,7 +65,8 @@ pub enum Progress {
 pub struct MachineView {
     /// The node the machine is currently working on, if any.
     pub focus: Option<NodeId>,
-    /// Nodes whose value is known, with that value (canonical).
+    /// Closed nodes whose value is known, with that value (canonical).
+    /// Open nodes (SPEC §2) never appear here.
     pub settled: BTreeMap<NodeId, Value>,
     /// Pending work, outermost first. Semantics are machine-defined but it
     /// must be non-empty while `Running` and empty once `Done`.
@@ -110,6 +114,9 @@ pub trait Machine {
         if let Some(n) = program.find_cycle(root) {
             return Err(LoadError::Cycle(n));
         }
-        Ok(())
+        match program.free_depth(root) {
+            0 => Ok(()),
+            d => Err(LoadError::UnboundHole(d)),
+        }
     }
 }

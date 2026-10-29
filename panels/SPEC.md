@@ -63,9 +63,11 @@ Defined in `src/lang/term.rs`.
 
 ```
 Program  = arena of Node, addressed by NodeId
-Node     = Panel(children: multiset<NodeId>)
-         | Dot                        -- the additive unit, a leaf
-         | Num(i64)                   -- a numeral literal, a leaf
+Node     = Panel(children: multiset<NodeId>)   -- a membrane
+         | Binder(children: multiset<NodeId>)  -- a membrane with a port: λ
+         | Hole(depth: u32)                    -- a use of a bound value, a leaf
+         | Dot                                 -- the additive unit, a leaf
+         | Num(i64)                            -- a numeral literal, a leaf
 ```
 
 - The arena is a **DAG**, not a tree: a `NodeId` may be the child of several
@@ -77,15 +79,27 @@ Node     = Panel(children: multiset<NodeId>)
 - A **dot** is the curried function `+1`. It is a leaf, it is a function, and
   it is a value; "functions are first-class" is not a feature here, it is the
   only thing there is.
+- A **binder** is a panel with a port on its wall: a function of one
+  argument. It is the only way a value gets *into* a panel that was written
+  with something missing. A binder is a value in its own right (a closure,
+  §3.1) and does not evaluate its children until it meets an argument.
+- A **hole** is a use of the argument. `Hole(d)` refers to the `d`-th
+  enclosing *binder* (not panel), innermost first — a de Bruijn index. A
+  program whose root has an unbound hole is rejected at load. Functions of
+  several arguments are nested binders, so `{x̂ {ŷ …}}` is `λx. λy. …` and
+  argument order is nesting order, per the law.
+- A node is **closed** if it contains no hole that escapes it. Only closed
+  nodes have a value independent of context, so only closed nodes may be
+  memoised by `NodeId`; an open node is evaluated per path, under an
+  environment.
 - A **numeral** is sugar. `108` *denotes* the nest `{1 {0 {8}}}` under the
   base-10 fold; v0 stores it as a leaf for convenience and does not yet expand
   it. (Open question §6.)
 
 ### 2.1 Deferred from v0
 
-Binders (a panel with a hole — a lambda with a parameter), additional dot
-families (multiplicative, imaginary), strings, explicit thunks, and any
-surface syntax. Each will be added by amending this document first.
+Additional dot families (multiplicative, imaginary), strings, explicit
+thunks, quoting (§6.6), and any surface syntax. Each will be added by amending this document first.
 
 ---
 
@@ -96,10 +110,20 @@ Defined in `src/lang/value.rs` and `src/lang/chemistry.rs`.
 ### 3.1 Values
 
 ```
-Value = Num(i64)            -- a datum
-      | Add(i64)            -- a transformer: the function  x ↦ x + n
+Value = Num(i64)                 -- a datum
+      | Add(i64)                 -- a transformer: the function  x ↦ x + n
+      | Closure(body: NodeId, env: Vec<Value>)
+                                 -- a transformer: a binder with the values of
+                                 -- its enclosing binders, innermost last
       | Bag(sorted Vec<Value>)   -- a settled multiset that would not react further
 ```
+
+A `Closure` is a transformer. `Add n` is just the closure the language
+provides for free. Equality on closures is structural: same binder node, equal
+environments. For that to be meaningful the environment is **trimmed at
+capture** to exactly the values the binder's holes can reach (its free depth,
+§2): a closed binder captures nothing, so the same function made in two
+places is the same value.
 
 `Value` has a **canonical form**: a `Bag` is kept sorted, so structural
 equality on `Value` is equality of multisets. Constructors enforce this;
@@ -111,27 +135,42 @@ and "data" are the same thing in a chemical model.
 
 ### 3.2 Reaction
 
-`react(a, b) -> Option<Value>` is the complete pairwise chemistry of v0:
+`react(a, b) -> Option<Reaction>` is the complete pairwise chemistry of v0.
+A reaction is either a finished value or *work for the machine*:
 
-| a        | b        | result        |
-|----------|----------|---------------|
-| `Add(m)` | `Add(n)` | `Add(m + n)`  |
-| `Add(n)` | `Num(x)` | `Num(x + n)`  |
-| anything else      | *no reaction* |
+```
+Reaction = Value(Value)
+         | Apply(closure: Closure, arg: Value)   -- evaluate the binder's
+                                                 -- children under env + arg,
+                                                 -- then settle them
+```
+
+| a          | b         | result                      |
+|------------|-----------|-----------------------------|
+| `Add(m)`   | `Add(n)`  | `Value(Add(m + n))`         |
+| `Add(n)`   | `Num(x)`  | `Value(Num(x + n))`         |
+| `Closure`  | any datum | `Apply(closure, datum)`     |
+| anything else          | *no reaction*               |
 
 `react` is **commutative** by construction (`react(a,b) == react(b,a)`).
+It never evaluates anything: chemistry says *what* two molecules do, the
+machine decides *when* (§0.3). `Closure` meets `Closure` and `Add` meets
+`Closure` do not react (§6.6).
 
 ### 3.3 Settling a panel
 
-`settle(molecules) -> Value` turns the evaluated children of a panel into the
-panel's value. It is defined in terms of `react` and is the *only* place where
-the shape of a whole bag matters:
+`settle(molecules) -> Settled` turns the evaluated children of a panel into
+the panel's value, or into the one application that produces it. It is
+defined in terms of `react` and is the *only* place where the shape of a whole
+bag matters:
 
 1. **Coalesce transformers.** While any two transformers react, replace them
    with their product. This is associative and commutative, so the result is
    unique.
 2. **Apply.** If exactly one transformer and exactly one datum remain and they
-   react, the result is their reaction. If there are several data, nothing
+   react, the result is their reaction — a value, or an `Apply` the machine
+   must now run; the application's result *is* the panel's value (which may
+   itself be a closure: that is currying). If there are several data, nothing
    applies — the bag is stuck as it stands. (This rule is what makes settling
    confluent: a transformer never has to choose a victim.)
 3. **Unwrap.** If exactly one molecule remains, it *is* the panel's value.
@@ -148,6 +187,18 @@ Examples (`•` is a dot):
 {• {• •}}          = Add 3           -- inner settles to Add 2, then coalesces
 {1 {0 {8}}}        = Bag[Num 1, Bag[Num 0, Num 8]]   -- data; nothing reacts
 {• 1 2}            = Bag[Add 1, Num 1, Num 2]        -- ambiguous, so stuck
+```
+
+With binders (`x̂` is `Hole 0`, `ŷ` is `Hole 1`, `λ{…}` is a binder):
+
+```
+λ{x̂}                 = Closure                   -- a value; nothing runs
+{5 λ{x̂}}             = Num 5                     -- identity
+{5 λ{• x̂}}           = Num 6                     -- the function x ↦ x + 1, by hand
+{5 λ{x̂ x̂}}           = Bag[Num 5, Num 5]         -- one argument, used twice
+{4 {3 λ{λ{ŷ {x̂}}}}}  = Bag[Num 3, Num 4]         -- curried pair: outer binds 3
+{λ{x̂} {1 {0 {8}}}}   = Bag[Num 1, Bag[Num 0, Num 8]]   -- a closure takes a bag
+{λ{x̂} λ{x̂}}          = Bag[Closure, Closure]     -- stuck: closures do not meet
 ```
 
 Note that `{•••} {••}` as siblings gives `Add 5`, not 6: two additive
@@ -193,6 +244,15 @@ pub trait Machine {
   `MachineView`.
 - `result` is `Some` iff the last `Progress` was `Done`, and then equals
   `view().settled[root]`.
+- `settled` holds **closed** nodes only (§2). An open node has no value of
+  its own, and a machine must not report one for it. A machine must report
+  every closed node whose value it has computed (so the root, once `Done`),
+  and may report any other closed node; two machines may therefore differ in
+  *which* closed nodes they list, never in the values.
+- Every machine must terminate for every valid v0 program. This holds
+  because closures cannot be applied to closures (§3.2), so there is no
+  self-application and hence no non-terminating term; §6.6 will have to
+  revisit it.
 
 The contract deliberately says nothing about *how* a machine reduces. The v0
 implementations will be (a) a recursive tree-walker, which is the trivial
@@ -221,8 +281,12 @@ Categories:
   resumed; `result()` is `None` until `Done`.
 - **Determinism** — loading and running the same program twice gives equal
   results and equal step counts.
+- **Binders** — every example in §3.3; a shared binder applied in two
+  places; order independence over a program with binders; closed sub-nodes
+  of an open binder body are still memoised.
 - **Rejection** — a cyclic program fails `load` with `LoadError::Cycle`; a
-  dangling id fails with `LoadError::Dangling`.
+  dangling id fails with `LoadError::Dangling`; a hole that escapes the root
+  fails with `LoadError::UnboundHole`.
 
 ---
 
@@ -237,13 +301,20 @@ Recorded so they are decided deliberately, not by accident of implementation.
    of cells (as Lisp prints `(1 0 8)`, not the cons cells). This is a renderer
    concern and must not leak into the data model, but the model should make
    the chain cheap to detect.
-3. **Binders.** A panel with a hole is a lambda. Does the hole get filled by
-   the molecule that *meets* the panel (chemistry), or by a distinguished
-   nested argument (structure)? The first is more in the spirit of the law.
+3. **Binders** — *decided*: filled by the molecule that meets the panel,
+   with de Bruijn holes (§2). A distinguished argument slot was rejected
+   because it would make `{1 {0 {8}}}` an application. Point-free
+   combinators remain a possible *lowering* of binders, not a surface.
 4. **Multiple transformer families.** When additive and multiplicative dots
    share a panel, do they coalesce within family only (stuck as a bag of two
    transformers) or is there a cross-family rule (distributivity)? Must be
    settled with a confluence proof, not a test.
-5. **Bags as arguments.** `Add n` currently does not react with a `Bag`.
-   Mapping over data is the first thing users will want; it should probably be
-   a primitive, not an implicit rule.
+5. **Bags as arguments.** `Add n` does not react with a `Bag`; a `Closure`
+   takes one whole. Mapping over data is the first thing users will want; it
+   should be a primitive, not an implicit rule.
+6. **Higher-order application.** Two closures in a bag do not react, because
+   neither is a datum and a transformer never chooses a victim. So a function
+   cannot yet be *passed* to another. The likely answer is a quote: a leaf
+   that turns a transformer into a datum, with an unquote primitive. This
+   also reintroduces self-application and therefore non-termination, so it
+   must come with the fuel story for the page.

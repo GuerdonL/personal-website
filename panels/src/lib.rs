@@ -16,23 +16,30 @@ pub fn greeting() -> String {
     let mut p = Program::new();
     let a = p.dots(3);
     let b = p.dots(2);
-    let root = p.panel([a, b]);
+    let sum = p.panel([a, b]);
+    let x = p.hole(0);
+    let d = p.dot();
+    let inc = p.binder([x, d]);
+    let five = p.num(5);
+    let applied = p.panel([five, inc]);
 
     let mut lines = vec!["hi wasm".to_string()];
-    for (name, mut m) in [
-        ("walker", Box::new(Walker::default()) as Box<dyn Machine>),
-        ("cek", Box::new(Cek::default())),
-    ] {
-        let line = match m.load(&p, root).map(|_| m.run(1_000)) {
-            Ok(Progress::Done) => format!(
-                "{{••• ••}} = {} ({name}, {} steps)",
-                m.result().expect("done"),
-                m.view().steps
-            ),
-            Ok(other) => format!("{name}: {other:?}"),
-            Err(e) => format!("{name}: {e}"),
-        };
-        lines.push(line);
+    for (text, root) in [("{••• ••}", sum), ("{5 λ{• x̂}}", applied)] {
+        for (name, mut m) in [
+            ("walker", Box::new(Walker::default()) as Box<dyn Machine>),
+            ("cek", Box::new(Cek::default())),
+        ] {
+            let line = match m.load(&p, root).map(|_| m.run(1_000)) {
+                Ok(Progress::Done) => format!(
+                    "{text} = {} ({name}, {} steps)",
+                    m.result().expect("done"),
+                    m.view().steps
+                ),
+                Ok(other) => format!("{name}: {other:?}"),
+                Err(e) => format!("{name}: {e}"),
+            };
+            lines.push(line);
+        }
     }
     lines.join("\n")
 }
@@ -59,7 +66,9 @@ mod tests {
     fn greets() {
         let g = super::greeting();
         assert!(g.starts_with("hi wasm\n"), "{g}");
-        assert!(g.contains("= +5 (walker, 8 steps)"), "{g}");
-        assert!(g.contains("= +5 (cek,"), "{g}");
+        assert!(g.contains("{••• ••} = +5 (walker,"), "{g}");
+        assert!(g.contains("{••• ••} = +5 (cek,"), "{g}");
+        assert!(g.contains("{5 λ{• x̂}} = 6 (walker,"), "{g}");
+        assert!(g.contains("{5 λ{• x̂}} = 6 (cek,"), "{g}");
     }
 }
