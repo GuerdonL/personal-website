@@ -3,9 +3,15 @@
 A visual functional programming language. The core is Rust; the page at
 `/panels` is that core compiled to WebAssembly.
 
+Read `SPEC.md` first: it is the contract everything here is written against.
+
 ## Layout
 
-- `src/lib.rs` — the crate. `core` is pure Rust (run `cargo test`); the
+- `SPEC.md` — the language specification. Change it before changing code.
+- `src/lang/` — the core: `term` (program graph), `value`, `chemistry`
+  (reaction rules), `machine` (the evaluator trait), `conformance` (the
+  executable spec, instantiated per evaluator with `conformance_tests!`).
+- `src/lib.rs` — the crate root and the wasm entry. `core` is pure Rust (run `cargo test`); the
   `#[wasm_bindgen(start)]` entry binds it to the page.
 - `web/index.html` — the page shell. It imports `./pkg/panels.js`, which the
   build generates; `pkg/` is not committed.
