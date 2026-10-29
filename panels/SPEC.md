@@ -103,6 +103,13 @@ thunks, quoting (§6.6), and any surface syntax. Each will be added by amending 
 
 ---
 
+### 2.2 Notation
+
+`src/lang/text.rs` is a way to write a program down; it is not the language.
+`{…}` is a panel, `λ{…}` a binder, `•` a dot, `x̂ ŷ ẑ` (or `^0 ^1 ^2`) holes,
+digits a numeral, and `name = expr;` defines a node that later mentions share.
+Sibling order in the text means nothing. This document uses it from here on.
+
 ## 3. Values and chemistry
 
 Defined in `src/lang/value.rs` and `src/lang/chemistry.rs`.

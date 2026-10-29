@@ -493,6 +493,38 @@ pub fn binder_order_is_not_meaning<M: Machine + Default>() {
     assert_eq!(eval::<M>(&rotated, root), expected);
 }
 
+// ──────────────────────────── the spec's table ──────────────────────────────
+
+/// Every example in SPEC §3.3, as written there. Expected values are given
+/// as programs whose settled form is the expected value, so the table stays
+/// in one notation.
+pub const SPEC_TABLE: &[(&str, &str)] = &[
+    ("{}", "{}"),
+    ("{•}", "•"),
+    ("{• • •}", "{•••}"),
+    ("{5 • •}", "7"),
+    ("{• {• •}}", "{•••}"),
+    ("{1 {0 {8}}}", "{1 {0 8}}"),
+    ("{• 1 2}", "{• 1 2}"),
+    ("{{•••} {••}}", "{•••••}"),
+    ("{5 λ{x̂}}", "5"),
+    ("{5 λ{• x̂}}", "6"),
+    ("{5 λ{x̂ x̂}}", "{5 5}"),
+    ("{4 {3 λ{λ{ŷ {x̂}}}}}", "{3 4}"),
+    ("{λ{x̂} {1 {0 {8}}}}", "{1 {0 8}}"),
+];
+
+pub fn spec_table<M: Machine + Default>() {
+    for (src, expected_src) in SPEC_TABLE {
+        let (p, root) = super::text::parse(src).unwrap_or_else(|e| panic!("{src}: {e}"));
+        let (q, qroot) =
+            super::text::parse(expected_src).unwrap_or_else(|e| panic!("{expected_src}: {e}"));
+        let got = eval::<M>(&p, root);
+        let want = eval::<M>(&q, qroot);
+        assert_eq!(got, want, "{src} should settle like {expected_src}");
+    }
+}
+
 // ──────────────────────────────── rejection ─────────────────────────────────
 
 pub fn rejects_cycle<M: Machine + Default>() {
@@ -593,6 +625,8 @@ macro_rules! conformance_tests {
             case!(shared_binder_applied_twice);
             case!(closed_subnode_of_open_body_is_memoised);
             case!(binder_order_is_not_meaning);
+            // the spec's table
+            case!(spec_table);
             // rejection
             case!(rejects_unbound_hole);
             case!(rejects_cycle);

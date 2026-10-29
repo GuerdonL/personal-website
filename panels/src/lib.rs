@@ -8,23 +8,20 @@ pub mod lang;
 
 use wasm_bindgen::prelude::*;
 
-use lang::{Cek, Machine, Program, Progress, Walker};
+use lang::{Cek, Machine, Progress, Walker};
 
 /// What the page says while the core has nothing else to say yet: hello,
 /// and the spec's `{{••• ••}}` example evaluated by both machines.
 pub fn greeting() -> String {
-    let mut p = Program::new();
-    let a = p.dots(3);
-    let b = p.dots(2);
-    let sum = p.panel([a, b]);
-    let x = p.hole(0);
-    let d = p.dot();
-    let inc = p.binder([x, d]);
-    let five = p.num(5);
-    let applied = p.panel([five, inc]);
-
     let mut lines = vec!["hi wasm".to_string()];
-    for (text, root) in [("{••• ••}", sum), ("{5 λ{• x̂}}", applied)] {
+    for text in ["{{•••} {••}}", "{5 λ{• x̂}}", "{4 {3 λ{λ{ŷ {x̂}}}}}"] {
+        let (p, root) = match lang::parse(text) {
+            Ok(x) => x,
+            Err(e) => {
+                lines.push(format!("{text}: {e}"));
+                continue;
+            }
+        };
         for (name, mut m) in [
             ("walker", Box::new(Walker::default()) as Box<dyn Machine>),
             ("cek", Box::new(Cek::default())),
@@ -66,9 +63,10 @@ mod tests {
     fn greets() {
         let g = super::greeting();
         assert!(g.starts_with("hi wasm\n"), "{g}");
-        assert!(g.contains("{••• ••} = +5 (walker,"), "{g}");
-        assert!(g.contains("{••• ••} = +5 (cek,"), "{g}");
+        assert!(g.contains("{{•••} {••}} = +5 (walker,"), "{g}");
+        assert!(g.contains("{{•••} {••}} = +5 (cek,"), "{g}");
         assert!(g.contains("{5 λ{• x̂}} = 6 (walker,"), "{g}");
         assert!(g.contains("{5 λ{• x̂}} = 6 (cek,"), "{g}");
+        assert!(g.contains("{4 {3 λ{λ{ŷ {x̂}}}}} = {3 4} (cek,"), "{g}");
     }
 }
