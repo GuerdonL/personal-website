@@ -4,31 +4,281 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Panels</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <style>
-  :root { --bg: #f9f8f6; --ink: #141414; --faint: #8a8a85; }
-  @media (prefers-color-scheme: dark) { :root { --bg: #15161a; --ink: #ebe9e4; --faint: #7d7f86; } }
-  html, body { height: 100%; margin: 0; }
-  body { background: var(--bg); color: var(--ink); font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
-         display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
-  #stage { flex: 1; display: grid; place-items: center; text-align: center; white-space: pre-line; font-size: clamp(18px, 3vw, 28px); font-weight: 500; letter-spacing: -0.01em; line-height: 1.6; font-variant-numeric: tabular-nums; }
-  #stage::first-line { font-size: 1.8em; font-weight: 600; }
-  #stage.err { font-size: 15px; font-weight: 400; color: #c0392b; white-space: pre-wrap; padding: 24px; text-align: center; }
-  footer { padding: 10px 16px; font-size: 12.5px; color: var(--faint); }
-  footer a { color: inherit; }
+:root {
+  --paper: #f6f7f9;
+  --well: #eceef2;
+  --ink: #1b1f24;
+  --ink-2: #5b6470;
+  --ink-3: #9aa3ad;
+  --rule: #d5d9e0;
+  --membrane: #2f6fd6;
+  --membrane-fill: rgba(47,111,214,.05);
+  --port: #2f6fd6;
+  --now: #e8a317;
+  --now-fill: rgba(232,163,23,.14);
+  --pending-fill: rgba(232,163,23,.05);
+  --danger: #b4452f;
+  --font: "Atkinson Hyperlegible", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #16181c; --well: #1e2126; --ink: #e9ebee; --ink-2: #a3aab4; --ink-3: #6c747e;
+    --rule: #2d3239; --membrane: #6f9ef0; --membrane-fill: rgba(111,158,240,.07); --port: #6f9ef0;
+    --now: #f0b53a; --now-fill: rgba(240,181,58,.16); --pending-fill: rgba(240,181,58,.06); --danger: #e0735c;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--paper); color: var(--ink); font: 15px/1.45 var(--font);
+  display: grid; grid-template-columns: 300px 1fr; grid-template-rows: 1fr auto; height: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+@media (max-width: 760px) {
+  body { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
+}
+
+/* ── left column: notation and controls ── */
+aside { border-right: 1px solid var(--rule); padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: auto; }
+@media (max-width: 760px) { aside { border-right: 0; border-bottom: 1px solid var(--rule); } }
+h1 { font-size: 18px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+h1 a { color: inherit; text-decoration: none; }
+h1 span { color: var(--membrane); }
+.lede { color: var(--ink-2); font-size: 13.5px; margin: 0; }
+textarea {
+  width: 100%; min-height: 110px; resize: vertical; font: 16px/1.5 var(--font);
+  color: var(--ink); background: var(--well); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px;
+}
+textarea:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--membrane); outline-offset: 1px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+button, select {
+  font: 14px var(--font); color: var(--ink); background: var(--paper); border: 1px solid var(--rule);
+  border-radius: 7px; padding: 6px 12px; cursor: pointer;
+}
+button:hover, select:hover { border-color: var(--membrane); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+button.primary:hover { border-color: var(--ink); }
+.examples { display: flex; flex-direction: column; gap: 4px; }
+.examples button { text-align: left; background: transparent; border-color: transparent; padding: 4px 8px; color: var(--ink-2); font-size: 14px; }
+.examples button:hover { color: var(--ink); background: var(--well); }
+.error { color: var(--danger); font-size: 13.5px; white-space: pre-wrap; }
+.legend { font-size: 13px; color: var(--ink-2); line-height: 1.6; margin-top: auto; }
+.legend p { margin: 0 0 6px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; border: 1.5px solid var(--membrane); }
+.legend i.now { border-color: var(--now); background: var(--now-fill); }
+.legend i.done { border-style: solid; border-color: var(--rule); }
+
+/* ── stage: the program as nested membranes ── */
+main { padding: 32px; overflow: auto; min-height: 0; display: flex; align-items: flex-start; font-size: 20px; }
+.node { position: relative; }
+.panel, .binder {
+  display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 22px 20px 20px; margin: 5px;
+  border: 1.8px solid var(--membrane); border-radius: 14px; background: var(--membrane-fill);
+  min-width: 56px; min-height: 56px; transition: border-color .15s, background-color .15s, box-shadow .15s;
+}
+.binder { border-radius: 12px 12px 12px 4px; }
+.binder::before { /* the port on the wall */
+  content: ""; position: absolute; left: -6px; top: 50%; width: 10px; height: 10px; margin-top: -5px;
+  border-radius: 50%; background: var(--paper); border: 1.6px solid var(--port);
+}
+.node.pending > .panel, .node.pending > .binder { background: var(--pending-fill); }
+.node.now > .panel, .node.now > .binder { border-color: var(--now); background: var(--now-fill); box-shadow: 0 0 0 3px var(--now-fill); }
+.node.done > .panel, .node.done > .binder { border-color: var(--rule); }
+.val {
+  position: absolute; top: -10px; left: 14px; padding: 0 6px; font-size: 13.5px; font-weight: 700;
+  background: var(--paper); color: var(--ink-2); border-radius: 4px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.node.now > .val { color: var(--now); }
+.dot, .num, .hole { display: inline-flex; align-items: center; justify-content: center; margin: 2px; transition: box-shadow .15s, opacity .15s; }
+.dot { width: 18px; height: 18px; border-radius: 50%; background: var(--ink); }
+.num { font-size: 22px; font-weight: 700; padding: 0 2px; min-width: 14px; }
+.hole { font-size: 22px; font-style: italic; color: var(--membrane); padding: 0 2px; }
+.node.now > .dot { box-shadow: 0 0 0 4px var(--now-fill), 0 0 0 1.5px var(--now); }
+.node.now > .num, .node.now > .hole { box-shadow: 0 0 0 3px var(--now-fill); border-radius: 4px; }
+.node.done > .dot, .node.done > .num { opacity: .7; }
+.root > .panel { border-width: 2px; }
+.empty { color: var(--ink-3); font-style: italic; }
+
+/* ── bottom: the stack and the result ── */
+footer {
+  grid-column: 1 / -1; border-top: 1px solid var(--rule); padding: 10px 16px;
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap; font-size: 13.5px; min-height: 46px;
+}
+footer .label { color: var(--ink-3); }
+.stack { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.stack span { border: 1.4px solid var(--membrane); border-radius: 6px; padding: 1px 8px; font-size: 13px; }
+.stack span.top { border-color: var(--now); background: var(--now-fill); }
+.stack span.arrow { border: 0; padding: 0; color: var(--ink-3); }
+.result { margin-left: auto; font-weight: 700; }
+.result em { font-style: normal; color: var(--ink-3); font-weight: 400; margin-left: 10px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
-  <div id="stage">loading wasm…</div>
-  <footer><a href="/">guerdon</a> · panels · rust → wasm</footer>
-  <script type="module">
-    import init from "./pkg/panels.js";
-    try {
-      await init();           // wasm-bindgen's #[wasm_bindgen(start)] runs inside init()
-    } catch (e) {
-      const s = document.getElementById("stage");
-      s.className = "err";
-      s.textContent = "wasm failed to load: " + (e && e.message ? e.message : e);
+
+<aside>
+  <h1><a href="/">panels</a><span>{}</span></h1>
+  <p class="lede">A panel holds a bag of things. Dots add. A binder <span style="color:var(--membrane)">λ</span> waits for whatever it meets. Watch the machine settle it, one step at a time.</p>
+  <textarea id="src" spellcheck="false">{5 λ{• x̂}}</textarea>
+  <div class="row">
+    <button id="load" class="primary">Load</button>
+    <select id="machine" title="Which evaluator to watch">
+      <option value="cek">CEK machine</option>
+      <option value="walker">bottom-up walker</option>
+    </select>
+  </div>
+  <div class="row">
+    <button id="step">Step</button>
+    <button id="play">Play</button>
+    <button id="finish">Finish</button>
+    <button id="reset">Reset</button>
+  </div>
+  <div class="error" id="error"></div>
+  <div class="examples" id="examples"></div>
+  <div class="legend">
+    <p><i class="now"></i>where the machine is now</p>
+    <p><i></i>still to settle &nbsp; <i class="done"></i>settled, value on the wall</p>
+    <p>Notation: <b>{…}</b> panel, <b>λ{…}</b> binder, <b>•</b> dot, <b>x̂ ŷ</b> holes, <b>name = …;</b> to share.</p>
+  </div>
+</aside>
+
+<main id="stage"><span class="empty">loading wasm…</span></main>
+
+<footer>
+  <span class="label" id="stepcount">0 steps</span>
+  <span class="label" id="pendinglabel">stack</span>
+  <div class="stack" id="stack"></div>
+  <div class="result" id="result"></div>
+</footer>
+
+<script type="module">
+import init, { Session } from "./pkg/panels.js";
+
+const EXAMPLES = [
+  ["three dots", "{• • •}"],
+  ["dots meet a number", "{5 • •}"],
+  ["dots coalesce through walls", "{• {• •}}"],
+  ["a list, which is just data", "{1 {0 {8}}}"],
+  ["increment, by hand", "{5 λ{• x̂}}"],
+  ["one argument, used twice", "{5 λ{x̂ x̂}}"],
+  ["curried pair", "{4 {3 λ{λ{ŷ {x̂}}}}}"],
+  ["a shared function, applied thrice", "inc = λ{• x̂};\n{{1 inc} {{2 inc} {{3 inc}}}}"],
+  ["ambiguous, so stuck", "{• 1 2}"],
+];
+
+const $ = id => document.getElementById(id);
+const stage = $("stage"), src = $("src"), err = $("error");
+let session = null, timer = null;
+
+function load() {
+  stop();
+  err.textContent = "";
+  try {
+    session = new Session(src.value, $("machine").value);
+  } catch (e) {
+    session = null;
+    err.textContent = String(e);
+    stage.innerHTML = '<span class="empty">fix the notation and load again</span>';
+    $("stack").textContent = ""; $("result").textContent = ""; $("stepcount").textContent = "0 steps";
+    return;
+  }
+  render();
+}
+
+function render() {
+  if (!session) return;
+  const v = JSON.parse(session.view());
+  const byId = new Map(v.nodes.map(n => [n.id, n]));
+  const pending = new Set(v.pending);
+  const top = v.pending.length ? v.pending[v.pending.length - 1] : null;
+
+  const build = (id, isRoot) => {
+    const n = byId.get(id);
+    const wrap = document.createElement("div");
+    wrap.className = "node";
+    if (isRoot) wrap.classList.add("root");
+    if (v.focus === id) wrap.classList.add("now");
+    else if (pending.has(id)) wrap.classList.add("pending");
+    else if (id in v.settled) wrap.classList.add("done");
+    let el;
+    switch (n.kind) {
+      case "panel": case "binder":
+        el = document.createElement("div"); el.className = n.kind;
+        if (!n.children.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "empty"; el.appendChild(e); }
+        for (const c of n.children) el.appendChild(build(c, false));
+        break;
+      case "dot": el = document.createElement("span"); el.className = "dot"; el.title = "+1"; break;
+      case "num": el = document.createElement("span"); el.className = "num"; el.textContent = n.num; break;
+      case "hole": el = document.createElement("span"); el.className = "hole"; el.textContent = ["x̂","ŷ","ẑ"][n.depth] ?? ("^" + n.depth); break;
     }
-  </script>
+    wrap.appendChild(el);
+    if ((n.kind === "panel" || n.kind === "binder") && id in v.settled) {
+      const val = document.createElement("span"); val.className = "val"; val.textContent = v.settled[id]; val.title = v.settled[id];
+      wrap.appendChild(val);
+    }
+    return wrap;
+  };
+  stage.replaceChildren(build(v.root, true));
+
+  $("stepcount").textContent = v.steps + (v.steps === 1 ? " step" : " steps");
+  $("pendinglabel").textContent = v.machine === "cek" ? "stack" : "still to settle";
+  const stack = $("stack"); stack.replaceChildren();
+  if (!v.pending.length) { const s = document.createElement("span"); s.className = "arrow"; s.textContent = v.progress === "done" ? "empty — done" : "empty"; stack.appendChild(s); }
+  v.pending.forEach((id, i) => {
+    if (i) { const a = document.createElement("span"); a.className = "arrow"; a.textContent = "›"; stack.appendChild(a); }
+    const s = document.createElement("span"); const n = byId.get(id);
+    s.textContent = n.kind === "panel" ? "{…}" : n.kind === "binder" ? "λ{…}" : n.kind === "dot" ? "•" : n.kind === "num" ? n.num : "hole";
+    if (id === top) s.classList.add("top");
+    stack.appendChild(s);
+  });
+  const res = $("result");
+  if (v.progress === "done") res.innerHTML = `= ${esc(v.result)} <em>${esc(v.machine)}</em>`;
+  else if (v.progress.startsWith("failed")) { res.textContent = v.progress; res.style.color = "var(--danger)"; }
+  else { res.textContent = ""; res.style.color = ""; }
+
+  const done = v.progress !== "running";
+  $("step").disabled = done; $("play").disabled = done; $("finish").disabled = done;
+  if (done) stop();
+}
+const esc = s => String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+function stop() { if (timer) { clearInterval(timer); timer = null; } $("play").textContent = "Play"; }
+$("load").addEventListener("click", load);
+$("machine").addEventListener("change", load);
+$("step").addEventListener("click", () => { if (session) { session.step(); render(); } });
+$("finish").addEventListener("click", () => { if (session) { session.run(100000); render(); } });
+$("reset").addEventListener("click", () => { if (session) { stop(); session.reset(); render(); } });
+$("play").addEventListener("click", () => {
+  if (!session) return;
+  if (timer) { stop(); return; }
+  $("play").textContent = "Pause";
+  timer = setInterval(() => { session.step(); render(); }, 420);
+});
+src.addEventListener("keydown", e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") load(); });
+document.addEventListener("keydown", e => {
+  if (e.target === src) return;
+  if (e.key === " " || e.key === "ArrowRight") { e.preventDefault(); $("step").click(); }
+});
+
+const ex = $("examples");
+for (const [name, text] of EXAMPLES) {
+  const b = document.createElement("button"); b.textContent = name;
+  b.addEventListener("click", () => { src.value = text; load(); });
+  ex.appendChild(b);
+}
+
+try {
+  await init();
+  load();
+} catch (e) {
+  stage.innerHTML = `<span class="error">wasm failed to load: ${esc(e && e.message ? e.message : e)}</span>`;
+}
+</script>
 </body>
 </html>

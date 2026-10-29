@@ -5,6 +5,7 @@
 //! binds the crate to the page at /panels.
 
 pub mod lang;
+pub mod session;
 
 use wasm_bindgen::prelude::*;
 
@@ -42,19 +43,17 @@ pub fn greeting() -> String {
 }
 
 /// Entry point: runs automatically when the wasm module is instantiated.
+/// The page drives everything else through [`session::Session`].
 #[wasm_bindgen(start)]
-pub fn start() -> Result<(), JsValue> {
+pub fn start() {
     console_error_panic_hook::set_once();
-
-    let window = web_sys::window().ok_or("no window")?;
-    let document = window.document().ok_or("no document")?;
-    let stage = document
-        .get_element_by_id("stage")
-        .ok_or("no #stage element on the page")?;
-
-    stage.set_text_content(Some(&greeting()));
     web_sys::console::log_1(&JsValue::from_str("panels: wasm module started"));
-    Ok(())
+}
+
+/// Exposed so the page can show it somewhere small.
+#[wasm_bindgen]
+pub fn self_test() -> String {
+    greeting()
 }
 
 #[cfg(test)]

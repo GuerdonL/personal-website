@@ -98,8 +98,8 @@ Node     = Panel(children: multiset<NodeId>)   -- a membrane
 
 ### 2.1 Deferred from v0
 
-Additional dot families (multiplicative, imaginary), strings, explicit
-thunks, quoting (§6.6), and any surface syntax. Each will be added by amending this document first.
+Additional dot families (multiplicative, imaginary), strings, and explicit
+thunks. Each will be added by amending this document first.
 
 ---
 
@@ -162,7 +162,7 @@ Reaction = Value(Value)
 `react` is **commutative** by construction (`react(a,b) == react(b,a)`).
 It never evaluates anything: chemistry says *what* two molecules do, the
 machine decides *when* (§0.3). `Closure` meets `Closure` and `Add` meets
-`Closure` do not react (§6.6).
+`Closure` do not react: functions do not flow (§6.6).
 
 ### 3.3 Settling a panel
 
@@ -257,9 +257,8 @@ pub trait Machine {
   and may report any other closed node; two machines may therefore differ in
   *which* closed nodes they list, never in the values.
 - Every machine must terminate for every valid v0 program. This holds
-  because closures cannot be applied to closures (§3.2), so there is no
-  self-application and hence no non-terminating term; §6.6 will have to
-  revisit it.
+  because closures cannot be applied to closures (§3.2, §6.6), so there is
+  no self-application and hence no non-terminating term.
 
 The contract deliberately says nothing about *how* a machine reduces. The v0
 implementations will be (a) a recursive tree-walker, which is the trivial
@@ -319,9 +318,15 @@ Recorded so they are decided deliberately, not by accident of implementation.
 5. **Bags as arguments.** `Add n` does not react with a `Bag`; a `Closure`
    takes one whole. Mapping over data is the first thing users will want; it
    should be a primitive, not an implicit rule.
-6. **Higher-order application.** Two closures in a bag do not react, because
-   neither is a datum and a transformer never chooses a victim. So a function
-   cannot yet be *passed* to another. The likely answer is a quote: a leaf
-   that turns a transformer into a datum, with an unquote primitive. This
-   also reintroduces self-application and therefore non-termination, so it
-   must come with the fuel story for the page.
+6. **Functions do not flow** — *decided*. Two closures in a bag do not
+   react, because neither is a datum and a transformer never chooses a
+   victim; and nothing is added to make them. A closure applies to data and
+   is never itself an argument. Where a textual language passes `f` to
+   `map`, a panels program puts `f` inside each element's panel and shares
+   the one definition: `{{1 f} {{2 f} {{3 f}}}}`. The function sits where
+   its argument is, which is what "all computation happens in the leaves"
+   means. Consequences: no `twice f`, no `fold op`, no hole ever holds a
+   closure, no self-application, and every program terminates. If
+   abstracting over *which* function ever becomes necessary, the escape is
+   still nesting (a membrane that does not dissolve around a closure), as
+   an amendment here first.
